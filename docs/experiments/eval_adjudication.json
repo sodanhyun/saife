@@ -1,0 +1,60 @@
+[
+ {"image": "H-220930_A35_N-04_001_0001.jpg", "set": "FALL-1", "axis": "FALL",
+  "finding": "개구부 덮개 미설치", "verdict": "ADOPT",
+  "reason": "바닥 사각 개구부가 덮개·난간 없이 완전히 열려 있다. 서술과 사진이 일치"},
+
+ {"image": "H-220707_A32_N-02_001_0001.jpg", "set": "FALL-2", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "ADOPT",
+  "reason": "시스템비계 중단 작업발판의 외측 단부가 개방됨. 수평재는 있으나 발판 높이의 상부·중간난간대가 없다"},
+
+ {"image": "human-accident_jam_rgb_2031_cctv3_16.png", "set": "CAUGHT-1", "axis": "PPE",
+  "finding": "안전모 미착용", "verdict": "ADOPT",
+  "reason": "주황 조끼 작업자가 허리를 숙이고 있어 머리가 그대로 보이고 안전모 쉘이 없다. 게이트 CAUGHT-5와 같은 시퀀스의 다른 프레임이며 판정도 동일"},
+ {"image": "human-accident_jam_rgb_2031_cctv3_16.png", "set": "CAUGHT-1", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "REJECT",
+  "reason": "CCTV 부감이라 계단 좌측 단부에 검은 캐비닛이 겹쳐 개방 여부를 확정할 수 없다. 우측 핸드레일만 확인된다. 애매한 건은 반려로 센다"},
+
+ {"image": "H-220930_B13_N-17_001_0001.jpg", "set": "DROP-1", "axis": "DROP",
+  "finding": "적재 불량", "verdict": "ADOPT",
+  "reason": "사다리차 운반 대차 위 판넬 더미에 결속 벨트가 전혀 보이지 않는다. 대차 전체가 프레임 안에 있어 부재 확정 가능"},
+ {"image": "H-220930_B13_N-17_001_0001.jpg", "set": "DROP-1", "axis": "STRUCK",
+  "finding": "유도 표식·구획선 미설치", "verdict": "ADOPT",
+  "reason": "양중 구역 바닥이 좌우로 전부 보이고 라바콘·테이프가 없다. 흰 선은 주차 구획이지 작업 구획이 아니다"},
+
+ {"image": "H-220706_B16_N-12_003_0001.jpg", "set": "DROP-3", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "ADOPT",
+  "reason": "작업자가 선 발판의 외측 단부가 완전히 개방됨. 부감이라 발판면이 다 보인다"},
+ {"image": "H-220706_B16_N-12_003_0001.jpg", "set": "DROP-3", "axis": "DROP",
+  "finding": "낙하물 방지망 미설치", "verdict": "ADOPT",
+  "reason": "비계 외측에 수직보호망이 없고 하부에 다른 작업자가 직접 서 있다. 낙하 경로가 그대로 열려 있다"},
+
+ {"image": "H-221025_B21_N-15_001_0001.jpg", "set": "DROP-4", "axis": "DROP",
+  "finding": "적재 불량", "verdict": "ADOPT",
+  "reason": "발판 가장자리에 흰 플라스틱 통이 고정 없이 놓여 있다. 위치가 '가장자리'라는 것까지 정확. 이 사진에는 수직보호망이 설치되어 있는데 모델이 '방지망 미설치'를 내지 않았다 — 음성 판정이 맞았다"},
+
+ {"image": "H-220720_D16_N-32_028_0001.jpg", "set": "FIRE-2", "axis": "PPE",
+  "finding": "보안경 미착용", "verdict": "REJECT",
+  "reason": "오탐. 5배 확대해 보면 작업자가 고개를 깊이 숙여 안전모 상면만 보이고 얼굴이 프레임에 없다. '맨눈으로 작업'이라는 근거가 사진에 존재하지 않는다"},
+
+ {"image": "H-221020_D11_N-36_002_0001.jpg", "set": "FIRE-3", "axis": "FIRE",
+  "finding": "화기 근접", "verdict": "ADOPT",
+  "reason": "토치 호스가 감긴 산소(녹색)·LPG(흰색) 용기 대차가 분홍색 XPS 단열재 적치장 바로 옆에 있다. 거리·대상 모두 일치"},
+ {"image": "H-221020_D11_N-36_002_0001.jpg", "set": "FIRE-3", "axis": "FIRE",
+  "finding": "소화기 부재", "verdict": "ADOPT",
+  "reason": "프레임 안 포장면에 소화기가 없다. 단 프레임 밖 확정 불가 문제는 게이트와 동일하게 남는다 — 판정 기준은 게이트와 같게 유지했다"},
+
+ {"image": "H-220826_D16_N-34_001_0001.jpg", "set": "FIRE-4", "axis": "FIRE",
+  "finding": "화기 근접 가연물 방치", "verdict": "ADOPT",
+  "reason": "용접 자세 정면에 분홍 단열재가 적치되어 있고 방화포·불티받이가 없다. 이 사진에는 소화기가 비치되어 있는데 모델이 '소화기 부재'를 내지 않았다 — 음성 판정이 맞았다"},
+ {"image": "H-220826_D16_N-34_001_0001.jpg", "set": "FIRE-4", "axis": "PPE",
+  "finding": "안전모 미착용", "verdict": "ADOPT",
+  "reason": "용접면과 귀덮개만 착용했고 안전모 쉘이 없다. 머리 뒤쪽이 그대로 보인다"},
+
+ {"image": "H-220620_D19_N-33_001_0001.jpg", "set": "FIRE-5", "axis": "PPE",
+  "finding": "안전모 미착용", "verdict": "ADOPT",
+  "reason": "용접면 위로 검은 머리카락이 노출됨. 안전모 없음이 확정 가능"},
+
+ {"image": "S63_DATA3_M1_L1_D2023-10-18-15-10_011_002209.jpg", "set": "PPE-1", "axis": "STRUCK",
+  "finding": "유도 표식·구획선 미설치", "verdict": "ADOPT",
+  "reason": "선박 블록 조립장 바닥 전면에 통로 구획선이 없다. 정답 라벨은 '용접마스크 착용'이고 모델이 미착용 후보를 내지 않았다 — 착용 사진 오탐 0건"}
+]

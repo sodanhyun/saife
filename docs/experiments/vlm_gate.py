@@ -7,6 +7,8 @@ VLM 선검증 게이트 — 축당 5장 = 30장.
   python vlm_gate.py --build-sets   두 세트 동결 (게이트 30 / 평가셋 30, 겹치지 않음)
   python vlm_gate.py --run          게이트 30장 판독 → gate_findings.json
   python vlm_gate.py --score        판정 기록(adjudication.json)을 읽어 축별 통과 계산
+  python vlm_gate.py --run-eval     평가셋 판독 → eval_findings.json
+  python vlm_gate.py --score-eval   평가셋 판정(eval_adjudication.json)으로 재확인
 
 세트는 한 번 만들면 다시 만들지 않는다. 재실행할 때마다 이미지가 바뀌면
 게이트가 의미를 잃는다.
@@ -28,6 +30,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))  # SAIFE/
 GATE_SET = os.path.join(HERE, "gate_set.json")
 EVAL_SET = os.path.join(HERE, "eval_set.json")
 FINDINGS = os.path.join(HERE, "gate_findings.json")
+EVAL_FINDINGS = os.path.join(HERE, "eval_findings.json")
+ADJUDICATION = os.path.join(HERE, "adjudication.json")
+EVAL_ADJUDICATION = os.path.join(HERE, "eval_adjudication.json")
 
 CONSTRUCTION = os.path.join(
     ROOT, "건설 현장 위험 상태 판단 데이터", "Sample", "01.원천데이터", "5대사고유형")
@@ -171,16 +176,21 @@ def upload(image_path):
     return {"error": "assess.done 이벤트가 오지 않았다"}
 
 
-def run():
-    """게이트 30장을 판독한다. 설비를 붙이지 않는다 — 판독 자체만 본다."""
-    gate = load(GATE_SET)
+def run(set_path=GATE_SET, out_path=FINDINGS, label="게이트"):
+    """세트를 판독한다. 설비를 붙이지 않는다 — 판독 자체만 본다.
+
+    게이트와 평가셋이 같은 코드를 지난다. 판독 경로가 달라지면 두 결과를
+    비교할 수 없다."""
+    gate = load(set_path)
     out = {}
 
     for axis in AXES:
         out[axis] = []
-        for i, item in enumerate(gate.get(axis, []), 1):
+        items = gate.get(axis, [])
+        for i, item in enumerate(items, 1):
             path = item["path"]
-            print(f"  [{axis} {i}/5] {os.path.basename(path)[:44]} ...", end=" ", flush=True)
+            print(f"  [{axis} {i}/{len(items)}] {os.path.basename(path)[:44]} ...",
+                  end=" ", flush=True)
             result = upload(path)
             if "error" in result:
                 print(f"실패: {result['error'][:60]}")
@@ -202,23 +212,26 @@ def run():
                     for c in cands],
             })
 
-    save(FINDINGS, out)
+    save(out_path, out)
     total = sum(len(v) for v in out.values())
     cands = sum(len(x.get("candidates", [])) for v in out.values() for x in v)
-    print(f"\n판독 {total}장, 후보 {cands}건 → {FINDINGS}")
+    print(f"\n{label} 판독 {total}장, 후보 {cands}건 → {out_path}")
     print("다음: 각 후보를 사진과 대조해 adjudication.json에 채택/반려/해당없음을 기록할 것")
 
 
-def score():
-    """판정 기록을 읽어 축별 통과를 계산한다. 기준은 규칙 문서 4항."""
-    adj_path = os.path.join(HERE, "adjudication.json")
+def score(adj_path=ADJUDICATION, findings_path=FINDINGS, label="게이트"):
+    """판정 기록을 읽어 축별 통과를 계산한다. 기준은 규칙 문서 4항.
+
+    평가셋도 **같은 기준**으로 센다. 평가셋에서 기준을 바꾸면 그건 재확인이
+    아니라 새 주장이다."""
     if not os.path.exists(adj_path):
         print(f"{adj_path}가 없다. 판정 기록을 먼저 만들 것.")
         sys.exit(1)
 
     adj = load(adj_path)
-    findings = load(FINDINGS)
+    findings = load(findings_path)
 
+    print(f"[{label}]")
     print(f"{'축':8} {'채택':>4} {'반려':>4} {'해당없음':>8} {'반려율':>7} {'채택된 장수':>10}  판정")
     print("-" * 72)
 
@@ -270,6 +283,10 @@ if __name__ == "__main__":
         build_sets()
     elif "--run" in sys.argv:
         run()
+    elif "--run-eval" in sys.argv:
+        run(EVAL_SET, EVAL_FINDINGS, "평가셋")
+    elif "--score-eval" in sys.argv:
+        score(EVAL_ADJUDICATION, EVAL_FINDINGS, "평가셋")
     elif "--score" in sys.argv:
         score()
     else:
