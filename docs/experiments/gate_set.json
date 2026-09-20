@@ -1,0 +1,144 @@
+{
+ "FALL": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220720_A16_N-07_001_0001.jpg",
+   "source": "건설 추락/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220831_A33_N-08_001_0001.jpg",
+   "source": "건설 추락/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220805_A26_N-03_001_0001.jpg",
+   "source": "건설 추락/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220923_A18_N-06_002_0001.jpg",
+   "source": "건설 추락/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220707_A32_N-10_001_0001.jpg",
+   "source": "건설 추락/비정상"
+  }
+ ],
+ "DROP": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-220930_B13_N-18_001_0001.jpg",
+   "source": "건설 낙하/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-220824_B16_N-14_001_0001.jpg",
+   "source": "건설 낙하/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-221018_B21_N-16_021_0061.jpg",
+   "source": "건설 낙하/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-220728_B15_N-13_001_0001.jpg",
+   "source": "건설 낙하/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-220706_B16_N-11_001_0001.jpg",
+   "source": "건설 낙하/비정상"
+  }
+ ],
+ "STRUCK": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-220907_E31_N-49_001_0001.jpg",
+   "source": "건설 전도/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-221027_E24_N-41_003_0001.jpg",
+   "source": "건설 전도/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-220927_E01_N-50_003_0001.jpg",
+   "source": "건설 전도/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-220928_E01_N-46_001_0028.jpg",
+   "source": "건설 전도/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-220908_E31_N-43_006_0001.jpg",
+   "source": "건설 전도/비정상"
+  }
+ ],
+ "FIRE": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220829_D31_N-40_001_0001.jpg",
+   "source": "건설 화재/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220825_D17_N-31_002_0001.jpg",
+   "source": "건설 화재/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220831_D17_N-38_003_0001.jpg",
+   "source": "건설 화재/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220726_D18_N-37_007_0001.jpg",
+   "source": "건설 화재/비정상"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220819_D19_N-39_001_0001.jpg",
+   "source": "건설 화재/비정상"
+  }
+ ],
+ "CAUGHT": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_0957_cctv1\\human-accident_jam_rgb_0957_cctv1_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_0957_cctv1"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_1048_cctv3\\human-accident_jam_rgb_1048_cctv3_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_1048_cctv3"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_1069_cctv4\\human-accident_jam_rgb_1069_cctv4_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_1069_cctv4"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_1892_cctv3\\human-accident_jam_rgb_1892_cctv3_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_1892_cctv3"
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_2031_cctv3\\human-accident_jam_rgb_2031_cctv3_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_2031_cctv3"
+  }
+ ],
+ "PPE": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_B0_L1_D2023-09-14-10-18_002_000163.jpg",
+   "source": "선박 안전장비",
+   "truth": "안전대 미착용",
+   "expect_finding": true
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_H0_L1_D2023-10-25-15-49_021_000213.jpg",
+   "source": "선박 안전장비",
+   "truth": "안전모 미착용",
+   "expect_finding": true
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_M0_L1_D2023-10-12-14-13_042_000013.jpg",
+   "source": "선박 안전장비",
+   "truth": "용접마스크 미착용",
+   "expect_finding": true
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_B1_L1_D2023-10-26-10-20_001_000758.jpg",
+   "source": "선박 안전장비",
+   "truth": "안전대 착용",
+   "expect_finding": false
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_H1_L1_D2023-10-25-13-45_001_002053.jpg",
+   "source": "선박 안전장비",
+   "truth": "안전모 착용",
+   "expect_finding": false
+  }
+ ]
+}

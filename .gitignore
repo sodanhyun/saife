@@ -6,6 +6,11 @@ apiKey.txt
 
 # ── 데이터셋·캐시 (리포 밖 보관 원칙이나 방어적으로 무시) ──
 /data/
+# 업로드된 현장 사진. 루트 /data/ 만 막으면 backend/data/uploads/ 가 새어 들어간다.
+# 실제로 게이트 30장이 커밋에 들어갔다 (2026-09-21).
+# AI Hub 이미지는 재배포 조건이 미확인이라 저장소에 있으면 안 된다.
+data/uploads/
+**/data/uploads/
 *.zip
 Sample/
 cache/raw/

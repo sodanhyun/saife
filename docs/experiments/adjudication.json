@@ -1,0 +1,106 @@
+[
+ {"image": "H-220720_A16_N-07_001_0001.jpg", "set": "FALL-1", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "ADOPT",
+  "reason": "중앙 이동식 비계 상부에 나무 발판이 놓여 있고 둘레에 난간이 없다. 사진에서 직접 확인됨"},
+
+ {"image": "H-220831_A33_N-08_001_0001.jpg", "set": "FALL-2", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "ADOPT",
+  "reason": "이동식 비계 위 작업자. 상부 가로대는 있으나 중간난간대가 없고 발판 단부가 개방됨. '일부 구간이 개방'이라는 서술이 정확"},
+
+ {"image": "H-220805_A26_N-03_001_0001.jpg", "set": "FALL-3", "axis": "FALL",
+  "finding": "개구부 덮개 미설치", "verdict": "ADOPT",
+  "reason": "바닥 개구부의 철제 격자가 비스듬히 얹혀 일부가 열려 있다. '덮개가 어긋나 열려 있다'는 서술이 상태를 정확히 기술"},
+
+ {"image": "H-220923_A18_N-06_002_0001.jpg", "set": "FALL-4", "axis": "DROP",
+  "finding": "낙하물 방지망 미설치", "verdict": "ADOPT",
+  "reason": "건물 상부 갱폼 외곽. 좌측에만 파란 수직보호망이 있고 나머지는 철골 프레임만 노출. '좌측 일부 구간을 제외하고'까지 일치"},
+
+ {"image": "H-220707_A32_N-10_001_0001.jpg", "set": "FALL-5", "axis": "FALL",
+  "finding": "안전대 부착설비 미설치", "verdict": "ADOPT",
+  "reason": "A형 사다리 최상단에 선 작업자. 기둥·천장에 앵커나 구명줄이 보이지 않음"},
+ {"image": "H-220707_A32_N-10_001_0001.jpg", "set": "FALL-5", "axis": "PPE",
+  "finding": "안전대 미착용", "verdict": "ADOPT",
+  "reason": "상단 작업자의 상·하체에 하네스 스트랩이 없음. 하부 보조자와 함께 확인 가능"},
+
+ {"image": "human-accident_jam_rgb_0957_cctv1_11.png", "set": "CAUGHT-1", "axis": "PPE",
+  "finding": "안전모 미착용", "verdict": "ADOPT",
+  "reason": "흰색 천 캡모자 착용. 챙이 길고 쉘이 낮아 안전모와 구분됨"},
+
+ {"image": "human-accident_jam_rgb_1048_cctv3_11.png", "set": "CAUGHT-2", "axis": "CAUGHT",
+  "finding": "회전·구동부 방호덮개 미설치", "verdict": "ADOPT",
+  "reason": "밀링 머신 가공부가 보이고 칩 비산 방지 실드가 없다. 기계 상부가 충분히 보여 부재 확인 가능"},
+ {"image": "human-accident_jam_rgb_1048_cctv3_11.png", "set": "CAUGHT-2", "axis": "STRUCK",
+  "finding": "유도 표식·구획선 미설치", "verdict": "ADOPT",
+  "reason": "회색 콘크리트 바닥에 구획선이 전혀 없음. 명백히 관찰 가능"},
+ {"image": "human-accident_jam_rgb_1048_cctv3_11.png", "set": "CAUGHT-2", "axis": "PPE",
+  "finding": "보안경 미착용", "verdict": "REJECT",
+  "reason": "CCTV 부감이라 얼굴이 너무 작다. 보안경 착용 여부를 이 해상도에서 확정할 수 없어 '사람이 맞다/틀리다를 말할 수 있다' 조건 불충족"},
+
+ {"image": "human-accident_jam_rgb_1069_cctv4_11.png", "set": "CAUGHT-3", "axis": "PPE",
+  "finding": "안전모 미착용", "verdict": "ADOPT",
+  "reason": "파란색 캡모자 착용. 색까지 서술과 일치"},
+ {"image": "human-accident_jam_rgb_1069_cctv4_11.png", "set": "CAUGHT-3", "axis": "STRUCK",
+  "finding": "유도 표식·구획선 미설치", "verdict": "ADOPT",
+  "reason": "작업장 바닥 전체에 구획선·유도 표식 없음"},
+
+ {"image": "human-accident_jam_rgb_1892_cctv3_11.png", "set": "CAUGHT-4", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "ADOPT",
+  "reason": "사출성형기 상부 체크플레이트 위에 올라간 작업자. 그 평면의 가장자리에 난간이 없음"},
+
+ {"image": "human-accident_jam_rgb_2031_cctv3_11.png", "set": "CAUGHT-5", "axis": "PPE",
+  "finding": "안전모 미착용", "verdict": "ADOPT",
+  "reason": "허리를 숙인 작업자의 검은 머리가 그대로 보이고 안전모 쉘이 없음"},
+
+ {"image": "H-221018_B21_N-16_021_0061.jpg", "set": "DROP-3", "axis": "PPE",
+  "finding": "안전대 미착용", "verdict": "REJECT",
+  "reason": "하부 작업자의 형광 하네스는 명확하나, 대상인 상부 작업자는 파란 안전망에 부분 가림 + 소형이라 미착용을 확정하기 어렵다. 애매한 건을 채택으로 세면 채택률이 부풀려진다"},
+
+ {"image": "H-220706_B16_N-11_001_0001.jpg", "set": "DROP-5", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "ADOPT",
+  "reason": "비계 발판 외측에 중간난간대가 없고 단부가 개방됨"},
+ {"image": "H-220706_B16_N-11_001_0001.jpg", "set": "DROP-5", "axis": "DROP",
+  "finding": "낙하물 방지망 미설치", "verdict": "ADOPT",
+  "reason": "발판 위에 흰 페인트 통이 놓여 있고 비계 외측에 수직보호망이 없다. 자재까지 짚은 서술"},
+
+ {"image": "H-220927_E01_N-50_003_0001.jpg", "set": "STRUCK-3", "axis": "DROP",
+  "finding": "적재 불량", "verdict": "ADOPT",
+  "reason": "단열재 더미가 지게차 마스트와 운전실 지붕보다 높아 전방 시야를 가림. 서술 그대로"},
+
+ {"image": "H-220829_D31_N-40_001_0001.jpg", "set": "FIRE-1", "axis": "FIRE",
+  "finding": "화기 근접", "verdict": "ADOPT",
+  "reason": "'불꽃방지커버' 표지의 절단 작업 좌측 바닥에 분홍색 압출 스티로폼 3장이 적치됨"},
+ {"image": "H-220829_D31_N-40_001_0001.jpg", "set": "FIRE-1", "axis": "PPE",
+  "finding": "보안경 미착용", "verdict": "REJECT",
+  "reason": "오탐. 작업자가 안전모에 부착된 투명 안면보호구를 내려 얼굴을 덮고 있다. 근거가 사진과 다름"},
+
+ {"image": "H-220825_D17_N-31_002_0001.jpg", "set": "FIRE-2", "axis": "PPE",
+  "finding": "보안경 미착용", "verdict": "ADOPT",
+  "reason": "도장 작업자가 일반 안경만 착용. 보안경과 일반 안경을 구분한 서술이 사진과 일치"},
+
+ {"image": "H-220726_D18_N-37_007_0001.jpg", "set": "FIRE-4", "axis": "FIRE",
+  "finding": "소화기 부재", "verdict": "ADOPT",
+  "reason": "고압가스 용기 케이지('위험물저장소 화기엄금') 내부·주변에 소화기 없음. 단 프레임 밖 확정 불가라는 축 정의의 한계는 별도 기록"},
+
+ {"image": "H-220819_D19_N-39_001_0001.jpg", "set": "FIRE-5", "axis": "PPE",
+  "finding": "보안경 미착용", "verdict": "ADOPT",
+  "reason": "안면보호구가 이마 위로 올려져 있고 눈이 노출됨. FIRE-1과 반대 상황을 정확히 구분"},
+
+ {"image": "S63_DATA3_H0_L1_D2023-10-25-15-49_021_000213.jpg", "set": "PPE-2", "axis": "PPE",
+  "finding": "안전모 미착용", "verdict": "ADOPT",
+  "reason": "정답 라벨 일치. 맨머리 작업자이고, 서술대로 벗어둔 흰 안전모가 좌측 상부 발판 위에 실제로 놓여 있음"},
+
+ {"image": "S63_DATA3_M0_L1_D2023-10-12-14-13_042_000013.jpg", "set": "PPE-3", "axis": "PPE",
+  "finding": "보안경 미착용", "verdict": "ADOPT",
+  "reason": "눈 보호구 없이 노즐 작업 중. 정답 라벨('용접마스크 미착용')과 눈 보호구 미착용이라는 방향이 일치"},
+
+ {"image": "S63_DATA3_B1_L1_D2023-10-26-10-20_001_000758.jpg", "set": "PPE-4", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "ADOPT",
+  "reason": "하네스는 착용(정답 일치)했으나 딛고 선 발판 단부에 난간이 없음. PPE 미착용 후보를 내지 않아 오탐 아님"},
+
+ {"image": "S63_DATA3_H1_L1_D2023-10-25-13-45_001_002053.jpg", "set": "PPE-5", "axis": "FALL",
+  "finding": "작업발판 안전난간 미설치", "verdict": "ADOPT",
+  "reason": "고소 작업발판 단부가 개방됨"},
+ {"image": "S63_DATA3_H1_L1_D2023-10-25-13-45_001_002053.jpg", "set": "PPE-5", "axis": "FALL",
+  "finding": "안전대 부착설비 미설치 / 죔줄 미체결", "verdict": "ADOPT",
+  "reason": "연두색 하네스를 착용했으나 죔줄이 어디에도 체결되어 있지 않다. 착용과 체결을 구분한 서술"}
+]

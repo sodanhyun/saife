@@ -1,0 +1,451 @@
+{
+ "FALL": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220720_A16_N-07_001_0001.jpg",
+   "source": "건설 추락/비정상",
+   "assessmentId": 4,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FALL",
+     "missingControl": "작업발판 안전난간 미설치",
+     "evidence": "중앙 콘크리트 기둥 옆에 설치된 이동식 비계 상부 작업발판에 추락 방지용 안전난간이 설치되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.92
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220831_A33_N-08_001_0001.jpg",
+   "source": "건설 추락/비정상",
+   "assessmentId": 5,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FALL",
+     "missingControl": "작업발판 안전난간 미설치",
+     "evidence": "이동식 비계 작업발판 둘레에 표준 안전난간(중간난간대 및 단부 난간)이 온전하게 설치되지 않고 일부 구간이 개방되어 있음",
+     "riskLevel": "HIGH",
+     "confidence": 0.9
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220805_A26_N-03_001_0001.jpg",
+   "source": "건설 추락/비정상",
+   "assessmentId": 6,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FALL",
+     "missingControl": "개구부 덮개 미설치",
+     "evidence": "바닥 사각 개구부의 철제 격자 덮개가 어긋나 열려 있어 개구부 내부가 노출되어 있음",
+     "riskLevel": "HIGH",
+     "confidence": 0.95
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220923_A18_N-06_002_0001.jpg",
+   "source": "건설 추락/비정상",
+   "assessmentId": 7,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "DROP",
+     "missingControl": "낙하물 방지망 미설치",
+     "evidence": "건물 상부 갱폼 케이지 외곽에 좌측 일부 구간을 제외하고 수직보호망(낙하물 방지망)이 설치되지 않아 철골 프레임만 개방되어 있음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.88
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\추락\\비정상\\H-220707_A32_N-10_001_0001.jpg",
+   "source": "건설 추락/비정상",
+   "assessmentId": 8,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FALL",
+     "missingControl": "안전대 부착설비 미설치",
+     "evidence": "사다리 최상단에 올라서서 작업 중이나 기둥 및 천장 주변에 안전대를 체결할 부착설비가 설치되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.9
+    },
+    {
+     "accidentType": "PPE",
+     "missingControl": "안전대 미착용",
+     "evidence": "A형 사다리 최상단에 서 있는 작업자의 상·하체에 안전대(추락방지 하네스/벨트)가 착용되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.95
+    }
+   ]
+  }
+ ],
+ "CAUGHT": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_0957_cctv1\\human-accident_jam_rgb_0957_cctv1_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_0957_cctv1",
+   "assessmentId": 9,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "PPE",
+     "missingControl": "안전모 미착용",
+     "evidence": "기계 설비 앞에서 작업 중인 작업자가 안전모를 착용하지 않고 일반 천 모자(캡 모자)를 착용하고 있음",
+     "riskLevel": "HIGH",
+     "confidence": 0.95
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_1048_cctv3\\human-accident_jam_rgb_1048_cctv3_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_1048_cctv3",
+   "assessmentId": 10,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "CAUGHT",
+     "missingControl": "회전·구동부 방호덮개 미설치",
+     "evidence": "작업자가 조작 중인 밀링 머신의 회전 절삭축 및 가공부에 칩 비산 방지용 방호덮개(실드)가 설치되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.85
+    },
+    {
+     "accidentType": "STRUCK",
+     "missingControl": "유도 표식·구획선 미설치",
+     "evidence": "공작기계 작업 공간과 이동 통로를 구분하는 바닥 안전 구획선 및 통로 유도 표식이 전혀 표시되어 있지 않음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.8
+    },
+    {
+     "accidentType": "PPE",
+     "missingControl": "보안경 미착용",
+     "evidence": "공작기계 절삭 가공 작업을 수행 중인 작업자의 얼굴 부위에 보안경이 착용되어 있지 않음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.75
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_1069_cctv4\\human-accident_jam_rgb_1069_cctv4_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_1069_cctv4",
+   "assessmentId": 11,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "PPE",
+     "missingControl": "안전모 미착용",
+     "evidence": "공작기계를 조작 중인 작업자가 산업용 안전모 대신 파란색 천 캡모자를 착용하고 있음",
+     "riskLevel": "HIGH",
+     "confidence": 0.95
+    },
+    {
+     "accidentType": "STRUCK",
+     "missingControl": "유도 표식·구획선 미설치",
+     "evidence": "기계가 배치된 작업장 바닥 전체에 통로 및 작업구역을 구분하는 구획선이나 유도 표식이 표시되어 있지 않음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.85
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_1892_cctv3\\human-accident_jam_rgb_1892_cctv3_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_1892_cctv3",
+   "assessmentId": 12,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FALL",
+     "missingControl": "작업발판 안전난간 미설치",
+     "evidence": "작업자가 기계 상부 체크플레이트 발판 위로 올라가 작업 중이나 발판 가장자리에 안전난간이 설치되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.92
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\스마트 제조 시설 안전 감시를 위한 데이터\\Sample\\01.원천데이터\\human-accident\\jam\\rgb\\human-accident_jam_rgb_2031_cctv3\\human-accident_jam_rgb_2031_cctv3_11.png",
+   "source": "제조 jam/human-accident_jam_rgb_2031_cctv3",
+   "assessmentId": 13,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "PPE",
+     "missingControl": "안전모 미착용",
+     "evidence": "기계 설비 하부에서 허리를 숙여 작업 중인 작업자가 안전모를 착용하지 않아 검은 머리카락이 그대로 노출되어 있음",
+     "riskLevel": "HIGH",
+     "confidence": 0.95
+    }
+   ]
+  }
+ ],
+ "DROP": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-220930_B13_N-18_001_0001.jpg",
+   "source": "건설 낙하/비정상",
+   "assessmentId": 14,
+   "demoMode": false,
+   "candidates": []
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-220824_B16_N-14_001_0001.jpg",
+   "source": "건설 낙하/비정상",
+   "assessmentId": 15,
+   "demoMode": false,
+   "candidates": []
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-221018_B21_N-16_021_0061.jpg",
+   "source": "건설 낙하/비정상",
+   "assessmentId": 16,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "PPE",
+     "missingControl": "안전대 미착용",
+     "evidence": "하부 작업자와 달리 비계 상부 작업발판 위에 서 있는 작업자는 안전하네스(전신안전대)를 착용하지 않은 상태임",
+     "riskLevel": "HIGH",
+     "confidence": 0.85
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-220728_B15_N-13_001_0001.jpg",
+   "source": "건설 낙하/비정상",
+   "assessmentId": 17,
+   "demoMode": false,
+   "candidates": []
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\낙하\\비정상\\H-220706_B16_N-11_001_0001.jpg",
+   "source": "건설 낙하/비정상",
+   "assessmentId": 18,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FALL",
+     "missingControl": "작업발판 안전난간 미설치",
+     "evidence": "비계 작업발판 외측 및 단부에 기준에 맞는 상부·중간 안전난간대가 체결되어 있지 않고 개방되어 있음",
+     "riskLevel": "HIGH",
+     "confidence": 0.85
+    },
+    {
+     "accidentType": "DROP",
+     "missingControl": "낙하물 방지망 미설치",
+     "evidence": "작업발판 위에 페인트 통 등 자재가 놓여 있으나 비계 외측에 낙하물 방지망 및 수직보호망이 설치되어 있지 않음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.82
+    }
+   ]
+  }
+ ],
+ "STRUCK": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-220907_E31_N-49_001_0001.jpg",
+   "source": "건설 전도/비정상",
+   "assessmentId": 19,
+   "demoMode": false,
+   "candidates": []
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-221027_E24_N-41_003_0001.jpg",
+   "source": "건설 전도/비정상",
+   "assessmentId": 20,
+   "demoMode": false,
+   "candidates": []
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-220927_E01_N-50_003_0001.jpg",
+   "source": "건설 전도/비정상",
+   "assessmentId": 21,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "DROP",
+     "missingControl": "적재 불량",
+     "evidence": "지게차 포크 위에 적재된 단열재 더미가 지게차 마스트 및 운전실 높이를 초과하여 전방 시야를 가릴 정도로 높게 적재되어 있음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.88
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-220928_E01_N-46_001_0028.jpg",
+   "source": "건설 전도/비정상",
+   "assessmentId": 22,
+   "demoMode": false,
+   "candidates": []
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\전도\\비정상\\H-220908_E31_N-43_006_0001.jpg",
+   "source": "건설 전도/비정상",
+   "assessmentId": 23,
+   "demoMode": false,
+   "candidates": []
+  }
+ ],
+ "FIRE": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220829_D31_N-40_001_0001.jpg",
+   "source": "건설 화재/비정상",
+   "assessmentId": 24,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FIRE",
+     "missingControl": "화기 근접",
+     "evidence": "불꽃방지커버가 설치된 절단 작업 공간 좌측 바닥에 가연성 분홍색 단열재(스티로폼)가 적치되어 있음",
+     "riskLevel": "HIGH",
+     "confidence": 0.9
+    },
+    {
+     "accidentType": "PPE",
+     "missingControl": "보안경 미착용",
+     "evidence": "절단 작업을 수행하는 작업자가 안면 마스크와 안전모만 착용하고 눈 부위에 보안경을 착용하지 않음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.85
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220825_D17_N-31_002_0001.jpg",
+   "source": "건설 화재/비정상",
+   "assessmentId": 25,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "PPE",
+     "missingControl": "보안경 미착용",
+     "evidence": "분무 도장 작업을 진행 중인 작업자의 얼굴에 비산 방지용 보안경이 착용되어 있지 않고 일반 안경만 착용되어 있음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.85
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220831_D17_N-38_003_0001.jpg",
+   "source": "건설 화재/비정상",
+   "assessmentId": 26,
+   "demoMode": false,
+   "candidates": []
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220726_D18_N-37_007_0001.jpg",
+   "source": "건설 화재/비정상",
+   "assessmentId": 27,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FIRE",
+     "missingControl": "소화기 부재",
+     "evidence": "고압가스 용기가 보관된 위험물저장소 보관함 내부 및 주변 반경 내에 소화기가 비치되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.85
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\건설 현장 위험 상태 판단 데이터\\Sample\\01.원천데이터\\5대사고유형\\화재\\비정상\\H-220819_D19_N-39_001_0001.jpg",
+   "source": "건설 화재/비정상",
+   "assessmentId": 28,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "PPE",
+     "missingControl": "보안경 미착용",
+     "evidence": "작업자가 절단기를 취급하고 있으나 눈 부위에 보안경을 착용하지 않고 맨눈이 노출되어 있음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.9
+    }
+   ]
+  }
+ ],
+ "PPE": [
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_B0_L1_D2023-09-14-10-18_002_000163.jpg",
+   "source": "선박 안전장비",
+   "truth": "안전대 미착용",
+   "expect_finding": true,
+   "assessmentId": 29,
+   "demoMode": false,
+   "candidates": []
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_H0_L1_D2023-10-25-15-49_021_000213.jpg",
+   "source": "선박 안전장비",
+   "truth": "안전모 미착용",
+   "expect_finding": true,
+   "assessmentId": 30,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "PPE",
+     "missingControl": "안전모 미착용",
+     "evidence": "작업자가 머리에 안전모를 착용하지 않은 채 작업 중이며, 상부 작업발판 위에 벗어둔 안전모가 놓여 있음",
+     "riskLevel": "HIGH",
+     "confidence": 0.95
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_M0_L1_D2023-10-12-14-13_042_000013.jpg",
+   "source": "선박 안전장비",
+   "truth": "용접마스크 미착용",
+   "expect_finding": true,
+   "assessmentId": 31,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "PPE",
+     "missingControl": "보안경 미착용",
+     "evidence": "작업자가 호스가 연결된 노즐 건을 사용하여 철골 부재 사이를 작업하고 있으나 보안경을 착용하지 않음",
+     "riskLevel": "MEDIUM",
+     "confidence": 0.85
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_B1_L1_D2023-10-26-10-20_001_000758.jpg",
+   "source": "선박 안전장비",
+   "truth": "안전대 착용",
+   "expect_finding": false,
+   "assessmentId": 32,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FALL",
+     "missingControl": "작업발판 안전난간 미설치",
+     "evidence": "작업자가 딛고 서 있는 비계 작업발판의 단부 및 작업 위치 주변에 안전난간이 설치되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.92
+    }
+   ]
+  },
+  {
+   "path": "C:\\Users\\taeli\\SAIFE\\선박·해양플랜트 스마트 야드 안전 데이터\\Sample\\01.원천데이터\\안전장비-S63_DATA3\\S63_DATA3_H1_L1_D2023-10-25-13-45_001_002053.jpg",
+   "source": "선박 안전장비",
+   "truth": "안전모 착용",
+   "expect_finding": false,
+   "assessmentId": 33,
+   "demoMode": false,
+   "candidates": [
+    {
+     "accidentType": "FALL",
+     "missingControl": "작업발판 안전난간 미설치",
+     "evidence": "작업자가 서 있는 비계 작업발판 단부에 추락을 방지하기 위한 안전난간(상부난간대, 중간난간대)이 설치되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.95
+    },
+    {
+     "accidentType": "FALL",
+     "missingControl": "안전대 부착설비 미설치",
+     "evidence": "작업자가 안전그네를 착용하고 고소 작업을 하고 있으나, 안전대를 체결할 수 있는 안전대 부착설비가 없거나 죔줄이 체결되어 있지 않음",
+     "riskLevel": "HIGH",
+     "confidence": 0.9
+    }
+   ]
+  }
+ ]
+}
