@@ -17,6 +17,7 @@ import io.saife.core.service.RiskRuleEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -66,6 +67,7 @@ public class AgentService {
     private final ConversationStateRepository conversationStateRepository;
     private final ToolCallLogRepository toolCallLogRepository;
     private final DemoModeConfig demoModeConfig;
+    private final DemoConversationScript demoConversationScript;
     private final ObjectMapper objectMapper;
 
     private static final String SYSTEM_PROMPT_TEMPLATE = """
@@ -140,9 +142,17 @@ public class AgentService {
         toolContext.put(AgentContextKeys.SITE_ID, siteId);
 
         try {
+            // 데모 모드에서는 모델을 부르지 않는다.
+            //
+            // 자리표시자 키로 호출하면 "Failed to generate content"만 나고 도구가
+            // 하나도 돌지 않는다 (2026-09-21 QA 실측: 0/6 발화). 심사위원은 앱이
+            // 뜨는 것까지만 보고 핵심 기능이 죽은 화면을 보게 된다 —
+            // deployment.md의 제1원칙이 막으려던 바로 그 상황이다.
+            //
+            // 대체되는 것은 문장 생성뿐이다. 도구는 실제로 실행되고 데이터는 진짜다.
             if (demoModeConfig.isDemoMode()) {
-                emitToken(sessionId, conversationId,
-                        "데모 모드입니다. 모델 응답은 고정 문구로 대체되며 도구는 실제로 실행됩니다.\n");
+                runDemoTurn(conversation, sessionId, siteId, messages, toolContext);
+                return;
             }
 
             ChatResponse response = chatClientBuilder.build()
@@ -264,6 +274,47 @@ public class AgentService {
         });
         return out;
     }
+
+    /**
+     * 데모 모드 한 턴.
+     *
+     * <p>성공 경로도 실패 경로도 라이브와 같게 만든다 — 같은 SSE 이벤트를 내고,
+     * 같은 도구 기록을 남기고, 같은 히스토리를 저장한다. 그래야 화면이 두 모드에서
+     * 똑같이 움직이고, 무대에서 폴백으로 전환해도 시연이 그대로 이어진다.
+     */
+    private void runDemoTurn(Conversation conversation, String sessionId, Long siteId,
+                             List<Message> messages, Map<String, Object> toolContext) {
+        String conversationId = conversation.getId();
+
+        try {
+            String answer = demoConversationScript.respond(
+                    conversationId, siteId, lastUserText(messages), new ToolContext(toolContext));
+
+            persistToolCalls(conversationId);
+            messages.add(new AssistantMessage(answer));
+            saveHistory(conversationId, messages);
+
+            emitToken(sessionId, conversationId, answer);
+            emit(sessionId, "ai.done", conversationId, null, Map.of("finished", true));
+
+        } catch (Exception e) {
+            log.error("[AGENT] 데모 턴 실패 conversationId={}", conversationId, e);
+            persistToolCalls(conversationId);
+            emitError(sessionId, conversationId, sanitize(e));
+        } finally {
+            closeStream(sessionId);
+        }
+    }
+
+    private String lastUserText(List<Message> messages) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if (messages.get(i) instanceof UserMessage user) {
+                return user.getText();
+            }
+        }
+        return "";
+    }
+
 
     private List<Message> loadHistory(String conversationId) {
         List<Message> messages = new ArrayList<>();

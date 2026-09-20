@@ -4,6 +4,7 @@ import io.saife.ai.agent.AgentContextKeys;
 import io.saife.common.service.SseService;
 import io.saife.core.service.RiskRuleEngine;
 import io.saife.workplan.domain.WorkPlan;
+import io.saife.workplan.domain.WorkPlanSlot;
 import io.saife.workplan.domain.WorkPlanStatus;
 import io.saife.workplan.domain.WorkPlanWorker;
 import io.saife.workplan.repository.WorkPlanRepository;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -341,19 +343,39 @@ public class WorkPlanTools {
         return drafts.isEmpty() ? null : drafts.get(0);
     }
 
-    /** 재호출 시 이전 값이 유지되도록, 들어온 값만 갱신한다 */
+    /**
+     * 슬롯 값을 기록한다.
+     *
+     * <p><b>{@code answeredAt}을 반드시 채운다.</b> {@code @PrePersist}는 INSERT에서만
+     * 돌기 때문에, 기존 슬롯을 갱신할 때 이 값을 비우면 {@code NOT NULL} 위반으로
+     * 500이 난다. 도구 설명이 "이전에 채운 값은 그대로 다시 넣으세요"라고 지시하므로
+     * <b>갱신은 예외가 아니라 정상 흐름</b>이다 (2026-09-21 QA 실측).
+     *
+     * <p>값이 그대로면 최초 답변 시각을 유지한다. 같은 답을 다시 보냈다고 해서
+     * "방금 답했다"로 바뀌면 안 된다 — 언제 확인했는지가 기록의 값이다.
+     * 값이 바뀌었을 때만 시각을 갱신한다.
+     */
     private void persistSlot(Long workPlanId, String slotKey, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
         var existing = workPlanSlotRepository.findByWorkPlanIdAndSlotKey(workPlanId, slotKey);
-        workPlanSlotRepository.save(io.saife.workplan.domain.WorkPlanSlot.builder()
-                .id(existing.map(io.saife.workplan.domain.WorkPlanSlot::getId).orElse(null))
+
+        boolean changed = existing
+                .map(s -> !value.equals(s.getAnsweredValue()))
+                .orElse(true);
+        OffsetDateTime answeredAt = changed
+                ? OffsetDateTime.now()
+                : existing.map(WorkPlanSlot::getAnsweredAt).orElse(OffsetDateTime.now());
+
+        workPlanSlotRepository.save(WorkPlanSlot.builder()
+                .id(existing.map(WorkPlanSlot::getId).orElse(null))
                 .workPlanId(workPlanId)
                 .slotKey(slotKey)
                 .answeredValue(value)
-                .ledgerValue(existing.map(io.saife.workplan.domain.WorkPlanSlot::getLedgerValue).orElse(null))
-                .conflicted(existing.map(io.saife.workplan.domain.WorkPlanSlot::isConflicted).orElse(false))
+                .ledgerValue(existing.map(WorkPlanSlot::getLedgerValue).orElse(null))
+                .conflicted(existing.map(WorkPlanSlot::isConflicted).orElse(false))
+                .answeredAt(answeredAt)
                 .build());
     }
 
