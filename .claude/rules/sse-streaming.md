@@ -1,5 +1,5 @@
 ---
-globs: ["frontend/src/**/*sse*", "frontend/src/**/*SSE*", "frontend/src/**/*Stream*", "frontend/src/hooks/useSSEStream*", "frontend/src/types/sse*", "backend/**/service/SseService.java", "backend/**/event/*Event*.java"]
+globs: ["frontend/src/types/sse.ts", "frontend/src/hooks/useAgentStream.ts", "frontend/src/components/ToolTracePanel.tsx", "backend/**/service/SseService.java", "backend/**/ai/**/*.java"]
 ---
 
 # SSE 통합 프로토콜 규칙
@@ -16,7 +16,7 @@ SSE data:  { type, correlationId, targetId, seq, ts, payload }
 
 | 필드 | 설명 |
 |------|------|
-| `type` | `domain.action` 형태 (예: `cv.progress`, `cv.done`, `ai.token`) |
+| `type` | `domain.action` 형태 (예: `ai.tool.start`, `assess.done`, `ai.token`) |
 | `correlationId` | SSE 세션 식별 |
 | `targetId` | 세션 내 대상 식별 (도메인별 대상 식별자, 없으면 null) |
 | `seq` | emitter별 단조 증가 정수 (SseService 자동 부여) |
@@ -79,7 +79,7 @@ SSE data:  { type, correlationId, targetId, seq, ts,
 // 1:1 전송 (AI 스트리밍, 단발 작업)
 sseService.send(sessionId, SseEvent.of(type, correlationId, targetId, payload));
 
-// 그룹 브로드캐스트 (배치작업, 임베딩)
+// 그룹 브로드캐스트 (여러 화면이 같은 작업을 볼 때)
 sseService.broadcastToGroup(group, SseEvent.of(type, group, targetId, payload));
 
 // 세션 생성
@@ -98,46 +98,51 @@ sseService.createSession(correlationId, timeoutMs, group);  // 그룹
 
 ### 에러 payload 표준화
 
-모든 도메인의 에러 이벤트(`ai.error`, `batch.error`, `embed.error` 등)가 동일 구조:
+모든 도메인의 에러 이벤트(`ai.error`, `assess.failed` 등)가 동일 구조:
 ```json
-{ "errorType": "RATE_LIMIT|STREAM_ERROR|TIMEOUT|INTERNAL|VALIDATION|CONTRACT_MISMATCH", "message": "...", "detail": "..." }
+{ "errorType": "RATE_LIMIT|STREAM_ERROR|TIMEOUT|INTERNAL|VALIDATION", "message": "...", "detail": "..." }
 ```
 
-- `CONTRACT_MISMATCH`(2026-08-01, 측정기준 계층): CV 응답이 계약 게이트(atoms 부재·schema_version 미달·필수 원자 누락)에 걸려 판정이 거부된 경우. `cv.failed`로 방출되며 프론트는 재업로드 버튼을 숨기고 관리자 문의 안내를 표시한다(재업로드로 해결되지 않는 운영 오설정이므로).
 
 ## 프론트엔드 규칙
 
 ### 3계층 구조
 
-```
-Layer 1: readSseStream()    — 순수 SSE 프레임 파싱 (React 무관, src/utils/sseStream.ts)
-Layer 2: useSSEStream()     — React 래퍼 (봉투 파싱, 연결 상태, src/hooks/useSSEStream.ts)
-Layer 3: 도메인 훅          — handlers 맵 주입 (useInspectionStream, useBatchProgress 등)
-```
+현재 구현은 **훅 1개**다. 소비자가 하나(에이전트 대화)뿐이라 계층을 나누지 않았다.
 
-### useSSEStream 두 가지 모드
+| 파일 | 역할 |
+|---|---|
+| `src/types/sse.ts` | `SseEnvelope<T>` · `SseEventType` union · 이벤트별 payload 인터페이스 |
+| `src/hooks/useAgentStream.ts` | fetch + ReadableStream으로 SSE 프레임을 직접 파싱하고 봉투를 처리 |
+| `src/components/ToolTracePanel.tsx` | 트레이스 행 렌더링 |
 
-- **선언적**: `useSSEStream({ enabled: true, ... })` — 페이지 진입 시 자동 연결 (배치작업, 임베딩)
-- **명령형**: `useSSEStream({ enabled: false, ... })` + `start(body)` — 사용자 액션으로 트리거 (AI 스트리밍)
-- AI 스트리밍 훅은 고유 fire-and-forget 패턴이므로 useSSEStream을 사용하지 않고 readSseStream + 봉투 파싱 직접 구현
+**`EventSource`를 쓰지 않는다.** POST로 대화를 시작해야 하고 JWT 헤더가 필요하다.
 
-### 타입 정의
+### 소비자가 늘어나면 분리한다
 
-- `SseEnvelope<T>`, `ConnectionState`, `SseErrorPayload` → `src/types/sse.ts`
-- 도메인별 `EventMap` → 각 도메인 훅 파일 또는 `src/types/sse.ts`
+사진 판독(`assess.*`) 등 두 번째 소비자가 생기면 그때 나눈다:
+프레임 파서(React 무관) → 봉투 파싱 훅 → 도메인별 handlers 주입.
+**지금 미리 나누지 않는다.**
+
+### seq 처리
+
+재개 후에도 `seq`가 이어지므로 **역행하는 seq만 중복으로 버린다.**
+정렬하지 말고 도착 순서대로 처리한다.
 
 ## 새 SSE 이벤트 추가 절차
 
 1. **백엔드**: `SseEvent.of("domain.action", ...)` 호출 추가
-2. **프론트엔드**: 도메인 `EventMap`에 타입 추가
-3. **프론트엔드**: 도메인 훅의 `handlers` 맵에 핸들러 등록
-4. 이 파일의 이벤트 목록 업데이트
+2. **프론트**: `src/types/sse.ts`의 `SseEventType` union에 추가 + payload 인터페이스 정의
+3. **프론트**: `useAgentStream`의 `handleEvent` switch에 case 추가
+4. 이 파일의 이벤트 목록 갱신
 
-## 비동기 작업 SSE 연결 패턴 (임베딩 기준)
+## 비동기 작업 SSE 연결 패턴
 
 비동기(@Async) 작업의 진행 상태를 SSE로 실시간 전달할 때, 아래 패턴을 필수 적용한다.
 
-> **CV 게이트웨이 적용**: CV 측정은 비동기(@Async) 호출이다. HTTP 스레드에서 라운드 `UPLOADED` 상태를 REQUIRES_NEW로 선커밋한 뒤 `@Async` CV 호출을 디스패치하고, 완료 시 `cv.done`(라운드 `CV_DONE`)·실패 시 `cv.failed`(라운드 `CV_FAILED`/`MASK_FAIL`)를 브로드캐스트한다. 프론트는 `useCvProgress` 훅(cv.progress/done/failed 핸들러 맵)으로 수신하며, `enabled`는 서버 데이터(라운드 상태 UPLOADED/진행중)에서 파생한다(낙관적 플래그 금지).
+> **SAIFE 적용**: 사진 판독(비전)이 비동기 호출이다. HTTP 스레드에서 평가 레코드를
+> "판독 중"으로 선커밋한 뒤 `@Async`로 디스패치하고, 완료 시 `assess.done`·실패 시
+> `assess.failed`를 발행한다. 프론트의 `enabled`는 서버 데이터에서 파생한다(낙관적 플래그 금지).
 
 ### 백엔드 규칙
 
@@ -146,7 +151,7 @@ Layer 3: 도메인 훅          — handlers 맵 주입 (useInspectionStream, us
 3. 완료/실패 시 상태 업데이트 + SSE 이벤트 브로드캐스트
 
 ```java
-// ✅ 올바른 패턴 (임베딩/배치작업)
+// ✅ 올바른 패턴
 public void triggerAsync(...) {
     self().markAsProcessing(...);           // REQUIRES_NEW → 즉시 커밋
     getScheduler().processAsync(...);       // @Async 디스패치
@@ -180,44 +185,13 @@ setIsProcessing(true);  // API 호출 전 수동 설정
 useXxxSSE({ enabled: isProcessing, ... });
 ```
 
-### 예외: in-memory 상태 홀더 기반 작업
-
-in-memory 상태 홀더 기반으로 실행되는 배치/동기화 작업은 동기 실행 경로가 있어 패턴이 다름. `state.running` 낙관적 플래그 허용.
 
 ### 참조 구현
 
 | 도메인 | 프론트엔드 파생 | 백엔드 선커밋 |
 |--------|---------------|-------------|
-| 임베딩 | `hasEmbedding` (`useEmbedding.ts`) | `uploadAndEmbed()` T1 커밋 + afterCommit |
-| 배치작업 | `hasBatchRunning` (`useBatchJob.ts`) | `markAsProcessing()` REQUIRES_NEW |
-| CV 측정 | `hasCvRunning`(라운드 UPLOADED) (`useCvProgress.ts`) | 라운드 UPLOADED 선커밋(REQUIRES_NEW) + @Async CV 호출 |
-| 학습 데이터셋 export | `jobs.some(PENDING\|RUNNING)` (`useExportJobs.ts` — App 전역 1회 마운트) | PENDING 선커밋(REQUIRES_NEW) + DB 클레임 픽업 루프(잡별 @Async 없음 — 슬라이스6 D20) |
-
-## 시그널 이벤트 + 전량 재조회 (OP 라인 andon — 2026-08-06)
-
-`op.queue.changed`는 **payload가 없다.** 클라이언트는 이벤트를 받으면 큐를 전량 재조회하며,
-연결이 맺힐 때마다(최초·재연결 모두) 한 번 더 재조회한다.
-
-이벤트에 데이터를 실으면 유실 1건이 화면 누락 1건으로 영구화되지만, 신호만 실으면 어떤 이벤트를
-놓쳐도 그다음 이벤트 하나로 상태가 완전히 복구된다 — **"연결은 살아 있는데 이벤트만 조용히
-사라지는" 경로가 구조적으로 존재하지 않는다**(`send()` 실패는 emitter 정리 → 클라이언트 끊김 감지
-→ 재연결 → 재조회로 이어진다).
-
-- 발행은 `OpQueueNotifier.lineChanged(lineId)` **단일 진입점**을 거치며 `afterCommit`에서 나간다.
-  커밋 전에 보내면 롤백된 변경으로 현장 화면이 한 번 깜빡인다.
-- 큐를 바꾸는 전이를 추가하면 이 메서드를 호출하고 **`OpQueueNotifierWiringTest`에 단언을 더한다.**
-  발행 지점 누락이 이 설계에서 구조적으로 닫히지 않는 유일한 빈틈이고, 그 테스트가 방어선이다.
-  현재 배선 지점: `ConfirmService.confirm`·`autoConfirm`·`completeAction`,
-  `CaseDeleteService.softDelete`·`restore`, `CaseUpdateService.update`(호기 변경 시 구·신 양쪽).
-- 브로드캐스트 실패는 삼킨다(`log.warn`) — 알림 실패로 조치완료가 롤백되는 쪽이 훨씬 나쁘다.
-  클라이언트는 재연결 재조회와 3분 백스톱으로 스스로 회복한다.
-- OP 화면의 `useSSEStream`은 **`retry: "forever"`** 를 쓴다(1s→2s→5s→10s→30s 상한, 지터 ±20%).
-  키보드 없는 상시 모니터라 재시도 예산이 소진되면 사람이 되살릴 수단이 없다.
-  **다른 화면의 "무한 재시도 금지" 정책은 그대로다** — 기본값은 여전히 `budgeted`다.
-- emitter 타임아웃은 **1500초(25분)** — nginx `proxy_read_timeout 1800s`보다 짧아야 emitter가 먼저
-  정상 종료된다(프록시가 먼저 끊으면 클라이언트는 원인 불명의 연결 끊김을 본다).
-- `SseService.MAX_SESSIONS_PER_GROUP`은 3이다. 한 호기에 모니터를 4대 이상 붙이면 가장 오래된
-  세션이 FIFO로 밀려난다 — 밀려난 모니터는 재연결하지만, 라인당 3대를 넘길 계획이라면 이 상수를 먼저 본다.
+| 사진 판독 | `assessment.status === 'ANALYZING'` | 평가 레코드 선커밋(REQUIRES_NEW) + @Async 비전 호출 |
+| 공공 API 캐싱 | 크롤러 진행률 | 체크포인트를 DB에 선커밋 (쿼터 리셋 대비 재개 가능) |
 
 ## 주의사항
 

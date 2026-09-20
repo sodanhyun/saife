@@ -82,12 +82,20 @@ Spring AI 자동설정으로 되돌리지 말 것.
 | `FuzzyToolCallingManager` | Gemini가 도구명을 환각 (camelCase 등록 → snake_case 호출) |
 | `ToolCallingConfig` | 도구 예외도 **JSON으로 감싸야** 함 (`parseJsonToMap()`이 JSON을 강제) |
 | `GeminiClientConfig` | 타임아웃 180초. **SDK 재시도 비활성** — 재시도는 앱 계층이 전담 |
-| `GeminiSafetySettings` | **SAIFE에 특히 결정적** — 아래 |
+| `GeminiSafetySettings` | 안전 필터 차단 비활성화 — 아래 |
 
-**`SAFETY_SETTINGS_OFF`는 반드시 유지한다.** SAIFE가 다루는 텍스트는 산재 사고 서술이다.
-"스크루에 끼임", "7m 아래로 추락", "하적단이 무너지며 깔림" 같은 문장이 정상 입력이고,
-이건 `HARM_CATEGORY_DANGEROUS_CONTENT` 필터에 걸린다. 필터를 켜면 **정상 사례 검색이
-조용히 빈 결과를 반환**한다.
+**`SAFETY_SETTINGS_OFF`는 유지한다** — 단, 근거를 정확히 적어둔다.
+
+SAIFE가 다루는 정상 입력은 산재 사고 서술이다("스크류에 끼임", "7m 아래로 추락",
+"하적단이 무너지며 깔림"). 이런 문장은 `HARM_CATEGORY_DANGEROUS_CONTENT`의 사정거리 안에 있다.
+
+**2026-09-20 실측**: `gemini-3.8-flash`에서 사망사고 서술 + 재발방지 대책 요청을
+**필터 기본값으로 호출해도 차단되지 않았다**(finishReason=STOP, 정상 답변).
+Inufleet이 2.5 세대에서 겪은 차단이 3.x 세대에서는 완화된 것으로 보인다.
+
+그래도 끄고 간다. 이유는 ① 표본 1건으로 "절대 안 걸린다"를 결론낼 수 없고
+② 더 graphic한 사고 사진·텍스트에서는 다를 수 있으며 ③ 끄는 비용이 0인데,
+켜둔 상태에서 걸리면 **예외가 아니라 조용한 빈 결과**로 나타나 원인 파악이 매우 어렵다.
 
 ## ⚠️ 공공데이터 API — B552468 게이트웨이 함정
 

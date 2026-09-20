@@ -1,38 +1,56 @@
-# 검색 기능 구현 규칙
+---
+globs: ["backend/**/repository/**/*.java", "backend/**/*Matcher*.java", "backend/**/*Search*.java"]
+---
 
-SAIFE는 **초성/유사도 인메모리 매칭을 사용하지 않는다**(KoreanSearchUtil 폐기). 데이터가 한/중/영 혼재이고 검색 대상이 구조화 필드·다국어 이름이므로, ① 케이스 = **구조 필터**, ② 기준정보 이름 = **다국어 안전 ILIKE substring**으로 구현한다.
+# 검색·매칭 규칙
 
-## 왜 초성 매칭을 폐기하는가
+SAIFE의 검색은 세 종류뿐이고, 각각 방식이 다르다.
 
-- 데이터가 한국어 단일이 아니라 **한/중/영 혼재**(중국 지사) — 한글 초성 분해가 무의미하거나 편향.
-- 검색 대상이 자유텍스트 이름이 아니라 **구조화된 케이스 속성**(호기/상태/날짜/고객/LOT)이 대부분 → 필터가 초성 매칭보다 정확·빠름.
+## 1. 설비 매칭 — 가장 중요하고 가장 위험하다
 
-## 케이스 검색 = 구조 필터 (DB WHERE)
+자연어("공장동 후면 차양부")를 설비·장소 레코드에 붙이는 일. 도구 1
+`findLocationEquipment`가 이걸 한다.
 
-- 검사 케이스 목록은 **구조 필터**로만 조회한다: 호기(machine)·상태(state)·날짜 범위(insp_date)·고객(customer)·LOT.
-- JPQL/QueryDSL `WHERE` 조건으로 처리, 인메모리 후처리 없음. 페이징은 DB 페이징(`PageResponse.from`).
+**false negative가 나면 같은 설비가 두 ID로 쪼개지고, 그 순간 이 출품작 전체가
+기대는 "하나의 설비 ID"가 무너진다.** UC4 타임라인 뷰가 눈에 띄게 깨진다.
+
+절차:
+
+1. **1차 완전일치** — 정규화 명칭(공백 제거·소문자화) + 위치 태그
+2. **2차 유사도** — Jaro-Winkler (`commons-text`). 임계값 이상이면 **생성하지 말고**
+   "혹시 이것입니까?" 후보를 되묻는다
+3. **3차 미등록** — 히트가 없으면 `미등록` 반환 → 되묻기 슬롯으로 설비명·위치·종류를 받는다
+4. **최종 방어는 DB 유니크 제약** (`uq_equipment_identity`). 앱 로직만 믿지 않는다
+
+유사도 점수로 **자동 선택하지 않는다.** 애매하면 사람에게 묻는다.
+잘못 붙은 설비 ID는 조용히 틀리고, 틀린 걸 나중에 알아차리기 어렵다.
+
+## 2. 사례 검색 — 임베딩 + 구조 필터
+
+도구 4 `searchCases`. 캐시된 `public_case` 테이블을 대상으로 한다.
+
+- **주력은 `keyword` 필드의 임베딩 유사도.** `[9/17, 충남 아산시] 차량 유도 작업 중
+  후진하는 타이어롤러에 부딪힘` 형태로 정규화되어 있어 매칭에 이상적이다
+- **업종 필터를 먼저 건다** — 국내재해사례(1060)는 `business` 필드를 준다
+  (건설 39% / 제조 32% / 서비스 20% / 조선 8.4%). 제조업 사례를 찾는데 건설 사례를
+  올리면 근거로서 약하다
+- 발생형태(`accident_type`)로 2차 필터
+- pgvector HNSW / COSINE. 임베딩 모델 `gemini-embedding-2` (1536차원)
+
+## 3. 일반 목록 조회 — 구조 필터
+
+설비 목록, 평가 이력, 작업계획서 목록 등은 **DB `WHERE` 조건**으로 처리한다.
+인메모리 후처리·정렬 없음. 페이징은 DB 페이징(`PageResponse.from`).
+
+이름 검색이 필요하면 `ILIKE '%keyword%'` substring으로 충분하다.
+**초성 분해·유사도 점수 매칭을 쓰지 않는다** — 데이터가 한국어 단일이고
+검색 대상이 구조화 필드라 필터가 더 정확하고 빠르다.
 
 ```java
-// 구조 필터 — 인메모리 스마트매칭 없음.
-Page<InspectionCase> search(Long machineId, CaseState state,
-                            LocalDate from, LocalDate to,
-                            Long customerId, String lot, Pageable pageable);
+Page<Equipment> search(Long siteId, Long processId, String nameKeyword, Pageable pageable);
 ```
-
-## 기준정보 이름 검색 = 다국어 안전 ILIKE substring
-
-- 기준정보(고객/재질/공급사/파라미터 이름 등) 이름 검색은 **`ILIKE '%keyword%'` substring**으로 한/중/영 균일 처리. 대소문자 무시(`ILIKE`), 부분일치.
-- 초성 분해·유사도 점수·인메모리 정렬 없음. 정렬은 이름 오름차순 또는 관련성 단순 규칙(시작일치 우선 정도).
-
-```java
-// 다국어 안전 substring — 한/중/영 균일.
-@Query("select m from Customer m where m.name ilike concat('%', :kw, '%')")
-List<Customer> searchByName(@Param("kw") String kw);
-```
-
-- Postgres 문자셋은 UTF8/ICU(und) — 다국어 저장·정렬 안전(deployment/charset 규칙). 언어별 정렬 필요 컬럼만 `COLLATE "ko-x-icu"`/`"zh-x-icu"`.
 
 ## 프론트엔드
 
-- 검색 바 placeholder는 초성 안내 문구 제거 → 대상에 맞는 일반 문구(i18n 키). 케이스 목록은 `FilterBar`(구조 필터) 중심.
-- `useDebounce(keyword, 300)`(이름 검색), `SearchInput`·`Select`·`FilterBar`·`RefreshButton`·`useUrlSync` 공통 컴포넌트/훅 사용.
+- 이름 검색에는 `useDebounce(keyword, 300)`
+- 설비 선택은 자유 입력이 아니라 **후보 목록에서 고르게** 한다 (중복 생성 방지)

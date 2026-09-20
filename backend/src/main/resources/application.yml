@@ -47,7 +47,7 @@ spring:
         api-key: ${GEMINI_API_KEY:}      # 비어 있으면 DemoModeConfig가 데모 모드로 내린다 (부팅 실패 아님)
         chat:
           options:
-            model: ${GEMINI_CHAT_MODEL:gemini-2.5-flash}
+            model: ${GEMINI_CHAT_MODEL:gemini-3.8-flash}   # 2.5 계열은 신규 키에 제공 안 됨(404)
             temperature: 0.2   # 판정 보조라 낮게. 등급은 어차피 룰 엔진이 낸다
         embedding:
           text:
