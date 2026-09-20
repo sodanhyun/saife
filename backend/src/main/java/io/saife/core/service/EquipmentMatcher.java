@@ -97,7 +97,10 @@ public class EquipmentMatcher {
         List<Candidate> scored = pool.stream()
                 .map(e -> new Candidate(e.getId(), e.getName(), e.getLocationTag(),
                         score(equipmentPart, query, locationTag, e)))
-                .sorted(Comparator.comparingDouble(Candidate::score).reversed())
+                // 점수 동점이면 설비 id로 가른다. 정렬이 흔들리면 같은 입력에
+                // 다른 설비가 붙고, 그 순간 설비 이력이 두 ID로 쪼개진다
+                .sorted(Comparator.comparingDouble(Candidate::score).reversed()
+                        .thenComparingLong(Candidate::equipmentId))
                 .toList();
 
         // 아주 높으면 확정으로 본다 — "이동식 사다리" vs "이동식 사다리 A"에서
@@ -134,7 +137,7 @@ public class EquipmentMatcher {
             }
         }
         String normalizedQuery = Equipment.normalize(query);
-        for (WorkProcess p : processRepository.findBySiteId(siteId)) {
+        for (WorkProcess p : processRepository.findBySiteIdOrderByIdAsc(siteId)) {
             String tag = p.getLocationTag();
             if (tag != null && !tag.isBlank()
                     && normalizedQuery.contains(Equipment.normalize(tag))) {
@@ -161,14 +164,14 @@ public class EquipmentMatcher {
     /** 장소가 특정되면 그 장소의 설비로 좁힌다 */
     private List<Equipment> poolFor(Long siteId, WorkProcess process) {
         if (process != null) {
-            List<Equipment> scoped = equipmentRepository.findBySiteId(siteId).stream()
+            List<Equipment> scoped = equipmentRepository.findBySiteIdOrderByIdAsc(siteId).stream()
                     .filter(e -> process.getId().equals(e.getProcessId()))
                     .toList();
             if (!scoped.isEmpty()) {
                 return scoped;
             }
         }
-        return equipmentRepository.findBySiteId(siteId);
+        return equipmentRepository.findBySiteIdOrderByIdAsc(siteId);
     }
 
     /**

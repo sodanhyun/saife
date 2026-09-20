@@ -32,7 +32,7 @@ public class EquipmentController {
 
     @GetMapping
     public ResponseEntity<List<EquipmentItem>> list() {
-        List<EquipmentItem> items = equipmentRepository.findBySiteId(DEMO_SITE_ID)
+        List<EquipmentItem> items = equipmentRepository.findBySiteIdOrderByIdAsc(DEMO_SITE_ID)
                 .stream()
                 .map(this::toItem)
                 .toList();
