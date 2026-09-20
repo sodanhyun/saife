@@ -8,7 +8,7 @@ import { ToolTracePanel } from "@/components/ToolTracePanel";
  */
 export default function App() {
   const [input, setInput] = useState("");
-  const { trace, answer, pendingSlot, error, streaming, start, answerSlot } = useAgentStream();
+  const { trace, answer, pendingSlot, error, streaming, send, answerSlot } = useAgentStream();
   const [slotValue, setSlotValue] = useState("");
 
   return (
@@ -55,12 +55,12 @@ export default function App() {
             placeholder="내일 사다리 놓고 천장 페인트 칠할 건데요"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !streaming && start(input)}
+            onKeyDown={(e) => e.key === "Enter" && !streaming && send(input)}
           />
           <button
             className="rounded bg-slate-900 px-5 py-2 text-white disabled:opacity-40"
             disabled={streaming}
-            onClick={() => start(input)}
+            onClick={() => send(input)}
           >
             보내기
           </button>

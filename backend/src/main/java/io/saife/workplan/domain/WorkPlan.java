@@ -29,6 +29,13 @@ public class WorkPlan {
     @Column(name = "site_id", nullable = false)
     private Long siteId;
 
+    /**
+     * 이 초안을 만든 대화. 되묻기로 같은 도구가 여러 번 호출돼도
+     * 한 대화가 계획서 하나만 만들도록 묶는 키다.
+     */
+    @Column(name = "conversation_id", length = 64)
+    private String conversationId;
+
     @Column(name = "process_id")
     private Long processId;
 

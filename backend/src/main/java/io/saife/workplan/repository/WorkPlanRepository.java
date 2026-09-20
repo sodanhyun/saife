@@ -6,10 +6,34 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface WorkPlanRepository extends JpaRepository<WorkPlan, Long> {
+
     Page<WorkPlan> findBySiteIdOrderByWorkDateDesc(Long siteId, Pageable pageable);
+
     List<WorkPlan> findByEquipmentIdOrderByWorkDateDesc(Long equipmentId);
+
     List<WorkPlan> findBySiteIdAndStatus(Long siteId, WorkPlanStatus status);
+
+    /**
+     * 이 대화가 만든 초안을 찾는다. <b>한 대화 = 한 초안.</b>
+     *
+     * <p>되묻기 때문에 {@code extractWorkPlan}이 여러 번 호출되는 것이 <b>정상 흐름</b>이다.
+     * 호출마다 새로 만들면 같은 작업의 계획서가 쪼개지고, 슬롯이 여기저기 흩어져
+     * 브리핑이 반쪽만 나온다.
+     *
+     * <p>식별 키를 작업명으로 잡으면 안 된다 — 모델이 대화 중간에 작업명을 다듬으면
+     * ("천장 페인트 작업" → "공장동 후면 차양부 천장 페인트 작업") 키가 바뀌어
+     * 똑같이 쪼개진다. 실제로 그렇게 쪼개졌다(2026-09-20 스모크 테스트).
+     * 대화 ID는 서버가 발급한 값이라 흔들리지 않는다.
+     */
+    Optional<WorkPlan> findFirstByConversationIdAndStatusOrderByIdDesc(
+            String conversationId, WorkPlanStatus status);
+
+    /** 대화 ID가 없는 경로(테스트·수동 호출)를 위한 차선책 키 */
+    List<WorkPlan> findBySiteIdAndWorkNameAndWorkDateAndStatusOrderByIdDesc(
+            Long siteId, String workName, LocalDate workDate, WorkPlanStatus status);
 }

@@ -154,8 +154,7 @@ public class SseService {
      * @return SseSession (emitter, sessionId, conversationId)
      */
     public SseSession createSession(String conversationId) {
-        long timeout = conversationId.startsWith("report-") ? REPORT_TIMEOUT_MS : CHAT_TIMEOUT_MS;
-        return createSession(conversationId, timeout, null);
+        return createSession(conversationId, CHAT_TIMEOUT_MS, null);
     }
 
     /**
@@ -250,6 +249,15 @@ public class SseService {
      * 주기적 하트비트 전송 — 통합 봉투 포맷(SseEvent) 사용.
      */
     @Scheduled(fixedDelayString = "${sse.heartbeat.interval:30000}")
+    /**
+     * 현재 seq 값. 되묻기 턴으로 중단할 때 이 값을 저장했다가 재개 후 이어서 증가시킨다.
+     * 리셋하면 프론트 트레이스 패널의 순서가 무너진다.
+     */
+    public int currentSeq(String sessionId) {
+        AtomicInteger counter = seqCounters.get(sessionId);
+        return counter != null ? counter.get() : 0;
+    }
+
     public void sendHeartbeat() {
         if (emitters.isEmpty()) return;
 

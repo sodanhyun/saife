@@ -14,9 +14,12 @@ import type {
  * EventSource를 쓰지 않는 이유: POST로 대화를 시작해야 하고 헤더(JWT)가 필요하다.
  * fetch + ReadableStream으로 SSE를 직접 파싱한다.
  *
- * seq는 재개 후에도 이어서 증가한다(백엔드 conversation_state.last_seq).
- * 순서 보장을 위해 seq 기준으로 정렬하지 말고 도착 순서대로 처리하되,
- * 역행하는 seq는 중복으로 간주해 버린다.
+ * 되묻기는 특별한 흐름이 아니라 평범한 멀티턴이다. 모델이 질문하고 턴이 끝나면
+ * 사용자가 답을 보내고, 같은 conversationId로 다음 턴이 이어진다.
+ * `ai.slot.request`는 전용 입력 위젯을 그리기 위한 UI 힌트일 뿐이고,
+ * 놓쳐도 자유 입력으로 진행된다.
+ *
+ * seq는 턴마다 새로 시작하므로 턴 경계에서 초기화한다.
  */
 export function useAgentStream() {
   const [trace, setTrace] = useState<ToolTraceRow[]>([]);
@@ -120,24 +123,32 @@ export function useAgentStream() {
     [handleEvent],
   );
 
-  const start = useCallback(
-    async (message: string) => {
+  const send = useCallback(
+    async (message: string, slotKey?: string) => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setTrace([]);
-      setAnswer("");
       setError(null);
       setPendingSlot(null);
       lastSeqRef.current = 0;
       setStreaming(true);
 
+      // 새 대화면 화면을 비우고, 이어가는 턴이면 트레이스만 초기화한다
+      if (!conversationIdRef.current) {
+        setAnswer("");
+      }
+      setTrace([]);
+
       try {
         const res = await fetch("/api/agent/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({
+            message,
+            conversationId: conversationIdRef.current,
+            slotKey: slotKey ?? null,
+          }),
           signal: controller.signal,
         });
         await consume(res);
@@ -151,29 +162,20 @@ export function useAgentStream() {
     [consume],
   );
 
-  /** 되묻기 턴 답변 — 중단된 턴을 재개한다 */
+  /** 되묻기 답변 — 같은 엔드포인트로 보낸다. 별도 재개 API가 없다 */
   const answerSlot = useCallback(
-    async (slotKey: string, value: string) => {
-      const cid = conversationIdRef.current;
-      if (!cid) return;
-
-      setPendingSlot(null);
-      setStreaming(true);
-
-      try {
-        const res = await fetch(`/api/agent/${cid}/slot`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slotKey, value }),
-        });
-        await consume(res);
-      } catch (e) {
-        setError((e as Error).message);
-        setStreaming(false);
-      }
-    },
-    [consume],
+    (slotKey: string, value: string) => send(value, slotKey),
+    [send],
   );
 
-  return { trace, answer, pendingSlot, error, streaming, start, answerSlot };
+  /** 새 대화 시작 */
+  const reset = useCallback(() => {
+    conversationIdRef.current = null;
+    setTrace([]);
+    setAnswer("");
+    setPendingSlot(null);
+    setError(null);
+  }, []);
+
+  return { trace, answer, pendingSlot, error, streaming, send, answerSlot, reset };
 }

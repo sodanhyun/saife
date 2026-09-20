@@ -113,6 +113,12 @@ public class RiskRuleEngine {
         Boolean solvent = parseBoolean(slots.get(SlotKeys.SOLVENT_USED));
         Boolean ignition = parseBoolean(slots.get(SlotKeys.IGNITION_NEARBY));
 
+        // 작업자에게 "유기용제 쓰십니까"를 따로 묻지 않는다. 제품명에서 읽어낸다.
+        // 이걸 안 하면 유성페인트 작업인데 화재 위험이 '하'로 나온다 (실측 버그).
+        if (solvent == null) {
+            solvent = inferSolventFromProduct(slots.get(SlotKeys.PRODUCT_NAME));
+        }
+
         if (Boolean.TRUE.equals(solvent) && Boolean.TRUE.equals(ignition)) {
             return new Decision(RiskLevel.HIGH, (short) 3, (short) 3,
                     "유기용제 취급 + 인근 화기 작업 있음 → '상'");
@@ -127,6 +133,29 @@ public class RiskRuleEngine {
 
     private Decision fixed(RiskLevel level, short frequency, short severity, String trace) {
         return new Decision(level, frequency, severity, trace);
+    }
+
+    /**
+     * 제품명에서 유기용제 취급 여부를 읽는다.
+     *
+     * <p>"유성페인트"·"시너"·"락카"는 유기용제다. 작업자에게 "유기용제 쓰십니까"를
+     * 따로 묻는 건 질문 하나를 낭비하는 것이고, 현장에서는 그 용어 자체를 잘 안 쓴다.
+     *
+     * <p>수성이라고 명시하면 아니라고 판단한다. 아무것도 모르면 null을 돌려
+     * "미확인"으로 둔다 — 없다고 단정하지 않는다.
+     */
+    private Boolean inferSolventFromProduct(String productName) {
+        if (productName == null || productName.isBlank()) {
+            return null;
+        }
+        String p = productName.trim();
+        if (p.matches("(?s).*(수성|아크릴에멀젼|무용제).*")) {
+            return Boolean.FALSE;
+        }
+        if (p.matches("(?s).*(유성|에나멜|락카|라카|우레탄|에폭시|시너|신너|희석|솔벤트|톨루엔|크실렌).*")) {
+            return Boolean.TRUE;
+        }
+        return null;
     }
 
     /** "3", "3m", "약 3.5미터" 같은 자유 입력에서 숫자만 뽑는다 */

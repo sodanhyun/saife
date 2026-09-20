@@ -54,9 +54,11 @@ public final class ToolCallTracker {
         long startMs = System.currentTimeMillis();
         boolean success = true;
         String errorMessage = null;
+        String resultPreview = null;
 
         try {
             String result = action.get();
+            resultPreview = preview(result);
 
             // 예외 없이 빈 문자열을 돌려주는 경우가 실제로 있다. 부분 실패로 기록한다.
             if (result == null || result.isBlank()) {
@@ -87,7 +89,8 @@ public final class ToolCallTracker {
             emit(sseService, sessionId, "ai.tool.done", conversationId, toolName, payload);
 
             ToolCallContext.record(conversationId,
-                    new ToolCallContext.Record(toolName, paramsJson, callOrder, durationMs, success, errorMessage));
+                    new ToolCallContext.Record(toolName, paramsJson, callOrder, durationMs,
+                            success, errorMessage, resultPreview));
         }
     }
 
@@ -121,6 +124,14 @@ public final class ToolCallTracker {
         } catch (Exception e) {
             return "{}";
         }
+    }
+
+    /** 루프가 마커를 감시할 수 있을 만큼만 남긴다. 전문을 메모리에 들고 있지 않는다. */
+    private static String preview(String result) {
+        if (result == null) {
+            return null;
+        }
+        return result.length() > 400 ? result.substring(0, 400) : result;
     }
 
     /** 스택트레이스·내부 경로가 화면이나 모델 컨텍스트로 새지 않게 한 줄로 줄인다. */

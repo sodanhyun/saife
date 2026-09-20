@@ -12,7 +12,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class Process {
+public class WorkProcess {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

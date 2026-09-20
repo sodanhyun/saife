@@ -30,7 +30,8 @@ public final class ToolCallContext {
      * @param errorMessage 실패 사유 (성공이면 null)
      */
     public record Record(String toolName, String paramsJson, int callOrder,
-                         long durationMs, boolean success, String errorMessage) {}
+                         long durationMs, boolean success, String errorMessage,
+                         String resultPreview) {}
 
     public static int nextCallOrder(String conversationId) {
         if (conversationId == null) {
@@ -44,6 +45,12 @@ public final class ToolCallContext {
             return;
         }
         RECORDS.computeIfAbsent(conversationId, k -> new ArrayList<>()).add(record);
+    }
+
+    /** 비우지 않고 들여다본다. 루프가 되묻기 마커를 감시할 때 쓴다. */
+    public static List<Record> peek(String conversationId) {
+        List<Record> out = RECORDS.get(conversationId);
+        return out != null ? List.copyOf(out) : List.of();
     }
 
     /** 기록을 꺼내면서 비운다. 대화 종료 시 호출해 tool_call 테이블에 적재한다. */

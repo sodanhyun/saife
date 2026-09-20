@@ -1,7 +1,7 @@
 package io.saife.core.service;
 
 import io.saife.core.domain.Equipment;
-import io.saife.core.domain.Process;
+import io.saife.core.domain.WorkProcess;
 import io.saife.core.repository.EquipmentRepository;
 import io.saife.core.repository.ProcessRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,8 +37,11 @@ import java.util.Optional;
 @Slf4j
 public class EquipmentMatcher {
 
+    /** 이 점수 이상이면 확정으로 본다. 매번 되물으면 대화가 늘어진다 */
+    private static final double CONFIRM_THRESHOLD = 0.88;
+
     /** 이 점수 이상이면 "혹시 이것입니까?" 후보로 올린다 */
-    private static final double SUGGEST_THRESHOLD = 0.82;
+    private static final double SUGGEST_THRESHOLD = 0.72;
 
     private final EquipmentRepository equipmentRepository;
     private final ProcessRepository processRepository;
@@ -53,7 +56,7 @@ public class EquipmentMatcher {
      * @param unmatched  아무것도 못 찾음 → 미등록 설비 등록 플로우로
      */
     public record MatchResult(Equipment equipment,
-                              Process process,
+                              WorkProcess process,
                               List<Candidate> candidates,
                               boolean unmatched) {
 
@@ -70,41 +73,102 @@ public class EquipmentMatcher {
 
     @Transactional(readOnly = true)
     public MatchResult match(Long siteId, String rawQuery, String rawLocationTag) {
-        String normalized = Equipment.normalize(rawQuery);
+        String query = rawQuery == null ? "" : rawQuery.trim();
 
-        // 1단 — 완전일치
-        Optional<Equipment> exact = equipmentRepository.findExact(siteId, rawLocationTag, normalized);
+        // 모델은 장소와 설비를 한 문장으로 넘긴다 ("공장동 후면 차양부 이동식 사다리").
+        // 등록된 장소 태그를 먼저 떼어내고 남은 부분을 설비명으로 본다.
+        WorkProcess process = resolveProcess(siteId, query, rawLocationTag);
+        String locationTag = rawLocationTag != null && !rawLocationTag.isBlank()
+                ? rawLocationTag
+                : (process != null ? process.getLocationTag() : null);
+        String equipmentPart = stripLocation(query, locationTag);
+
+        // 1단 — 완전일치 (유니크 제약과 같은 규칙)
+        Optional<Equipment> exact = equipmentRepository
+                .findExact(siteId, locationTag, Equipment.normalize(equipmentPart));
         if (exact.isPresent()) {
             Equipment eq = exact.get();
             log.debug("[MATCH] 완전일치 equipmentId={} '{}'", eq.getId(), eq.getName());
             return new MatchResult(eq, findProcess(eq.getProcessId()), List.of(), false);
         }
 
-        // 2단 — 유사도 후보
-        String keyword = firstMeaningfulToken(rawQuery);
-        List<Equipment> pool = keyword.isBlank()
-                ? equipmentRepository.findBySiteId(siteId)
-                : equipmentRepository.searchByKeyword(siteId, keyword);
-        if (pool.isEmpty()) {
-            pool = equipmentRepository.findBySiteId(siteId);
+        // 2단 — 유사도. 장소가 특정되면 그 장소의 설비만 본다
+        List<Equipment> pool = poolFor(siteId, process);
+        List<Candidate> scored = pool.stream()
+                .map(e -> new Candidate(e.getId(), e.getName(), e.getLocationTag(),
+                        score(equipmentPart, query, locationTag, e)))
+                .sorted(Comparator.comparingDouble(Candidate::score).reversed())
+                .toList();
+
+        // 아주 높으면 확정으로 본다 — "이동식 사다리" vs "이동식 사다리 A"에서
+        // 매번 되물으면 대화가 늘어지고, 모델이 같은 도구를 반복 호출한다
+        if (!scored.isEmpty() && scored.get(0).score() >= CONFIRM_THRESHOLD) {
+            Equipment eq = equipmentRepository.findById(scored.get(0).equipmentId()).orElse(null);
+            if (eq != null) {
+                log.debug("[MATCH] 고신뢰 매칭 equipmentId={} score={}", eq.getId(), scored.get(0).score());
+                return new MatchResult(eq, findProcess(eq.getProcessId()), List.of(), false);
+            }
         }
 
-        List<Candidate> candidates = pool.stream()
-                .map(e -> new Candidate(e.getId(), e.getName(), e.getLocationTag(),
-                        score(normalized, rawLocationTag, e)))
+        List<Candidate> candidates = scored.stream()
                 .filter(c -> c.score() >= SUGGEST_THRESHOLD)
-                .sorted(Comparator.comparingDouble(Candidate::score).reversed())
                 .limit(3)
                 .toList();
 
         if (!candidates.isEmpty()) {
             log.debug("[MATCH] 유사 후보 {}건 — 생성하지 않고 되묻는다", candidates.size());
-            return new MatchResult(null, matchProcess(siteId, rawLocationTag), candidates, false);
+            return new MatchResult(null, process, candidates, false);
         }
 
         // 3단 — 미등록
-        log.debug("[MATCH] 미등록 '{}'", rawQuery);
-        return new MatchResult(null, matchProcess(siteId, rawLocationTag), List.of(), true);
+        log.debug("[MATCH] 미등록 query='{}' 설비부='{}' 장소='{}'", query, equipmentPart, locationTag);
+        return new MatchResult(null, process, List.of(), true);
+    }
+
+    /** 질의 안에 등록된 장소 태그가 들어 있는지 본다 */
+    private WorkProcess resolveProcess(Long siteId, String query, String rawLocationTag) {
+        if (rawLocationTag != null && !rawLocationTag.isBlank()) {
+            WorkProcess byTag = matchProcess(siteId, rawLocationTag);
+            if (byTag != null) {
+                return byTag;
+            }
+        }
+        String normalizedQuery = Equipment.normalize(query);
+        for (WorkProcess p : processRepository.findBySiteId(siteId)) {
+            String tag = p.getLocationTag();
+            if (tag != null && !tag.isBlank()
+                    && normalizedQuery.contains(Equipment.normalize(tag))) {
+                return p;
+            }
+        }
+        return matchProcess(siteId, query);
+    }
+
+    /** 질의에서 장소 부분을 떼어낸 나머지 = 설비명 후보 */
+    private String stripLocation(String query, String locationTag) {
+        if (locationTag == null || locationTag.isBlank()) {
+            return query;
+        }
+        String normQuery = Equipment.normalize(query);
+        String normTag = Equipment.normalize(locationTag);
+        if (!normQuery.contains(normTag)) {
+            return query;
+        }
+        String remainder = normQuery.replace(normTag, "").trim();
+        return remainder.isBlank() ? query : remainder;
+    }
+
+    /** 장소가 특정되면 그 장소의 설비로 좁힌다 */
+    private List<Equipment> poolFor(Long siteId, WorkProcess process) {
+        if (process != null) {
+            List<Equipment> scoped = equipmentRepository.findBySiteId(siteId).stream()
+                    .filter(e -> process.getId().equals(e.getProcessId()))
+                    .toList();
+            if (!scoped.isEmpty()) {
+                return scoped;
+            }
+        }
+        return equipmentRepository.findBySiteId(siteId);
     }
 
     /**
@@ -142,30 +206,44 @@ public class EquipmentMatcher {
         }
     }
 
-    private double score(String normalizedQuery, String queryLocation, Equipment candidate) {
-        double nameScore = nullSafe(similarity.apply(normalizedQuery, candidate.getNormalizedName()));
+    /**
+     * 설비명 유사도를 낸다.
+     *
+     * <p>설비명 부분과의 유사도를 기본으로 하되, 전체 질의가 설비명을 통째로 포함하면
+     * ("…이동식 사다리 A 점검") 강하게 올린다. 위치가 일치하면 추가 가산한다.
+     */
+    private double score(String equipmentPart, String fullQuery, String queryLocation, Equipment candidate) {
+        String candName = candidate.getNormalizedName();
+        double nameScore = nullSafe(similarity.apply(Equipment.normalize(equipmentPart), candName));
+
+        // 질의가 설비명을 포함하면 사실상 확정이다
+        String normFull = Equipment.normalize(fullQuery);
+        if (!candName.isBlank() && normFull.contains(candName)) {
+            nameScore = Math.max(nameScore, 0.95);
+        }
+
         if (queryLocation == null || queryLocation.isBlank() || candidate.getLocationTag() == null) {
             return nameScore;
         }
         double locScore = nullSafe(similarity.apply(
                 Equipment.normalize(queryLocation), Equipment.normalize(candidate.getLocationTag())));
         // 위치가 같으면 같은 설비일 가능성이 크게 오른다
-        return nameScore * 0.6 + locScore * 0.4;
+        return nameScore * 0.75 + locScore * 0.25;
     }
 
     private double nullSafe(Double d) {
         return d != null ? d : 0.0;
     }
 
-    private Process matchProcess(Long siteId, String locationTag) {
+    private WorkProcess matchProcess(Long siteId, String locationTag) {
         if (locationTag == null || locationTag.isBlank()) {
             return null;
         }
-        List<Process> hits = processRepository.searchByKeyword(siteId, locationTag);
+        List<WorkProcess> hits = processRepository.searchByKeyword(siteId, locationTag);
         return hits.isEmpty() ? null : hits.get(0);
     }
 
-    private Process findProcess(Long processId) {
+    private WorkProcess findProcess(Long processId) {
         return processId == null ? null : processRepository.findById(processId).orElse(null);
     }
 

@@ -8,16 +8,18 @@ import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 
 /**
- * 중단된 턴의 상태.
+ * 대화 히스토리.
  *
- * <p><b>되묻기 턴은 HTTP 경계를 넘는다.</b> 작업자의 답변은 별도 POST로 들어오므로
- * 메시지 배열을 여기 영속화하고 스레드를 놓아준다.
+ * <p>초기 설계에서는 "중단된 턴의 상태"였다. 되묻기가 스레드 중단/재개를 요구한다고
+ * 보고 메시지 배열·pendingSlot·lastSeq를 들고 있었다.
  *
- * <p>⚠️ 워커 스레드가 {@code SseEmitter}를 붙잡은 채 사람이 타이핑하기를 기다리면
- * 스레드 풀이 마르고 무대에서 데모가 죽는다. 그러라고 있는 테이블이다.
+ * <p>실측 결과 그 배관이 필요 없었다({@code docs/experiments/README.md}).
+ * 모델이 질문을 내놓고 턴을 끝내는 것이 곧 일시정지이고, 사용자가 답하면 같은 대화 ID로
+ * 다음 요청이 온다 — <b>평범한 멀티턴 대화</b>다. 그래서 이 테이블도 평범한 채팅 메모리다.
  *
- * <p>{@code lastSeq}는 재개 후 seq를 이어서 증가시키기 위한 것이다. 리셋하면
- * 프론트 트레이스 패널의 순서가 무너진다.
+ * <p>{@code pendingSlot}·{@code lastSeq}·{@code suspendedAt}·{@code expiresAt}는
+ * 스키마에 남아 있으나 현재 흐름 제어에 쓰이지 않는다. 장시간 방치된 대화를 정리하는
+ * 배치를 붙일 때 쓸 수 있다.
  */
 @Entity
 @Table(name = "conversation_state")
@@ -49,12 +51,10 @@ public class ConversationState {
     @Column(name = "expires_at")
     private OffsetDateTime expiresAt;
 
-    public void suspend(String messagesJson, String pendingSlot, int lastSeq, OffsetDateTime expiresAt) {
+    /** 히스토리를 통째로 갈아끼운다 */
+    public void replaceHistory(String messagesJson) {
         this.messagesJson = messagesJson;
-        this.pendingSlot = pendingSlot;
-        this.lastSeq = lastSeq;
         this.suspendedAt = OffsetDateTime.now();
-        this.expiresAt = expiresAt;
     }
 
     public boolean isExpired() {
