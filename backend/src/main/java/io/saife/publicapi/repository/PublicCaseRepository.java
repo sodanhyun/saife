@@ -7,8 +7,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PublicCaseRepository extends JpaRepository<PublicCase, Long> {
+
+    /** 수집 시 중복 방지. UNIQUE(source, source_key)와 쌍이다 */
+    Optional<PublicCase> findBySourceAndSourceKey(String source, String sourceKey);
 
     /**
      * 업종 필터를 먼저 걸고 발생형태로 좁힌다.

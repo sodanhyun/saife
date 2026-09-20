@@ -39,21 +39,25 @@ public class DemoModeConfig {
                 || DemoModeEnvironmentPostProcessor.PLACEHOLDER_KEY.equals(geminiApiKey);
         this.demoMode = forcedDemoMode || keyMissing;
 
-        if (forcedDemoMode) {
-            log.warn("""
-
-                    ════════════════════════════════════════════════════════════
-                     SAIFE 데모 모드 — 명시적으로 켜짐 (SAIFE_DEMO_MODE=true)
-                     모델 응답을 픽스처로 대체합니다. 도구는 로컬 캐시에 대해
-                     실제로 실행됩니다.
-                    ════════════════════════════════════════════════════════════""");
-        } else if (keyMissing) {
+        // 순서가 중요하다. DemoModeEnvironmentPostProcessor가 키 없음을 보고
+        // saife.demo-mode=true를 스스로 켜므로, forcedDemoMode를 먼저 보면
+        // "SAIFE_DEMO_MODE=true로 켜졌다"고 찍힌다 — 심사위원이 있지도 않은
+        // 설정을 찾아 헤매게 된다. 키 없음을 먼저 판단한다.
+        if (keyMissing) {
             log.warn("""
 
                     ════════════════════════════════════════════════════════════
                      GEMINI_API_KEY 가 없습니다 → 데모 모드로 기동합니다.
                      앱은 정상 동작하며, 모델 응답만 픽스처로 대체됩니다.
                      실제 모델을 쓰려면 .env 에 GEMINI_API_KEY 를 넣고 재기동하세요.
+                    ════════════════════════════════════════════════════════════""");
+        } else if (forcedDemoMode) {
+            log.warn("""
+
+                    ════════════════════════════════════════════════════════════
+                     SAIFE 데모 모드 — 명시적으로 켜짐 (SAIFE_DEMO_MODE=true)
+                     모델 응답을 픽스처로 대체합니다. 도구는 로컬 캐시에 대해
+                     실제로 실행됩니다.
                     ════════════════════════════════════════════════════════════""");
         } else {
             log.info("SAIFE 라이브 모드 — Gemini 실호출");
