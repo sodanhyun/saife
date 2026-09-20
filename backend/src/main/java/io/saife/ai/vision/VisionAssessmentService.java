@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +75,7 @@ public class VisionAssessmentService {
     public record Candidate(Long hazardId, AccidentType accidentType, String accidentLabel,
                             String missingControl, String evidence, Double confidence,
                             RiskLevel riskLevel, String ruleTrace, Boolean adopted,
-                            boolean alreadyKnown) {}
+                            boolean alreadyKnown, GateStatus gateStatus, String gateNote) {}
 
     public record AnalysisResult(Long assessmentId, String status,
                                  List<Candidate> candidates, boolean demoMode) {}
@@ -184,7 +185,8 @@ public class VisionAssessmentService {
                     finding.accidentType().getLabel(), finding.missingControl(),
                     finding.evidence(), finding.confidence(),
                     decision.riskLevel(), decision.ruleTrace(), hazard.getAiAdopted(),
-                    alreadyKnown));
+                    alreadyKnown, GateStatus.of(finding.accidentType()),
+                    gateNote(finding.accidentType())));
         }
 
         updateStatus(assessmentId, STATUS_ANALYZED);
@@ -224,19 +226,39 @@ public class VisionAssessmentService {
                 hazard.getDescription(), null,
                 latest == null ? null : latest.getRiskLevel(),
                 latest == null ? null : latest.getRuleTrace(),
-                hazard.getAiAdopted(), true);
+                hazard.getAiAdopted(), true, GateStatus.of(hazard.getAccidentType()),
+                gateNote(hazard.getAccidentType()));
     }
 
     /** 채택률 지표. 분모는 AI가 제안한 전체, 분자는 사람이 채택한 것 */
+    /** 미통과 축에 붙는 안내. 화면이 이 문장을 그대로 띄운다 */
+    private String gateNote(AccidentType axis) {
+        if (GateStatus.of(axis) == GateStatus.PHOTO) {
+            return null;
+        }
+        return "이 축은 2026-09-21 사진 판독 검증(30장)을 통과하지 못했습니다. "
+                + "참고용이며 현장 확인 후 확정하십시오. 채택률 지표에는 포함되지 않습니다.";
+    }
+
     @Transactional(readOnly = true)
     public Map<String, Object> adoptionRate(Long siteId) {
-        long suggested = hazardRepository.countAiSuggested(siteId);
-        long adopted = hazardRepository.countAiAdopted(siteId);
+        // 게이트를 통과한 축만 센다. 검증 안 된 축을 지표에 넣으면
+        // 게이트 결과를 본 심사위원이 바로 짚는다
+        List<AccidentType> gated = Arrays.stream(AccidentType.values())
+                .filter(GateStatus::countsTowardAdoptionRate)
+                .toList();
+
+        long suggested = hazardRepository.countAiSuggestedIn(siteId, gated);
+        long adopted = hazardRepository.countAiAdoptedIn(siteId, gated);
+
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("suggested", suggested);
         m.put("adopted", adopted);
         m.put("rate", suggested == 0 ? null : (double) adopted / suggested);
-        m.put("note", "정확도가 아니라 사람이 채택한 비율입니다. 아직 판단하지 않은 후보는 분자에 들어가지 않습니다.");
+        m.put("axes", gated.stream().map(AccidentType::getLabel).toList());
+        m.put("note", "정확도가 아니라 사람이 채택한 비율입니다. 아직 판단하지 않은 후보는 "
+                + "분자에 들어가지 않습니다. 사진 판독 검증(2026-09-21)을 통과한 "
+                + gated.size() + "개 축만 집계합니다.");
         return m;
     }
 
@@ -251,7 +273,9 @@ public class VisionAssessmentService {
                     new Candidate(h.getId(), h.getAccidentType(), h.getAccidentType().getLabel(),
                             h.getMissingControl(), h.getDescription(), null,
                             link.getRiskLevel(), link.getRuleTrace(), h.getAiAdopted(),
-                            h.getSource() != HazardSource.PHOTO)));
+                            h.getSource() != HazardSource.PHOTO,
+                            GateStatus.of(h.getAccidentType()),
+                            gateNote(h.getAccidentType()))));
         }
         return new AnalysisResult(assessmentId, assessment.getStatus(), candidates,
                 demoModeConfig.isDemoMode());

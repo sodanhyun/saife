@@ -98,7 +98,12 @@ export function VisionPage() {
 
         {rate && (
           <div className="ml-auto rounded border bg-white px-4 py-2 text-sm">
-            <span className="text-slate-500">후보 채택률</span>{" "}
+            <span className="text-slate-500">
+              후보 채택률
+              {rate.axes && rate.axes.length > 0 && (
+                <span className="ml-1 text-xs">({rate.axes.join("·")} 축)</span>
+              )}
+            </span>{" "}
             <strong className="tabular-nums">
               {rate.adopted}/{rate.suggested}
             </strong>{" "}
@@ -162,7 +167,17 @@ export function VisionPage() {
                       기존 위험요인 재확인
                     </span>
                   )}
+                  {c.gateStatus === "CHECKLIST" && (
+                    <span className="rounded border border-slate-400 px-2 py-0.5 text-xs text-slate-600">
+                      참고 — 현장 확인 필요
+                    </span>
+                  )}
                 </div>
+
+                {/* 검증되지 않은 축임을 화면에서 밝힌다. 지표에도 안 들어간다 */}
+                {c.gateNote && (
+                  <p className="mt-1 text-xs text-slate-500">{c.gateNote}</p>
+                )}
 
                 {c.evidence && (
                   <p className="mt-2 text-sm text-slate-700">
