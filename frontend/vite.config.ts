@@ -16,6 +16,11 @@ export default defineConfig({
         target: "http://localhost:8080",
         changeOrigin: true,
       },
+      // 법정 서식은 백엔드가 그린 HTML을 새 탭에서 연다
+      "/form": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+      },
     },
   },
 });

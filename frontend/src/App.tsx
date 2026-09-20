@@ -1,73 +1,63 @@
-import { useState } from "react";
-import { useAgentStream } from "@/hooks/useAgentStream";
-import { ToolTracePanel } from "@/components/ToolTracePanel";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { WorkPlanChatPage } from "@/pages/WorkPlanChatPage";
+import { VisionPage } from "@/pages/VisionPage";
+import { IncidentPage } from "@/pages/IncidentPage";
+import { TimelinePage } from "@/pages/TimelinePage";
 
 /**
- * 스캐폴드 화면. UC3(작업계획서 대화형 등록) 뼈대만 올려두었다.
- * 좌측 대화 / 우측 트레이스 패널 구성이 시연 레이아웃이다.
+ * 화면 구성은 시연 순서를 그대로 따른다.
+ *
+ *   사진 판독(UC1) → 작업계획서(UC3) → 사고 등록(UC2) → 설비 타임라인(UC4)
+ *
+ * 마지막이 타임라인인 이유는, 앞의 세 화면에서 만든 기록이 하나의 설비 ID 위에
+ * 쌓여 있는 것을 마지막에 보여주기 위해서다. 영상의 마지막 컷이다.
  */
+const TABS = [
+  { to: "/vision", label: "사진 판독", hint: "UC1" },
+  { to: "/work-plan", label: "작업계획서", hint: "UC3" },
+  { to: "/incident", label: "사고 등록", hint: "UC2" },
+  { to: "/timeline", label: "설비 타임라인", hint: "UC4" },
+];
+
 export default function App() {
-  const [input, setInput] = useState("");
-  const { trace, answer, pendingSlot, error, streaming, send, answerSlot } = useAgentStream();
-  const [slotValue, setSlotValue] = useState("");
-
   return (
-    <div className="grid h-screen grid-cols-[1fr_420px] bg-slate-50">
-      <section className="flex flex-col p-6">
-        <h1 className="text-xl font-semibold">SAIFE — 작업계획서 등록</h1>
-
-        <div className="mt-4 flex-1 overflow-auto whitespace-pre-wrap rounded border bg-white p-4">
-          {answer || <span className="text-slate-400">작업 내용을 말씀해 주세요.</span>}
+    <div className="flex h-screen flex-col bg-slate-50">
+      <header className="flex items-center gap-6 border-b bg-white px-6 py-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-lg font-bold tracking-tight">SAIFE</span>
+          <span className="text-xs text-slate-500">
+            현장의 안전 문서들은 서로를 기억하지 못합니다. SAIFE는 기억합니다.
+          </span>
         </div>
 
-        {pendingSlot && (
-          <div className="mt-3 rounded border border-amber-300 bg-amber-50 p-4">
-            <p className="font-medium">{pendingSlot.question}</p>
-            {pendingSlot.ledgerValue && (
-              <p className="mt-1 text-sm text-slate-600">
-                기록상 값: {pendingSlot.ledgerValue}
-              </p>
-            )}
-            <div className="mt-2 flex gap-2">
-              <input
-                className="flex-1 rounded border px-3 py-2"
-                value={slotValue}
-                onChange={(e) => setSlotValue(e.target.value)}
-              />
-              <button
-                className="rounded bg-slate-900 px-4 py-2 text-white"
-                onClick={() => {
-                  answerSlot(pendingSlot.slotKey, slotValue);
-                  setSlotValue("");
-                }}
-              >
-                답변
-              </button>
-            </div>
-          </div>
-        )}
+        <nav className="ml-auto flex gap-1">
+          {TABS.map((t) => (
+            <NavLink
+              key={t.to}
+              to={t.to}
+              className={({ isActive }) =>
+                `rounded px-3 py-1.5 text-sm ${
+                  isActive ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                }`
+              }
+            >
+              {t.label}
+              <span className="ml-1.5 text-[10px] opacity-60">{t.hint}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </header>
 
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-
-        <div className="mt-3 flex gap-2">
-          <input
-            className="flex-1 rounded border px-3 py-2"
-            placeholder="내일 사다리 놓고 천장 페인트 칠할 건데요"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !streaming && send(input)}
-          />
-          <button
-            className="rounded bg-slate-900 px-5 py-2 text-white disabled:opacity-40"
-            disabled={streaming}
-            onClick={() => send(input)}
-          >
-            보내기
-          </button>
-        </div>
-      </section>
-
-      <ToolTracePanel rows={trace} />
+      <main className="flex-1 overflow-hidden">
+        <Routes>
+          <Route path="/" element={<Navigate to="/work-plan" replace />} />
+          <Route path="/vision" element={<VisionPage />} />
+          <Route path="/work-plan" element={<WorkPlanChatPage />} />
+          <Route path="/incident" element={<IncidentPage />} />
+          <Route path="/timeline" element={<TimelinePage />} />
+          <Route path="*" element={<Navigate to="/work-plan" replace />} />
+        </Routes>
+      </main>
     </div>
   );
 }
