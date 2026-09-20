@@ -1,0 +1,4 @@
+# 키가 없을 때 Google GenAI autoconfiguration이 Vertex 모드로 떨어져 기동을 막는 것을 방지한다.
+# 상세: io.saife.common.config.DemoModeEnvironmentPostProcessor
+org.springframework.boot.env.EnvironmentPostProcessor=\
+io.saife.common.config.DemoModeEnvironmentPostProcessor

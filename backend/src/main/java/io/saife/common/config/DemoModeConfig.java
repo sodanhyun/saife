@@ -32,7 +32,11 @@ public class DemoModeConfig {
 
     @PostConstruct
     void resolve() {
-        boolean keyMissing = geminiApiKey == null || geminiApiKey.isBlank();
+        // DemoModeEnvironmentPostProcessor가 자리표시자를 넣었을 수 있다.
+        // 자리표시자는 "키 있음"이 아니라 "키 없음"으로 읽어야 한다.
+        boolean keyMissing = geminiApiKey == null
+                || geminiApiKey.isBlank()
+                || DemoModeEnvironmentPostProcessor.PLACEHOLDER_KEY.equals(geminiApiKey);
         this.demoMode = forcedDemoMode || keyMissing;
 
         if (forcedDemoMode) {

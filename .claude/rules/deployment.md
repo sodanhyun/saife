@@ -29,6 +29,16 @@ globs: ["Dockerfile*", "docker-compose*.yml", ".dockerignore", "**/db/migration/
 
 **부팅 시 키가 없다고 예외를 던지지 않는다.** 경고 로그 한 줄을 남기고 데모 모드로 내려간다.
 
+⚠️ **경고만 찍고 끝내면 안 된다.** Spring AI의 Google GenAI 임베딩 autoconfiguration은
+api-key가 비어 있으면 Vertex AI 모드로 해석해 `"Google GenAI project-id must be set!"`로
+컨텍스트를 죽인다. `DemoModeConfig`가 경고를 찍어도 그 직후에 기동이 막힌다.
+
+→ `DemoModeEnvironmentPostProcessor`가 키가 비었을 때 자리표시자를 **`addFirst`로** 주입해
+autoconfiguration을 통과시킨다. `addLast`로는 `application.yml`이 이미 해석해 둔 빈 문자열에
+밀린다. 실제 호출은 데모 모드가 픽스처로 가로채므로 자리표시자가 밖으로 나가지 않는다.
+
+**이 경로는 회귀하기 쉽다. 키를 비우고 기동하는 테스트를 10/5 패키징 점검에 포함한다.**
+
 ## 5분 룰
 
 `README.md`의 실행 절차는 **실제로 5분 안에 끝나야 한다.** 10/5 패키징 때
@@ -118,6 +128,7 @@ docker-compose*.yml
 - [ ] `.env`가 추적되지 않는지 (`git ls-files | grep -c "^\.env$"` → 0)
 - [ ] API 키·인증키가 소스에 하드코딩되지 않았는지 (`grep -rn "serviceKey=\|api-key:" --include=*.java --include=*.yml`)
 - [ ] 깨끗한 클론에서 5분 룰 통과
+- [ ] **`GEMINI_API_KEY=""` 로 기동해 healthy 되는지** (심사위원 시나리오. 회귀하기 쉬운 경로)
 - [ ] `README.md` 실행 절차가 실제와 일치
 - [ ] AI Hub 이미지가 포함됐다면 **재배포 조건 확인 완료** (미확인이면 로컬 경로 참조로 전환)
 - [ ] 비공개 저장소 → 심사 기간 공개 전환 또는 심사위원 초대
