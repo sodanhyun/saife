@@ -1,0 +1,36 @@
+# ── 환경/비밀 ──
+.env
+.env.local
+*.key
+apiKey.txt
+
+# ── 데이터셋·캐시 (리포 밖 보관 원칙이나 방어적으로 무시) ──
+/data/
+*.zip
+Sample/
+cache/raw/
+
+# ── Java / Gradle ──
+backend/build/
+backend/.gradle/
+backend/out/
+backend/bin/
+*.class
+*.jar
+!backend/gradle/wrapper/gradle-wrapper.jar
+
+# ── Node ──
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+
+# ── IDE ──
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# ── 에이전트 작업물 ──
+.gstack/
+.superpowers/

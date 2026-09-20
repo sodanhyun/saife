@@ -1,0 +1,21 @@
+# 개발용 — DB만 띄운다. 백엔드/프론트는 로컬에서 직접 실행
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: saife-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-saife}
+      POSTGRES_USER: ${DB_USERNAME:-saife}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-saife}
+    ports:
+      - "5432:5432"
+    volumes:
+      - saife-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-saife} -d ${DB_NAME:-saife}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  saife-pgdata:

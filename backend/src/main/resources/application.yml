@@ -1,0 +1,94 @@
+server:
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: saife
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/${DB_NAME:saife}
+    username: ${DB_USERNAME:saife}
+    password: ${DB_PASSWORD:saife}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate      # 스키마는 Flyway가 소유한다. 엔티티만 고치면 부팅 실패
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+
+  servlet:
+    multipart:
+      max-file-size: 20MB      # 현장 사진
+      max-request-size: 100MB
+
+  # ── Spring AI (Gemini) ──
+  ai:
+    retry:
+      max-attempts: 1          # Spring AI 레벨 재시도 비활성 — 재시도는 앱 계층이 전담
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+        chat:
+          options:
+            model: ${GEMINI_CHAT_MODEL:gemini-2.5-flash}
+            temperature: 0.2   # 판정 보조라 낮게. 등급은 어차피 룰 엔진이 낸다
+        embedding:
+          text:
+            options:
+              model: gemini-embedding-2
+              dimensions: 1536
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 1536
+        initialize-schema: true
+
+# ── JWT ──
+jwt:
+  secret: ${JWT_SECRET:change-me-in-env-at-least-32-characters-long}
+  expiration-ms: 86400000
+
+# ── 공공데이터포털 (B552468 게이트웨이) ──
+# ⚠️ callApiId가 실제 데이터셋을 고른다. 잘못된 값은 에러가 아니라 다른 데이터셋을 반환한다.
+public-api:
+  kosha:
+    base-url: https://apis.data.go.kr/B552468
+    datasets:
+      fatality:   { path: /news_api02/getNews_api02,                       call-api-id: "1040", key: "${KOSHA_KEY_FATALITY:}",  verify-field: keyword }
+      guide:      { path: /koshaguide/getKoshaGuide,                       call-api-id: "1050", key: "${KOSHA_KEY_GUIDE:}",     verify-field: techGdlnNo }
+      disaster:   { path: /disaster_api02/getdisaster_api02,               call-api-id: "1060", key: "${KOSHA_KEY_DISASTER:}",  verify-field: business }
+    msds:
+      list-path:   /msdschem1/getChemList001
+      detail-path: /msdschem1/getChemDetail0{section}1
+      key: "${KOSHA_KEY_MSDS:}"
+  law:
+    base-url: http://www.law.go.kr/DRF
+    oc: ${LAW_OC:}            # serviceKey가 아니라 OC(기관코드). 파라미터명도 OC
+
+# ── 위험성평가 도메인 ──
+saife:
+  demo-mode: ${SAIFE_DEMO_MODE:false}   # true면 모델 응답을 픽스처로 고정 (무대 오프라인 폴백)
+  accident-types: [FALL, CAUGHT, DROP, STRUCK, FIRE, PPE]
+
+logging:
+  level:
+    io.saife: DEBUG
+    org.springframework.ai: INFO
