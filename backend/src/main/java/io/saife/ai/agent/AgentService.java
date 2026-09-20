@@ -203,6 +203,46 @@ public class AgentService {
     // ── 대화 히스토리 ────────────────────────────────────────────────
     // 중단/재개 상태가 아니라 평범한 채팅 메모리다.
 
+    /** 화면 복원용 대화 기록 한 줄 */
+    public record TranscriptLine(String role, String text) {}
+
+    /**
+     * 저장된 대화를 화면용으로 돌려준다.
+     *
+     * <p>새로고침하면 브라우저의 대화 ID가 사라져 <b>모델이 이미 아는 것을 다시 묻는다.</b>
+     * 실제로 QA에서 장소를 다시 물었다 (2026-09-21). 그대로 두면 이어지는
+     * {@code extractWorkPlan}이 새 대화 ID로 초안을 하나 더 만들어 계획서가 쪼개진다.
+     *
+     * <p>그래서 프론트가 대화 ID를 보관하고 기동 시 여기로 기록을 복원한다.
+     * 시스템 프롬프트와 도구 메시지는 화면에 내보내지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public List<TranscriptLine> transcript(String conversationId) {
+        List<TranscriptLine> out = new ArrayList<>();
+        conversationStateRepository.findById(conversationId).ifPresent(state -> {
+            try {
+                List<?> rows = objectMapper.readValue(state.getMessagesJson(), List.class);
+                for (Object row : rows) {
+                    if (!(row instanceof Map<?, ?> m)) {
+                        continue;
+                    }
+                    String type = String.valueOf(m.get("type"));
+                    if (!"user".equals(type) && !"assistant".equals(type)) {
+                        continue;
+                    }
+                    Object rawText = m.get("text");
+                    String text = rawText != null ? rawText.toString() : "";
+                    if (!text.isBlank()) {
+                        out.add(new TranscriptLine(type, text));
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[AGENT] 기록 복원 실패 conversationId={}", conversationId);
+            }
+        });
+        return out;
+    }
+
     private List<Message> loadHistory(String conversationId) {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(SYSTEM_PROMPT));

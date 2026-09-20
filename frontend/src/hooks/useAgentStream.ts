@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AiErrorPayload,
   SlotRequestPayload,
@@ -20,7 +20,30 @@ import type {
  * 놓쳐도 자유 입력으로 진행된다.
  *
  * seq는 턴마다 새로 시작하므로 턴 경계에서 초기화한다.
+ *
+ * 대화 ID는 sessionStorage에 남긴다. 새로고침 한 번에 맥락이 사라지면
+ * 모델이 이미 아는 것을 다시 묻고, 이어지는 extractWorkPlan이 새 대화 ID로
+ * 초안을 하나 더 만들어 계획서가 쪼개진다 (QA 실측, 2026-09-21).
  */
+const CONVERSATION_KEY = "saife.conversationId";
+
+function readStoredConversationId(): string | null {
+  try {
+    return sessionStorage.getItem(CONVERSATION_KEY);
+  } catch {
+    // 사생활 보호 모드 등에서 접근이 막힐 수 있다. 막히면 그냥 새 대화로 간다
+    return null;
+  }
+}
+
+function storeConversationId(id: string | null): void {
+  try {
+    if (id === null) sessionStorage.removeItem(CONVERSATION_KEY);
+    else sessionStorage.setItem(CONVERSATION_KEY, id);
+  } catch {
+    // 무시 — 저장 실패가 대화를 막으면 안 된다
+  }
+}
 export function useAgentStream() {
   const [trace, setTrace] = useState<ToolTraceRow[]>([]);
   const [answer, setAnswer] = useState("");
@@ -28,7 +51,8 @@ export function useAgentStream() {
   const [error, setError] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
 
-  const conversationIdRef = useRef<string | null>(null);
+  const conversationIdRef = useRef<string | null>(readStoredConversationId());
+  const [restoring, setRestoring] = useState(false);
   const lastSeqRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -36,7 +60,10 @@ export function useAgentStream() {
     // 재개 시 seq가 이어지므로 역행분만 중복으로 버린다
     if (env.seq <= lastSeqRef.current) return;
     lastSeqRef.current = env.seq;
-    conversationIdRef.current = env.correlationId;
+    if (conversationIdRef.current !== env.correlationId) {
+      conversationIdRef.current = env.correlationId;
+      storeConversationId(env.correlationId);
+    }
 
     switch (env.type) {
       case "ai.token":
@@ -168,14 +195,38 @@ export function useAgentStream() {
     [send],
   );
 
+  /**
+   * 저장된 대화 기록을 화면에 되살린다.
+   *
+   * 트레이스는 복원하지 않는다. 도구 호출은 그 턴의 사건이고,
+   * 지난 턴의 트레이스를 다시 그리면 방금 일어난 일처럼 보인다.
+   */
+  useEffect(() => {
+    const id = conversationIdRef.current;
+    if (id === null) return;
+
+    setRestoring(true);
+    void fetch(`/api/agent/${id}/transcript`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((lines: { role: string; text: string }[]) => {
+        const last = [...lines].reverse().find((l) => l.role === "assistant");
+        if (last) setAnswer(last.text);
+      })
+      .catch(() => {
+        // 복원 실패는 대화를 막지 않는다. 새 대화처럼 이어간다
+      })
+      .finally(() => setRestoring(false));
+  }, []);
+
   /** 새 대화 시작 */
   const reset = useCallback(() => {
     conversationIdRef.current = null;
+    storeConversationId(null);
     setTrace([]);
     setAnswer("");
     setPendingSlot(null);
     setError(null);
   }, []);
 
-  return { trace, answer, pendingSlot, error, streaming, send, answerSlot, reset };
+  return { trace, answer, pendingSlot, error, streaming, restoring, send, answerSlot, reset };
 }

@@ -5,9 +5,11 @@ import io.saife.workplan.service.SlotAnswerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -60,6 +62,17 @@ public class AgentController {
      * 대장 기록과 다르면 {@code conflicted}로 남고 조치 이행 상태가 갱신된다.
      * 이건 기록일 뿐이고 대화 흐름은 모델이 쥔다.
      */
+    /**
+     * 저장된 대화 기록. 새로고침 후 화면을 되살린다.
+     *
+     * <p>이게 없으면 새로고침 한 번에 모델이 맥락을 잃고 이미 아는 것을 다시 묻는다.
+     */
+    @GetMapping("/{conversationId}/transcript")
+    public ResponseEntity<List<AgentService.TranscriptLine>> transcript(
+            @PathVariable String conversationId) {
+        return ResponseEntity.ok(agentService.transcript(conversationId));
+    }
+
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@RequestBody ChatRequest request) {
         String conversationId = (request.conversationId() == null || request.conversationId().isBlank())

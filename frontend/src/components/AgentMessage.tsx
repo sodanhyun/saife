@@ -1,0 +1,92 @@
+import { Fragment, type ReactNode } from "react";
+
+/**
+ * 모델 출력 렌더러.
+ *
+ * <b>모델은 마크다운을 쓴다.</b> 프롬프트로 막아도 새어 나오고, 그대로 두면
+ * 화면에 별표가 그대로 찍힌다 — QA에서 "**정확한 작업 장소**가 어디인지"로 나왔다.
+ * 프로젝터에 띄우는 화면이라 그냥 둘 수 없다.
+ *
+ * <p>마크다운 라이브러리를 넣지 않는 이유는 둘이다. 의존성 하나가 별지2(사용
+ * 오픈소스 신고)에 줄 하나를 더하고, 무엇보다 <b>HTML을 만들지 않아야 한다</b> —
+ * 모델 출력을 innerHTML로 넣는 순간 주입 경로가 생긴다. 여기서는 React 요소만
+ * 만들므로 문자열이 HTML로 해석될 일이 없다.
+ *
+ * <p>지원하는 것은 모델이 실제로 쓰는 것만이다: 굵게, 불릿, 구분선, 제목.
+ * 표나 링크는 나오지 않았고, 나오면 그때 추가한다.
+ */
+export function AgentMessage({ text }: { text: string }) {
+  if (!text) return null;
+
+  const blocks: ReactNode[] = [];
+  let bullets: string[] = [];
+
+  const flushBullets = (key: string) => {
+    if (bullets.length === 0) return;
+    blocks.push(
+      <ul key={key} className="my-1 list-disc space-y-0.5 pl-5">
+        {bullets.map((b, i) => (
+          <li key={i}>{renderInline(b)}</li>
+        ))}
+      </ul>,
+    );
+    bullets = [];
+  };
+
+  text.split("\n").forEach((rawLine, index) => {
+    const line = rawLine.trimEnd();
+    const key = `l${index}`;
+
+    // 불릿: "- " 또는 "* "
+    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bullet && !/^\s*[-*]{3,}\s*$/.test(line)) {
+      bullets.push(bullet[1]);
+      return;
+    }
+    flushBullets(`u${index}`);
+
+    // 구분선: --- 또는 ***
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
+      blocks.push(<hr key={key} className="my-3 border-slate-200" />);
+      return;
+    }
+
+    // 제목: ### 텍스트
+    const heading = line.match(/^\s*(#{1,6})\s+(.*)$/);
+    if (heading) {
+      blocks.push(
+        <p key={key} className="mt-3 font-semibold">
+          {renderInline(heading[2])}
+        </p>,
+      );
+      return;
+    }
+
+    if (line.trim() === "") {
+      blocks.push(<div key={key} className="h-2" />);
+      return;
+    }
+
+    blocks.push(
+      <p key={key} className="my-0.5">
+        {renderInline(line)}
+      </p>,
+    );
+  });
+
+  flushBullets("u-last");
+
+  return <div className="leading-relaxed">{blocks}</div>;
+}
+
+/** 인라인 굵게(**x**, __x__)만 처리한다. 나머지는 글자 그대로 둔다 */
+function renderInline(text: string): ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__)/g);
+  return parts.map((part, i) => {
+    const bold = part.match(/^(?:\*\*([^*]+)\*\*|__([^_]+)__)$/);
+    if (bold) {
+      return <strong key={i}>{bold[1] ?? bold[2]}</strong>;
+    }
+    return <Fragment key={i}>{part}</Fragment>;
+  });
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { ToolTracePanel } from "@/components/ToolTracePanel";
+import { AgentMessage } from "@/components/AgentMessage";
 import { formUrl, workPlanApi } from "@/api/saifeApi";
 import { WORK_PLAN_STATUS_LABEL } from "@/types/domain";
 import type { WorkPlanDetail, WorkPlanListItem } from "@/types/workPlan";
@@ -21,7 +22,7 @@ export function WorkPlanChatPage() {
   const [detail, setDetail] = useState<WorkPlanDetail | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const { trace, answer, pendingSlot, error, streaming, send, answerSlot, reset } =
+  const { trace, answer, pendingSlot, error, streaming, restoring, send, answerSlot, reset } =
     useAgentStream();
 
   const refresh = useCallback(async () => {
@@ -93,10 +94,14 @@ export function WorkPlanChatPage() {
           </button>
         </header>
 
-        <div className="mt-4 flex-1 overflow-auto whitespace-pre-wrap rounded border bg-white p-4 leading-relaxed">
-          {answer || (
+        <div className="mt-4 flex-1 overflow-auto rounded border bg-white p-4">
+          {answer ? (
+            <AgentMessage text={answer} />
+          ) : (
             <span className="text-slate-400">
-              예: 내일 공장동 후면 차양부에서 사다리 놓고 천장 페인트 칠할 건데요
+              {restoring
+                ? "이전 대화를 불러오는 중…"
+                : "예: 내일 공장동 후면 차양부에서 사다리 놓고 천장 페인트 칠할 건데요"}
             </span>
           )}
         </div>
