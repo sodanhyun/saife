@@ -12,7 +12,7 @@ import { Fragment, type ReactNode } from "react";
  * 모델 출력을 innerHTML로 넣는 순간 주입 경로가 생긴다. 여기서는 React 요소만
  * 만들므로 문자열이 HTML로 해석될 일이 없다.
  *
- * <p>지원하는 것은 모델이 실제로 쓰는 것만이다: 굵게, 불릿, 구분선, 제목.
+ * <p>지원하는 것은 모델이 실제로 쓰는 것만이다: 굵게, 불릿, 구분선, 제목, 인용.
  * 표나 링크는 나오지 않았고, 나오면 그때 추가한다.
  */
 export function AgentMessage({ text }: { text: string }) {
@@ -44,6 +44,17 @@ export function AgentMessage({ text }: { text: string }) {
       return;
     }
     flushBullets(`u${index}`);
+
+    // 인용: "> 텍스트" — 모델이 경고 블록에 쓴다
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (quote) {
+      blocks.push(
+        <p key={key} className="border-l-2 border-slate-300 pl-2 text-slate-700">
+          {renderInline(quote[1])}
+        </p>,
+      );
+      return;
+    }
 
     // 구분선: --- 또는 ***
     if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {

@@ -7,6 +7,8 @@ import io.saife.incident.domain.Incident;
 import io.saife.incident.domain.ReportStatus;
 import io.saife.incident.dto.IncidentDtos;
 import io.saife.incident.repository.IncidentRepository;
+import io.saife.common.error.ApiExceptions.InvalidRequestException;
+import io.saife.common.error.ApiExceptions.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -53,6 +55,8 @@ public class IncidentService {
 
     @Transactional
     public IncidentDtos.RegisterResponse register(Long siteId, IncidentDtos.RegisterRequest request) {
+        validate(request);
+
         OffsetDateTime occurredAt = request.occurredAt() != null
                 ? request.occurredAt() : OffsetDateTime.now();
 
@@ -107,11 +111,28 @@ public class IncidentService {
                         draft.aiGenerated(), DISCLAIMER));
     }
 
+    /**
+     * 입력 검증.
+     *
+     * <p>휴업일수는 <b>법정 기한 계산에 그대로 쓰인다.</b> 음수가 통과하면
+     * "휴업 -5일(3일 미만)이라 제출 의무 없음"이라는 문장이 조사표에 찍힌다.
+     * 있을 수 없는 값은 기록 단계에서 막는다 (2026-09-21 QA 실측).
+     */
+    private void validate(IncidentDtos.RegisterRequest request) {
+        Integer days = request.leaveDays();
+        if (days != null && days < 0) {
+            throw new InvalidRequestException("휴업일수는 0 이상이어야 합니다: " + days);
+        }
+        if (days != null && days > 3650) {
+            throw new InvalidRequestException("휴업일수가 비현실적입니다: " + days);
+        }
+    }
+
     /** 이미 등록된 사고를 다시 펼친다 (UC4 타임라인에서 진입) */
     @Transactional(readOnly = true)
     public IncidentDtos.RegisterResponse detail(Long incidentId) {
         Incident incident = incidentRepository.findById(incidentId).orElseThrow(
-                () -> new IllegalArgumentException("사고를 찾을 수 없습니다: " + incidentId));
+                () -> new NotFoundException("사고를 찾을 수 없습니다: " + incidentId));
 
         EquipmentHistoryRecaller.Recall recall = recaller.recall(
                 incident.getEquipmentId(), incident.getAccidentType(),

@@ -10,6 +10,7 @@ import io.saife.incident.domain.Incident;
 import io.saife.incident.repository.IncidentRepository;
 import io.saife.workplan.domain.WorkPlan;
 import io.saife.workplan.repository.WorkPlanRepository;
+import io.saife.common.error.ApiExceptions.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,7 +63,7 @@ public class EquipmentTimelineService {
     @Transactional(readOnly = true)
     public TimelineDtos.EquipmentTimeline timeline(Long equipmentId) {
         Equipment equipment = equipmentRepository.findById(equipmentId).orElseThrow(
-                () -> new IllegalArgumentException("설비를 찾을 수 없습니다: " + equipmentId));
+                () -> new NotFoundException("설비를 찾을 수 없습니다: " + equipmentId));
 
         List<Hazard> hazards = hazardRepository.findByEquipmentIdOrderByCreatedAtDesc(equipmentId);
         Map<Long, Hazard> hazardById = new HashMap<>();

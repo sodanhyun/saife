@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { ToolTracePanel } from "@/components/ToolTracePanel";
 import { AgentMessage } from "@/components/AgentMessage";
@@ -22,8 +22,16 @@ export function WorkPlanChatPage() {
   const [detail, setDetail] = useState<WorkPlanDetail | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const { trace, answer, pendingSlot, error, streaming, restoring, send, answerSlot, reset } =
+  const { trace, turns, pendingSlot, error, streaming, restoring, send, answerSlot, reset } =
     useAgentStream();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 새 답변이 오면 아래로 따라간다. 안 하면 발표자가 이전 턴을 보고 있게 된다
+  // (QA 실측: 새 턴이 스크롤 아래에 쌓여 화면이 안 바뀐 것처럼 보였다)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns]);
 
   const refresh = useCallback(async () => {
     const page = await workPlanApi.list(0, 10);
@@ -94,15 +102,34 @@ export function WorkPlanChatPage() {
           </button>
         </header>
 
-        <div className="mt-4 flex-1 overflow-auto rounded border bg-white p-4">
-          {answer ? (
-            <AgentMessage text={answer} />
-          ) : (
+        <div
+          ref={scrollRef}
+          className="mt-4 flex-1 space-y-3 overflow-auto rounded border bg-white p-4"
+        >
+          {turns.length === 0 && (
             <span className="text-slate-400">
               {restoring
                 ? "이전 대화를 불러오는 중…"
                 : "예: 내일 공장동 후면 차양부에서 사다리 놓고 천장 페인트 칠할 건데요"}
             </span>
+          )}
+
+          {turns.map((turn, i) =>
+            turn.role === "user" ? (
+              <div key={i} className="flex justify-end">
+                <p className="max-w-[80%] rounded-lg bg-slate-900 px-3 py-2 text-white">
+                  {turn.text}
+                </p>
+              </div>
+            ) : (
+              <div key={i} className="rounded-lg bg-slate-50 px-3 py-2">
+                <AgentMessage text={turn.text} />
+              </div>
+            ),
+          )}
+
+          {streaming && turns[turns.length - 1]?.role === "user" && (
+            <p className="text-sm text-slate-400">확인하고 있습니다…</p>
           )}
         </div>
 

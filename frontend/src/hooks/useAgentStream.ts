@@ -44,9 +44,15 @@ function storeConversationId(id: string | null): void {
     // 무시 — 저장 실패가 대화를 막으면 안 된다
   }
 }
+/** 화면에 그리는 대화 한 줄 */
+export interface Turn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 export function useAgentStream() {
   const [trace, setTrace] = useState<ToolTraceRow[]>([]);
-  const [answer, setAnswer] = useState("");
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [pendingSlot, setPendingSlot] = useState<SlotRequestPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -66,9 +72,18 @@ export function useAgentStream() {
     }
 
     switch (env.type) {
-      case "ai.token":
-        setAnswer((prev) => prev + String(env.payload ?? ""));
+      case "ai.token": {
+        const chunk = String(env.payload ?? "");
+        // 이 턴의 assistant 줄에 이어 붙인다. 없으면 새로 만든다
+        setTurns((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.role === "assistant") {
+            return [...prev.slice(0, -1), { role: "assistant", text: last.text + chunk }];
+          }
+          return [...prev, { role: "assistant", text: chunk }];
+        });
         break;
+      }
 
       case "ai.tool.start": {
         const p = env.payload as ToolStartPayload;
@@ -161,10 +176,9 @@ export function useAgentStream() {
       lastSeqRef.current = 0;
       setStreaming(true);
 
-      // 새 대화면 화면을 비우고, 이어가는 턴이면 트레이스만 초기화한다
-      if (!conversationIdRef.current) {
-        setAnswer("");
-      }
+      // 사용자가 무엇을 말했는지 화면에 남긴다. 심사위원이 입력과 응답을
+      // 나란히 봐야 "AI가 무엇을 받아 무엇을 했는지"가 보인다
+      setTurns((prev) => [...prev, { role: "user", text: message }]);
       setTrace([]);
 
       try {
@@ -209,8 +223,11 @@ export function useAgentStream() {
     void fetch(`/api/agent/${id}/transcript`)
       .then((res) => (res.ok ? res.json() : []))
       .then((lines: { role: string; text: string }[]) => {
-        const last = [...lines].reverse().find((l) => l.role === "assistant");
-        if (last) setAnswer(last.text);
+        setTurns(
+          lines
+            .filter((l) => l.role === "user" || l.role === "assistant")
+            .map((l) => ({ role: l.role as Turn["role"], text: l.text })),
+        );
       })
       .catch(() => {
         // 복원 실패는 대화를 막지 않는다. 새 대화처럼 이어간다
@@ -223,10 +240,10 @@ export function useAgentStream() {
     conversationIdRef.current = null;
     storeConversationId(null);
     setTrace([]);
-    setAnswer("");
+    setTurns([]);
     setPendingSlot(null);
     setError(null);
   }, []);
 
-  return { trace, answer, pendingSlot, error, streaming, restoring, send, answerSlot, reset };
+  return { trace, turns, pendingSlot, error, streaming, restoring, send, answerSlot, reset };
 }

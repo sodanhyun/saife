@@ -9,6 +9,7 @@ import io.saife.workplan.dto.WorkPlanDtos;
 import io.saife.workplan.repository.WorkPlanRepository;
 import io.saife.workplan.repository.WorkPlanSlotRepository;
 import io.saife.workplan.repository.WorkPlanWorkerRepository;
+import io.saife.common.error.ApiExceptions.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -92,7 +93,7 @@ public class WorkPlanService {
 
     private WorkPlan load(Long workPlanId) {
         return workPlanRepository.findById(workPlanId).orElseThrow(
-                () -> new IllegalArgumentException("작업계획서를 찾을 수 없습니다: " + workPlanId));
+                () -> new NotFoundException("작업계획서를 찾을 수 없습니다: " + workPlanId));
     }
 
     private WorkPlanDtos.Detail toDetail(WorkPlan plan) {

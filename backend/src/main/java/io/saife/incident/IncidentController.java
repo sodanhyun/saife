@@ -1,12 +1,11 @@
 package io.saife.incident;
 
 import io.saife.common.dto.PageResponse;
+import io.saife.common.web.PageRequests;
 import io.saife.incident.dto.IncidentDtos;
 import io.saife.incident.service.IncidentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,7 +44,7 @@ public class IncidentController {
     public ResponseEntity<PageResponse<IncidentDtos.IncidentListItem>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(PageResponse.from(incidentService.list(DEMO_SITE_ID, pageable)));
+        return ResponseEntity.ok(PageResponse.from(
+                incidentService.list(DEMO_SITE_ID, PageRequests.of(page, size))));
     }
 }

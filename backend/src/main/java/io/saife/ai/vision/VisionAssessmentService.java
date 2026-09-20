@@ -8,6 +8,7 @@ import io.saife.core.repository.AssessmentRepository;
 import io.saife.core.repository.HazardRepository;
 import io.saife.core.service.PhotoRiskTable;
 import io.saife.core.service.RiskRuleEngine;
+import io.saife.common.error.ApiExceptions.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -205,7 +206,7 @@ public class VisionAssessmentService {
     @Transactional
     public Candidate decideCandidate(Long hazardId, boolean adopt) {
         Hazard hazard = hazardRepository.findById(hazardId).orElseThrow(
-                () -> new IllegalArgumentException("위험요인을 찾을 수 없습니다: " + hazardId));
+                () -> new NotFoundException("위험요인을 찾을 수 없습니다: " + hazardId));
 
         if (adopt) {
             hazard.adopt();
@@ -242,7 +243,7 @@ public class VisionAssessmentService {
     @Transactional(readOnly = true)
     public AnalysisResult result(Long assessmentId) {
         Assessment assessment = assessmentRepository.findById(assessmentId).orElseThrow(
-                () -> new IllegalArgumentException("평가를 찾을 수 없습니다: " + assessmentId));
+                () -> new NotFoundException("평가를 찾을 수 없습니다: " + assessmentId));
 
         List<Candidate> candidates = new ArrayList<>();
         for (AssessmentHazard link : assessmentHazardRepository.findByAssessmentId(assessmentId)) {

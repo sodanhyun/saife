@@ -28,6 +28,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -65,7 +68,7 @@ public class AgentService {
     private final DemoModeConfig demoModeConfig;
     private final ObjectMapper objectMapper;
 
-    private static final String SYSTEM_PROMPT = """
+    private static final String SYSTEM_PROMPT_TEMPLATE = """
             당신은 소규모 제조 사업장의 안전관리를 돕는 AI 에이전트입니다.
             작업자가 위험작업을 하기 전에 작업계획서를 작성하도록 돕습니다.
 
@@ -87,8 +90,27 @@ public class AgentService {
             도구가 status=INCOMPLETE를 돌려주면 등록되지 않은 것입니다.
             missing 항목을 한 번에 하나씩 물어보고, 답을 받으면 이전 값과 함께 도구를 다시 호출하세요.
 
+            [오늘 날짜] %s (%s)
+            작업자가 "내일", "모레", "이번 주 금요일"처럼 말하면 이 날짜를 기준으로 계산하세요.
+            날짜를 알 수 있는데도 되묻지 마세요. 예시를 들 때도 오늘 이후의 날짜만 쓰세요.
+
             한국어로, 현장 담당자가 읽기 쉽게 답하세요.
+            서식 기호(별표, 인용부호)를 최소로 쓰고, 목록은 "- "로만 표시하세요.
             """;
+
+    /**
+     * 오늘 날짜를 넣은 시스템 프롬프트.
+     *
+     * <p><b>날짜를 안 넣으면 모델이 "내일"을 해석하지 못한다.</b> 실제로 작업자가
+     * "내일 ~할 건데요"라고 말했는데 모델이 작업 일자를 되물었고, 예시로 과거
+     * 날짜(2026-05-15)를 들었다 (2026-09-21 QA 실측). 시스템이 아는 것을
+     * 되묻는 건 이 제품이 하지 않기로 한 일이다.
+     */
+    private String systemPrompt() {
+        LocalDate today = LocalDate.now();
+        return SYSTEM_PROMPT_TEMPLATE.formatted(
+                today, today.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.KOREAN));
+    }
 
     /**
      * 대화 한 턴을 처리한다.
@@ -245,7 +267,7 @@ public class AgentService {
 
     private List<Message> loadHistory(String conversationId) {
         List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(SYSTEM_PROMPT));
+        messages.add(new SystemMessage(systemPrompt()));
 
         conversationStateRepository.findById(conversationId).ifPresent(state -> {
             try {

@@ -1,5 +1,6 @@
 package io.saife.ai.vision;
 
+import io.saife.common.error.ApiExceptions.InvalidRequestException;
 import io.saife.common.service.SseService;
 import io.saife.core.domain.Equipment;
 import io.saife.core.repository.EquipmentRepository;
@@ -53,11 +54,18 @@ public class VisionController {
             throws IOException {
 
         if (image == null || image.isEmpty()) {
-            throw new IllegalArgumentException("이미지가 비어 있습니다.");
+            throw new InvalidRequestException("이미지가 비어 있습니다. 사진을 선택해 주세요.");
         }
 
         byte[] bytes = image.getBytes();
         String contentType = image.getContentType();
+
+        // 이미지가 아닌 파일은 여기서 막는다. 모델에 보내봐야 실패하고,
+        // 그때는 이미 SSE를 열고 평가 레코드까지 만든 뒤다
+        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+            throw new InvalidRequestException(
+                    "이미지 파일만 올릴 수 있습니다 (받은 형식: %s)".formatted(contentType));
+        }
         String photoPath = store(bytes, image.getOriginalFilename());
 
         Long processId = equipmentId == null ? null

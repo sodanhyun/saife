@@ -10,6 +10,7 @@ import io.saife.workplan.domain.WorkPlan;
 import io.saife.workplan.repository.WorkPlanRepository;
 import io.saife.workplan.repository.WorkPlanSlotRepository;
 import io.saife.workplan.repository.WorkPlanWorkerRepository;
+import io.saife.common.error.ApiExceptions.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -78,7 +79,7 @@ public class FormDataService {
     @Transactional(readOnly = true)
     public FormViews.AssessmentForm assessmentForm(Long assessmentId) {
         Assessment assessment = assessmentRepository.findById(assessmentId).orElseThrow(
-                () -> new IllegalArgumentException("평가를 찾을 수 없습니다: " + assessmentId));
+                () -> new NotFoundException("평가를 찾을 수 없습니다: " + assessmentId));
         Site site = siteRepository.findById(assessment.getSiteId()).orElse(null);
 
         AtomicInteger no = new AtomicInteger(1);
@@ -144,7 +145,7 @@ public class FormDataService {
     @Transactional(readOnly = true)
     public FormViews.IncidentForm incidentForm(Long incidentId) {
         Incident incident = incidentRepository.findById(incidentId).orElseThrow(
-                () -> new IllegalArgumentException("사고를 찾을 수 없습니다: " + incidentId));
+                () -> new NotFoundException("사고를 찾을 수 없습니다: " + incidentId));
         Site site = siteRepository.findById(incident.getSiteId()).orElse(null);
 
         EquipmentHistoryRecaller.Recall recall = recaller.recall(
@@ -202,7 +203,7 @@ public class FormDataService {
     @Transactional(readOnly = true)
     public FormViews.WorkPlanForm workPlanForm(Long workPlanId) {
         WorkPlan plan = workPlanRepository.findById(workPlanId).orElseThrow(
-                () -> new IllegalArgumentException("작업계획서를 찾을 수 없습니다: " + workPlanId));
+                () -> new NotFoundException("작업계획서를 찾을 수 없습니다: " + workPlanId));
         Site site = siteRepository.findById(plan.getSiteId()).orElse(null);
 
         AtomicInteger no = new AtomicInteger(1);

@@ -1,11 +1,11 @@
 package io.saife.workplan;
 
 import io.saife.common.dto.PageResponse;
+import io.saife.common.web.PageRequests;
 import io.saife.workplan.dto.WorkPlanDtos;
 import io.saife.workplan.service.WorkPlanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,7 +35,7 @@ public class WorkPlanController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(PageResponse.from(
-                workPlanService.list(DEMO_SITE_ID, PageRequest.of(page, size))));
+                workPlanService.list(DEMO_SITE_ID, PageRequests.of(page, size))));
     }
 
     @GetMapping("/{workPlanId}")
