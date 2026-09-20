@@ -131,6 +131,45 @@ public class RiskRuleEngine {
                 "가연물·점화원 특이사항 없음 → '하'");
     }
 
+    /**
+     * 사고가 실제로 발생한 뒤의 재평가 (수시평가).
+     *
+     * <p><b>빈도는 추정값이 아니라 사실이 된다.</b> 평가 당시 "거의 없다"고
+     * 본 위험이 실현됐으므로 빈도를 최고로 올린다. 강도는 결과로 판단한다 —
+     * 휴업 3일 이상은 산업재해조사표 대상이라 상한선을 같이 쓴다.
+     *
+     * <p>그래서 사고 후 재평가는 거의 항상 '상'이 된다. <b>그게 맞다.</b>
+     * 사고가 난 위험요인의 등급이 그대로면 그 평가는 틀렸던 것이고,
+     * 화면에는 등급이 바뀜 이유가 {@link Decision#ruleTrace()}로 남는다.
+     *
+     * @param before    사고 전 등급 (없으면 null)
+     * @param leaveDays 휴업일수 (모르면 null)
+     */
+    public Decision reassessAfterIncident(RiskLevel before, Integer leaveDays) {
+        short frequency = 3;
+        short severity = (leaveDays != null && leaveDays >= 3) ? (short) 3 : (short) 2;
+
+        RiskLevel level = severity == 3 ? RiskLevel.HIGH : RiskLevel.MEDIUM;
+
+        String beforeText = before == null ? "평가 이력 없음" : "종전 '" + label(before) + "'";
+        String severityText = (leaveDays != null && leaveDays >= 3)
+                ? "휴업 " + leaveDays + "일 (3일 이상) → 강도 3"
+                : (leaveDays != null ? "휴업 " + leaveDays + "일 → 강도 2" : "휴업일수 미확인 → 강도 2");
+
+        String trace = "사고 발생으로 위험이 실현됨 → 빈도 3 (추정치 아님). "
+                + severityText + ". " + beforeText + " → '" + label(level) + "'";
+
+        return new Decision(level, frequency, severity, trace);
+    }
+
+    private String label(RiskLevel level) {
+        return switch (level) {
+            case HIGH -> "상";
+            case MEDIUM -> "중";
+            case LOW -> "하";
+        };
+    }
+
     private Decision fixed(RiskLevel level, short frequency, short severity, String trace) {
         return new Decision(level, frequency, severity, trace);
     }
