@@ -16,6 +16,9 @@
 - [x] SSE 서비스 + ToolCallTracker
 - [x] 데이터 코어 스키마 V1
 - [ ] `.env` 작성 후 `bootRun` 기동 확인
+- [ ] **`docker compose up -d --build` 전체 스택 검증** — Dockerfile·nginx.conf·compose 작성했으나
+      Docker Desktop 미기동으로 아직 한 번도 빌드해보지 않았다. 10/4 프리즈 전에 반드시 한 번
+- [ ] 깨끗한 클론에서 5분 룰 통과 확인 (키 없이 기동되는지 포함)
 - [ ] 공공 API 재개가능 캐싱 크롤러 (+ 데이터셋별 필드 검증)
 - [ ] 법령 조문 ~15건 수기 큐레이션
 - [ ] 가상 사업장 시드 (설비 10~20, 공정, 장소)

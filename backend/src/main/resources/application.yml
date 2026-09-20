@@ -44,7 +44,7 @@ spring:
       max-attempts: 1          # Spring AI 레벨 재시도 비활성 — 재시도는 앱 계층이 전담
     google:
       genai:
-        api-key: ${GEMINI_API_KEY}
+        api-key: ${GEMINI_API_KEY:}      # 비어 있으면 DemoModeConfig가 데모 모드로 내린다 (부팅 실패 아님)
         chat:
           options:
             model: ${GEMINI_CHAT_MODEL:gemini-2.5-flash}

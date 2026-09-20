@@ -1,0 +1,11 @@
+.git
+.gitignore
+.claude
+.gstack
+.superpowers
+node_modules
+dist
+.env
+.env.*
+*.log
+*.md

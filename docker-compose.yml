@@ -1,0 +1,50 @@
+# 제출용 전체 스택. 심사위원과 무대에서 쓰는 것.
+# API 키가 없어도 기동된다 — 백엔드가 데모 모드로 내려간다.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: saife-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-saife}
+      POSTGRES_USER: ${DB_USERNAME:-saife}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-saife}
+    volumes:
+      - saife-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-saife} -d ${DB_NAME:-saife}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    image: saife-backend:local
+    container_name: saife-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_NAME: ${DB_NAME:-saife}
+      DB_USERNAME: ${DB_USERNAME:-saife}
+      DB_PASSWORD: ${DB_PASSWORD:-saife}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-saife}
+      # 키가 없으면 백엔드가 알아서 데모 모드로 내려간다 (부팅 실패 아님)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SAIFE_DEMO_MODE: ${SAIFE_DEMO_MODE:-false}
+      JWT_SECRET: ${JWT_SECRET:-saife-local-dev-secret-please-change-32b}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+    image: saife-frontend:local
+    container_name: saife-frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  saife-pgdata:

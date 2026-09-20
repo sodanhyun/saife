@@ -1,95 +1,124 @@
-# 배포 및 Docker 규칙
+---
+globs: ["Dockerfile*", "docker-compose*.yml", ".dockerignore", "**/db/migration/*.sql"]
+---
 
-Jenkinsfile, Dockerfile, docker-compose 파일 수정 시 반드시 준수.
+# 패키징 및 기동 규칙 (경진대회)
 
-## 배포 인프라 개요
+**이 프로젝트에는 배포 서버가 없다.** CI도, 스테이징도, 롤백 파이프라인도 없다.
+"배포"에 해당하는 것은 딱 두 가지다.
 
-- **리전**: AWS **서울**(`ap-northeast-2`).
-- **compose 서비스 5종**: `postgres` · `neo4j` · `backend` · `frontend`(nginx) · `cv`(FastAPI). Polyglot(Postgres 운영/설정 + Neo4j 지식그래프).
-- **이미지 스토리지**: 이미지 영속 = **S3 서울**(운영) / **MinIO**(로컬·개발). StorageService 포트로 교체(backend `storage-service` 룰).
-- **폴리레포 배포**: frontend·backend·cv·infra 각 독립 리포 → 리포별 개별 배포. **API 변경 포함 시 백엔드 먼저 배포**(하위 호환 유지) → 프론트 → 다음 사이클 호환코드 제거.
-- **확정(2026-07-27)**: **AWS Lightsail 8GB/2vCPU 단일 인스턴스**에 데이터스토어·앱·모니터링·**Jenkins까지 전부** 배치.
-  CI/CD = **Jenkins 선언형 파이프라인**(호스트 네이티브 설치, `agent any`로 로컬 docker 실행 — SSH 배포 아님).
-  모니터링 = **Prometheus + Grafana + Loki/Promtail + cAdvisor/node-exporter + Dozzle**.
-  UI 바인딩은 `MONITOR_BIND_ADDR` — **운영은 Tailscale IP(100.x.y.z)**, 미설정 시 `127.0.0.1`(SSH 터널 폴백).
-  **`0.0.0.0` 바인딩 금지** — tailscale0 트래픽은 Lightsail 방화벽을 거치지 않으므로 방화벽이 안전장치가 되지 못한다.
-  절차·메모리 배분·부트스트랩 순서는 [`docs/deployment-runbook.md`](../../docs/deployment-runbook.md).
+1. **제출물 ③ 저장소** — 심사위원이 clone 받아 돌려보는 것
+2. **10/12 무대 기동** — 라이브 발표심사에서 노트북 한 대로 띄우는 것
 
-## 단일 인스턴스 메모리 규율 (8GB — 중요)
+여기에 없는 것을 만들지 않는다. 모니터링 스택, 이미지 레지스트리, 무중단 배포,
+멀티 인스턴스 — 전부 이번 범위 밖이고 만들면 순수 손해다.
 
-8GB에 전부 올리므로 **메모리 상한 없는 컨테이너를 만들지 않는다.** 상한을 빠뜨리면 빌드 피크에 앱이 OOM킬 당한다.
+## 제1원칙 — 심사위원은 키가 없다
 
-- 새 컨테이너를 추가하면 반드시 `mem_limit`(compose) 또는 `--memory`(docker run)를 명시하고, 런북의 배분표를 갱신한다.
-- **빌드 컨테이너에도 `docker build --memory`** 를 건다 — 배포 순간이 피크다(구 앱 컨테이너가 아직 살아 있음).
-- 빌드 도구 힙도 상한: Gradle `GRADLE_OPTS=-Xmx640m --no-daemon`, node `NODE_OPTIONS=--max-old-space-size=768`.
-- **Jenkins 실행기는 1개** — 동시 빌드는 빌드 컨테이너를 2개로 만들어 확실히 초과한다.
-- 스왑 4GB 필수(런북 01). JVM 컨테이너는 `-XX:MaxRAMPercentage`로 상한에서 힙을 파생시킨다(고정 `-Xmx` 하드코딩 지양).
+심사위원이 `git clone` 후 **API 키 하나 없이** 앱을 띄울 수 있어야 한다.
+키가 필요하면 그 심사위원은 앱을 안 본다.
 
-## Docker 이미지 태깅
+이걸 가능하게 하는 것:
 
-- 태그 형식: `{IMAGE_NAME}:{BUILD_NUMBER}-{GIT_SHORT_SHA}` (예: `saife-backend:42-a1b2c3d`)
-- 빌드 시 `latest` 태그도 동시 부여: `docker build -t name:tag -t name:latest .`
-- 배포 성공 후 `stable` 태그 부여 (롤백 대상)
+| 요소 | 규칙 |
+|---|---|
+| 공공 API 응답 | **전량 캐시를 저장소에 동봉**한다 (`backend/src/main/resources/seed/`). 런타임에 외부 호출 0 |
+| 가상 사업장 데이터 | Flyway seed 마이그레이션으로 자동 적재. 별도 스크립트 실행을 요구하지 않는다 |
+| Gemini 키 | **없으면 `SAIFE_DEMO_MODE=true`로 자동 폴백**해 픽스처 응답으로 돈다. 앱이 죽지 않는다 |
+| 실제 키 | `.env.example`만 추적. `.env`는 절대 커밋하지 않는다 |
 
-## 프론트 빌드 버전 주입 (2026-09-03)
+**부팅 시 키가 없다고 예외를 던지지 않는다.** 경고 로그 한 줄을 남기고 데모 모드로 내려간다.
 
-프론트 이미지는 **반드시 `--build-arg APP_VERSION=${IMAGE_TAG}`** 로 빌드한다(frontend `Jenkinsfile`). 이 값이
-번들 상수 `__APP_VERSION__`와 `dist/version.json`에 박히고, 배포 뒤에도 열려 있던 탭이 둘을 대조해
-"새 버전 배포됨 — 새로고침" 배너를 띄운다. 빠뜨리면 버전이 `dev`로 박혀 감시가 **조용히 꺼진다** —
-검사 탭은 하루 종일 열려 있어 낡은 번들이 신 서버에 발행 payload를 보내 422를 받는 사고가 재발한다.
-nginx는 `version.json`을 index.html과 같은 no-cache로 서빙한다(캐시되면 배너가 영영 뜨지 않는다).
+## 5분 룰
 
-## 이미지 정리 정책
+`README.md`의 실행 절차는 **실제로 5분 안에 끝나야 한다.** 10/5 패키징 때
+**깨끗한 클론에서 한 번 직접 돌려본다.** 자기 머신에서만 되는 건 안 된 것이다.
 
-- **`docker image prune -f` 사용 금지** — 롤백용 이전 이미지가 삭제됨
-- 최근 5개 빌드 이미지를 보존하고 나머지만 정리
-- `latest`, `stable` 태그 이미지는 항상 보존
+```bash
+git clone <repo> && cd saife
+cp .env.example .env
+docker compose up -d --build
+# → http://localhost:5173
+```
 
-## 영속 데이터스토어 컨테이너 보호 (Postgres · Neo4j)
+확인 항목: 컨테이너 3개 기동 · Flyway 마이그레이션 통과 · 시드 데이터 적재 ·
+프론트에서 UC3 대화 1건 완주.
 
-- **Postgres·Neo4j는 영속 컨테이너** — 항상 유지. 두 스토어 모두 데이터 볼륨 보유.
-- **`docker compose down` 금지** — 영속 스토어까지 재시작/볼륨 위험. 앱 컨테이너(`backend`·`frontend`·`cv`)만 stop/rm/run으로 교체.
-- 배포 파이프라인에서 postgres·neo4j 실행 여부 확인 후 필요시만 기동.
-- ⚠️ **예외(charset 변경)**: Postgres 인코딩은 initdb 시점 확정 → 문자셋 변경 시에만 `docker compose down -v`로 볼륨 재생성(개발 데이터 폐기, dev+운영 양쪽). 일반 배포에서는 금지.
+## compose 파일 2종
 
-## 배포 실패 시 롤백 패턴
+| 파일 | 용도 |
+|---|---|
+| `docker-compose.dev.yml` | **개발용.** DB만 띄우고 backend/frontend는 로컬에서 직접 실행 |
+| `docker-compose.yml` | **제출용 전체 스택.** 심사위원과 무대에서 쓰는 것 |
 
-- CI 파이프라인(도구 미확정) 실패 단계에서 `stable` 태그 이미지로 자동 롤백
-- 롤백 실패 시(stable 이미지 없음) 에러 메시지만 출력, 프로세스 중단하지 않음
+개발 중에는 `dev`를 쓴다. 전체 compose는 **10/4 코드 프리즈 전에 반드시 한 번
+빌드해서 돌려본다** — 마지막 날 처음 빌드하면 거기서 터진다.
+
+## 이미지 태깅
+
+- 레지스트리에 올리지 않는다. 로컬 빌드가 전부다
+- 태그는 `saife-backend:local` / `saife-frontend:local` 고정. 빌드번호·SHA 태깅 불필요
+- `stable` / 롤백 태그 없음 — 롤백할 운영 환경이 없다
+
+## Flyway
+
+- **전진만 한다.** 롤백 스크립트를 쓰지 않는다. 스키마가 꼬이면
+  `docker compose down -v`로 볼륨을 날리고 다시 만든다 (데이터가 전부 시드라 손실이 없다)
+- `ddl-auto: validate` 고정. 엔티티를 고쳤으면 마이그레이션을 같이 쓴다. 안 쓰면 부팅이 실패한다
+- 파일명 `V{n}__{설명}.sql`. 시드는 `V{n}__seed_{설명}.sql`로 구분해 둔다
+- **이미 커밋한 마이그레이션 파일을 수정하지 않는다.** 체크섬이 깨져 부팅이 막힌다.
+  고칠 일이 생기면 새 번호로 추가한다
 
 ## .dockerignore 필수 항목
 
-Docker 빌드 컨텍스트에서 제외해야 하는 파일:
-- `.git`, `.gitignore`, `.claude`, `.gstack`, `.agent`
-- `node_modules`, `dist`, `build/`, `.gradle`
-- `.env`, `.env.*`, `*.md`, `*.log`
-- `monitoring/`, `uploads/`, `docker-compose*.yml`
-- (cv 리포) `__pycache__`, `*.pyc`, `.venv`, `models/`(대용량 가중치)
+빌드 컨텍스트에서 제외:
 
-## Flyway 마이그레이션 롤백
+```
+.git .gitignore .claude .gstack .superpowers
+node_modules dist build/ .gradle bin/ out/
+.env .env.* *.log
+docs/ *.md
+docker-compose*.yml
+```
 
-- 모든 마이그레이션 파일 상단에 `-- ROLLBACK:` 주석으로 되돌리기 SQL 명시
-- 롤백 스크립트: `src/main/resources/db/rollback/R{번호}__undo_{설명}.sql`
-- **파괴적 변경(DROP COLUMN, DROP TABLE)**: 엔티티에서 필드 제거와 동일 마이그레이션에서 `DROP COLUMN` 즉시 실행. `_deprecated` rename 단계 불필요 — 개발 단계에서는 단일 배포로 정리
+⚠️ **`backend/src/main/resources/seed/`는 제외하지 않는다.** 심사위원이 키 없이
+돌리려면 이게 이미지 안에 들어가야 한다.
 
-## 프론트/백 동시 배포 순서
+## 10/12 무대 기동 — 최대 리스크 구간
 
-API 변경이 포함된 경우:
-1. **백엔드 먼저 배포** (하위 호환 유지 — 새 필드 추가, 기존 필드 유지)
-2. 프론트엔드 배포
-3. 다음 사이클에서 하위 호환 코드 제거
+10/6 이후 남은 가장 큰 수상 상실 요인은 **라이브 시연 실패**다.
 
-## 스케일아웃 선행 조건 (2026-08-05, 백엔드 최적화 백로그 P2-5)
+### 무대 원칙
 
-**현재 배포(Lightsail 8GB 단일 인스턴스, backend 컨테이너 1개)는 이 표 항목들의 위험이 발현되지 않는다.**
-backend를 2개 이상 인스턴스로 수평 확장(멀티 컨테이너·오토스케일 등)하기 **전에** 아래 인메모리 상태
-지점을 먼저 손보지 않으면 조용히 깨진다 — 지금 구현을 바꿀 필요는 없다(YAGNI, 분석 문서 P2-5), 스케일아웃
-착수 시점에 이 표부터 다시 확인한다.
+- **외부 공공 API 호출 0.** 전량 로컬 캐시(`public_case`·`kosha_guide`·`msds_cache`)
+- **모델은 라이브로 호출한다.** 심사위원이 대본 밖 입력을 넣어도 돌아야 한다.
+  등급은 어차피 룰 엔진이 내므로 흔들리는 건 문장 표현뿐이다
+- **`SAIFE_DEMO_MODE=true`는 네트워크 장애 전용 폴백**이다. 기본값이 아니다.
+  **전환 절차 자체를 블록③(10/9~11)에서 리허설한다**
+- 슬라이드 9에 "시연은 라이브입니다. 네트워크 장애 시 오프라인 폴백으로 전환합니다"를
+  **먼저** 밝힌다. 먼저 말하면 강점, 질문받고 말하면 변명이 된다
 
-| 구성요소 | 위치 | 멀티 인스턴스에서 깨지는 이유 | 스케일아웃 전 조치 |
-|----------|------|-------------------------------|-------------------|
-| SSE 세션 | `SseService`(emitters 등 `ConcurrentHashMap`, 82-94행) | sessionId→emitter가 그 인스턴스의 JVM 힙에만 존재 — 다른 인스턴스가 받은 이벤트를 원래 emitter를 쥔 인스턴스로 전달할 방법이 없다 | sticky session(로드밸런서 세션 고정) 또는 메시지 브로커(Redis pub/sub 등)로 브로드캐스트 경로 신설 |
-| 권한 캐시 | `PermissionResolver`(rolePresetCache·userDeltaCache, 37-38행) | `evictAllRolePresets()`/`evictUser()`가 호출된 그 인스턴스의 로컬 캐시만 비운다 — 권한 프리셋/사용자 델타를 편집해도 다른 인스턴스는 스테일 캐시로 계속 응답 | 캐시 무효화를 전 인스턴스에 브로드캐스트(pub/sub) 하거나 캐시 자체를 공유 스토어(Redis 등)로 이전 |
-| 로그인 시도 카운터 | `LoginAttemptService`(attempts, 29행) | 인스턴스마다 별도 카운터라 실패 5회 제한이 인스턴스 수만큼 실질적으로 완화됨(브루트포스 방어 약화) | 공유 스토어(Redis 등)로 카운터 이전, 또는 로드밸런서가 사용자를 인스턴스에 고정 |
-| export 잡 클레임 | `ExportJob` 클레임 픽업 루프 | 이미 `SKIP LOCKED` 기반 DB 클레임이라 멀티 인스턴스에서도 안전(중복 처리 없음) | 조치 불요 |
-| 고아 정리 스위퍼 2종 | `CvStuckSweeper`·export 스위퍼 | 멱등 설계 — 여러 인스턴스가 동시에 스케줄을 돌려도 중복 정리로 인한 부작용 없음 | 조치 불요 |
+### 무대 전 체크리스트 (발표 30분 전)
+
+1. `docker compose up -d` 후 컨테이너 3개 healthy
+2. 시드 데이터 적재 확인 (설비 목록이 보이는지)
+3. UC3 대화 1회 완주 — 도구 6개 점등, 되묻기 턴 동작
+4. **프로젝터 해상도에서 트레이스 패널과 타임라인 뷰가 읽히는지**
+5. 네트워크 끊고 `SAIFE_DEMO_MODE=true` 전환 → 다시 완주되는지
+6. 백업: 녹화 영상 파일을 로컬에 두고 재생 가능 상태로
+
+### 하지 말 것
+
+- 무대에서 `docker compose build` — 빌드는 전날 끝낸다
+- 무대에서 Flyway 신규 마이그레이션 — 스키마는 프리즈 상태여야 한다
+- 발표 당일 코드 수정. **10/4가 프리즈다**
+
+## 제출 전 저장소 점검 (10/5)
+
+- [ ] `.env`가 추적되지 않는지 (`git ls-files | grep -c "^\.env$"` → 0)
+- [ ] API 키·인증키가 소스에 하드코딩되지 않았는지 (`grep -rn "serviceKey=\|api-key:" --include=*.java --include=*.yml`)
+- [ ] 깨끗한 클론에서 5분 룰 통과
+- [ ] `README.md` 실행 절차가 실제와 일치
+- [ ] AI Hub 이미지가 포함됐다면 **재배포 조건 확인 완료** (미확인이면 로컬 경로 참조로 전환)
+- [ ] 비공개 저장소 → 심사 기간 공개 전환 또는 심사위원 초대
+- [ ] **별지2 출처·AI 활용 신고서**와 실제 의존성이 일치 (`build.gradle`·`package.json` 대조)

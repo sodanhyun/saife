@@ -1,0 +1,15 @@
+.git
+.gitignore
+.claude
+.gstack
+.superpowers
+build/
+.gradle/
+bin/
+out/
+.idea/
+.env
+.env.*
+*.log
+*.md
+docker-compose*.yml
