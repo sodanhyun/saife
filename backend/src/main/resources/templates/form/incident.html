@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!--
+  산업재해조사표.
+
+  "재해 발생 개요" 아래의 [설비 이력]은 법정 서식의 고정 항목이 아니다.
+  SAIFE가 덧붙이는 칸이고, 이 출품작의 논지가 종이 위에 드러나는 자리다 —
+  같은 설비에서 무엇을 이미 알고 있었는지를 조사표에 같이 남긴다.
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{form/_layout :: layout('산업재해조사표', ~{::main})}">
+<body>
+<main class="sheet">
+  <h1>산 업 재 해 조 사 표</h1>
+  <p class="subtitle">산업안전보건법 시행규칙 제73조 · 휴업 3일 이상 재해는 발생일로부터 1개월 이내 제출</p>
+
+  <table>
+    <tr>
+      <td class="label">사업장명</td>
+      <td th:text="${form.siteName}">-</td>
+      <td class="label">사업자등록번호</td>
+      <td th:text="${form.businessNumber}">-</td>
+    </tr>
+    <tr>
+      <td class="label">대표자</td>
+      <td th:text="${form.representative}">-</td>
+      <td class="label">발생 일시</td>
+      <td th:text="${form.occurredAt}">-</td>
+    </tr>
+    <tr>
+      <td class="label">발생 장소</td>
+      <td th:text="${form.locationTag} ?: '-'">-</td>
+      <td class="label">관련 설비</td>
+      <td th:text="${form.equipmentName}">-</td>
+    </tr>
+  </table>
+
+  <div class="section-title">재해자 정보</div>
+  <table>
+    <tr>
+      <td class="label">성명</td>
+      <td th:text="${form.victimName}">-</td>
+      <td class="label">재해 정도</td>
+      <td th:text="${form.severityLabel}">-</td>
+      <td class="label">휴업일수</td>
+      <td th:text="${form.leaveDays} != null ? ${form.leaveDays} + '일' : '미입력'">-</td>
+    </tr>
+  </table>
+
+  <div class="section-title">재해 발생 개요</div>
+  <table>
+    <tr>
+      <td class="label">발생형태</td>
+      <td th:text="${form.accidentLabel}">-</td>
+    </tr>
+    <tr>
+      <td class="label">재해 경위</td>
+      <td class="pre" th:text="${form.description}">-</td>
+    </tr>
+  </table>
+
+  <div class="section-title">사고 전 이 설비에 기록돼 있던 사항</div>
+  <table>
+    <tr th:each="line : ${form.recallLines}">
+      <td class="pre" th:text="${line}">-</td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(form.recallLines)}">
+      <td>사고 전 기록된 사항이 없습니다.</td>
+    </tr>
+  </table>
+
+  <div class="section-title">재해 발생 원인</div>
+  <table>
+    <tr><td class="pre" th:text="${form.cause}">-</td></tr>
+  </table>
+
+  <div class="section-title">재발 방지 계획</div>
+  <table>
+    <tr><td class="pre" th:text="${form.prevention}">-</td></tr>
+  </table>
+
+  <div class="section-title">법정 처리</div>
+  <table>
+    <tr>
+      <td class="label">조사표 제출</td>
+      <td th:text="${form.reportStatusLabel}">-</td>
+      <td class="label">제출 기한</td>
+      <td th:text="${form.reportDueDate} ?: '해당 없음'">-</td>
+    </tr>
+    <tr>
+      <td class="label">판단 근거</td>
+      <td class="pre" colspan="3" th:text="${form.reportBasis}">-</td>
+    </tr>
+    <tr>
+      <td class="label">수시평가</td>
+      <td colspan="3">
+        <span th:if="${form.followUpAssessmentId} != null"
+              th:text="'평가 #' + ${form.followUpAssessmentId} + ' 자동 생성 — 재해 발생 작업은 재개 전 수시평가 대상입니다 (법 제36조)'">-</span>
+        <span th:if="${form.followUpAssessmentId} == null">생성되지 않음</span>
+      </td>
+    </tr>
+  </table>
+
+  <div class="notice warn">
+    이 문서는 초안입니다. 관할 지방고용노동관서 제출 전 사업장 담당자가 내용을 확인하고 확정해야 합니다.
+  </div>
+  <div class="notice" th:text="${form.aiNotice}">AI 활용 고지</div>
+
+  <div class="sign">
+    작성자 <span class="line"></span> (서명)
+    &nbsp;&nbsp;&nbsp; 사업주 <span class="line"></span> (서명)
+  </div>
+</main>
+</body>
+</html>

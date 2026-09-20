@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!--
+  위험성평가표.
+
+  ⚠️ 열 순서를 바꾸지 않는다. 산업안전보건법 시행규칙 제37조가 요구하는 3요소를
+  그 순서 그대로 놓은 것이다: ① 유해·위험요인 ② 위험성 결정 내용 ③ 조치 내용.
+  특화점검에서 "제대로 했느냐"를 볼 때 이 세 칸을 본다.
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{form/_layout :: layout('위험성평가표', ~{::main})}">
+<body>
+<main class="sheet">
+  <h1>위 험 성 평 가 표</h1>
+  <p class="subtitle">산업안전보건법 제36조 · 같은 법 시행규칙 제37조</p>
+
+  <table>
+    <tr>
+      <td class="label">사업장명</td>
+      <td th:text="${form.siteName}">-</td>
+      <td class="label">사업자등록번호</td>
+      <td th:text="${form.businessNumber}">-</td>
+    </tr>
+    <tr>
+      <td class="label">대표자</td>
+      <td th:text="${form.representative}">-</td>
+      <td class="label">평가 실시일</td>
+      <td th:text="${form.assessedOn}">-</td>
+    </tr>
+    <tr>
+      <td class="label">평가 종류</td>
+      <td th:text="${form.kindLabel}">-</td>
+      <td class="label">실시 사유</td>
+      <td th:text="${form.triggerLabel}">-</td>
+    </tr>
+    <tr>
+      <td class="label">참여자</td>
+      <td th:text="${form.participants}">-</td>
+      <td class="label">상태</td>
+      <td th:text="${form.statusLabel}">-</td>
+    </tr>
+  </table>
+
+  <div class="section-title">유해·위험요인 파악 및 위험성 결정</div>
+
+  <table>
+    <thead>
+    <tr>
+      <th style="width:26px">번호</th>
+      <th style="width:120px">설비·장소</th>
+      <th style="width:54px">발생형태</th>
+      <th>① 유해·위험요인</th>
+      <th style="width:210px">② 위험성 결정 내용</th>
+      <th>③ 조치 내용</th>
+      <th style="width:72px">담당·기한</th>
+      <th style="width:62px">이행 상태</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="row : ${form.rows}">
+      <td style="text-align:center" th:text="${row.no}">1</td>
+      <td th:text="${row.equipmentName}">-</td>
+      <td style="text-align:center" th:text="${row.accidentLabel}">-</td>
+      <td>
+        <span th:text="${row.hazard}">-</span>
+        <div class="flag" th:if="${row.aiSuggested}">
+          [AI 후보 · <span th:text="${row.aiAdoptedLabel}">판단 전</span>]
+        </div>
+      </td>
+      <td class="pre">
+        <span th:classappend="${row.riskLabel == '상'} ? 'risk-high' : (${row.riskLabel == '중'} ? 'risk-medium' : 'risk-low')"
+              th:text="${row.decision}">-</span>
+      </td>
+      <td th:text="${row.action}">-</td>
+      <td>
+        <span th:text="${row.actionOwner} ?: '-'">-</span><br>
+        <span th:text="${row.actionDueDate} ?: '-'">-</span>
+      </td>
+      <td style="text-align:center" th:text="${row.actionStatusLabel} ?: '-'">-</td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(form.rows)}">
+      <td colspan="8" style="text-align:center; padding:18px">등록된 유해·위험요인이 없습니다.</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <div class="notice" th:text="${form.retentionNotice}">보존 안내</div>
+  <div class="notice" th:text="${form.aiNotice}">AI 활용 고지</div>
+
+  <div class="sign">
+    작성자 <span class="line"></span> (서명)
+    &nbsp;&nbsp;&nbsp; 확인자 <span class="line"></span> (서명)
+  </div>
+</main>
+</body>
+</html>

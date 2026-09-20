@@ -33,6 +33,11 @@ spring:
     baseline-version: 0
     locations: classpath:db/migration
 
+  # 응답 JSON의 시각도 한국 기준으로 직렬화한다.
+  # 법정 문서를 만드는 앱이라 화면과 출력물의 시각이 같아야 한다
+  jackson:
+    time-zone: Asia/Seoul
+
   servlet:
     multipart:
       max-file-size: 20MB      # 현장 사진
