@@ -42,6 +42,45 @@ SAIFE가 다루는 정상 입력은 산재 사고 서술이다:
 
 **필터를 켜보고 싶다면** 평가셋 30장 전체를 돌려 차단 0건을 확인한 뒤에 한다.
 
+## ⚠️ 기동을 막는 설정 함정 2건 (2026-09-20 실측)
+
+둘 다 첫 `bootRun`에서 실제로 터졌다. 에러 메시지가 원인을 직접 가리키지 않는다.
+
+### 1. `ObservationRegistry` 빈이 없으면 기동 실패
+
+```
+Parameter 0 of method toolCallingManager in io.saife.ai.config.ToolCallingConfig
+required a bean of type 'io.micrometer.observation.ObservationRegistry'
+```
+
+`ToolCallingConfig.toolCallingManager()`가 이 빈을 **필수 파라미터**로 받는다.
+출처는 `spring-boot-starter-actuator`의 autoconfiguration이다.
+
+→ **actuator를 의존성에서 빼지 말 것.** "모니터링은 범위 밖"이라고 빼면 기동이 막힌다.
+   노출은 `management.endpoints.web.exposure.include: health`로 최소화되어 있다.
+
+### 2. 임베딩은 상위 `api-key`를 상속하지 않는다
+
+```
+Failed to instantiate [GoogleGenAiEmbeddingConnectionDetails]:
+Google GenAI project-id must be set!
+```
+
+`spring.ai.google.genai.api-key`를 설정해도 **임베딩 autoconfiguration은 그걸 보지 않는다.**
+없으면 Vertex AI 모드로 떨어져 `project-id`를 요구한다.
+
+```yaml
+spring:
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY:}
+        embedding:
+          api-key: ${GEMINI_API_KEY:}   # ← 여기 또 넣어야 한다
+```
+
+API 키 방식(Gemini Developer API)을 쓰는데 Vertex를 요구하는 에러가 나면 이걸 의심한다.
+
 ## 도구 작성 규칙
 
 ### 1. 반환값은 반드시 `ToolResult.of()`로 감싼다

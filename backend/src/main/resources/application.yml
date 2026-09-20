@@ -50,6 +50,9 @@ spring:
             model: ${GEMINI_CHAT_MODEL:gemini-3.8-flash}   # 2.5 계열은 신규 키에 제공 안 됨(404)
             temperature: 0.2   # 판정 보조라 낮게. 등급은 어차피 룰 엔진이 낸다
         embedding:
+          # ⚠️ 상위 genai.api-key를 상속하지 않는다. 여기 안 넣으면 Vertex 모드로 떨어져
+          #    "Google GenAI project-id must be set!"로 기동 실패한다.
+          api-key: ${GEMINI_API_KEY:}
           text:
             options:
               model: gemini-embedding-2
@@ -87,6 +90,16 @@ public-api:
 saife:
   demo-mode: ${SAIFE_DEMO_MODE:false}   # true면 모델 응답을 픽스처로 고정 (무대 오프라인 폴백)
   accident-types: [FALL, CAUGHT, DROP, STRUCK, FIRE, PPE]
+
+# ── Actuator (health만 노출. 모니터링 스택은 이번 범위 밖) ──
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 logging:
   level:

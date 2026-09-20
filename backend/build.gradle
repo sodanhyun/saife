@@ -42,6 +42,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webflux'   // Spring AI 스트리밍(Reactor)
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf' // 법정 서식 HTML 템플릿
 
+    // ── Actuator ──
+    // ObservationRegistry 빈의 출처. ai/config/ToolCallingConfig가 요구한다.
+    // 빼면 "required a bean of type ObservationRegistry"로 기동 실패한다.
+    // 덤으로 /actuator/health가 생겨 docker-compose healthcheck에 쓴다.
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     // ── DB ──
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.flywaydb:flyway-core'
