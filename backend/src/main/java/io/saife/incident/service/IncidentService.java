@@ -78,9 +78,15 @@ public class IncidentService {
         EquipmentHistoryRecaller.Recall recall = recaller.recall(
                 equipmentId, request.accidentType(), occurredAt, incident.getCreatedAt());
 
+        // 평가일은 사고보다 앞설 수 없다. 수시평가는 재해 발생 뒤,
+        // 작업 재개 전에 하는 것이다. today를 그대로 쓰면 UC4 타임라인에서
+        // 수시평가가 그걸 만든 사고보다 앞에 놀이고 화살표가 거꾸로 간다.
         LocalDate today = LocalDate.now();
+        LocalDate assessedOn = today.isBefore(occurredAt.toLocalDate())
+                ? occurredAt.toLocalDate() : today;
+
         FollowUpAssessmentService.Result followUp =
-                followUpAssessmentService.create(incident, today);
+                followUpAssessmentService.create(incident, assessedOn);
         incident.attachFollowUpAssessment(followUp.assessmentId());
 
         IncidentReportDrafter.Draft draft = drafter.draft(incident, recall);

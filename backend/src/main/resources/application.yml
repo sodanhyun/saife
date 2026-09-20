@@ -89,6 +89,7 @@ public-api:
 # ── 위험성평가 도메인 ──
 saife:
   demo-mode: ${SAIFE_DEMO_MODE:false}   # true면 모델 응답을 픽스처로 고정 (무대 오프라인 폴백)
+  upload-dir: ${SAIFE_UPLOAD_DIR:./data/uploads}   # 현장 사진. /data/는 gitignore 대상
   accident-types: [FALL, CAUGHT, DROP, STRUCK, FIRE, PPE]
 
 # ── Actuator (health만 노출. 모니터링 스택은 이번 범위 밖) ──

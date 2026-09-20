@@ -12,6 +12,9 @@ public interface ActionRepository extends JpaRepository<Action, Long> {
 
     List<Action> findByHazardId(Long hazardId);
 
+    /** 설비 1개에 걸린 조치 전부 — UC4 타임라인이 읽는다 (이행 완료분 포함) */
+    List<Action> findByHazardIdIn(List<Long> hazardIds);
+
     /** 미이행 조치 — UC3 브리핑에서 경고로 소환된다 */
     @Query("select a from Action a where a.hazardId in :hazardIds and a.status <> :done")
     List<Action> findPendingByHazardIds(@Param("hazardIds") List<Long> hazardIds,

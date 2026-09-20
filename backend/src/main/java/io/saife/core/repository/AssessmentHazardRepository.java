@@ -13,6 +13,9 @@ public interface AssessmentHazardRepository extends JpaRepository<AssessmentHaza
 
     List<AssessmentHazard> findByHazardId(Long hazardId);
 
+    /** 설비 1개의 위험요인들이 등장한 모든 평가 — UC4 타임라인이 읽는다 */
+    List<AssessmentHazard> findByHazardIdIn(List<Long> hazardIds);
+
     /**
      * 위험요인의 최근 등급 이력 — UC3 브리핑이
      * "3개월 전 평가에서 '상'이었습니다"를 말하는 근거.
