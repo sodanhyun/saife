@@ -36,6 +36,20 @@ import java.util.*;
 @Slf4j
 public class EquipmentTimelineService {
 
+    /**
+     * 같은 날짜 안에서의 인과 순서.
+     *
+     * <p>날짜만으로 정렬하면 <b>사고와 그 사고가 만든 수시평가가 같은 날일 때 순서가
+     * 뒤집힌다.</b> 실제로 화면에서 수시평가가 사고보다 위에 놓여 화살표가 거꾸로 갔다
+     * (2026-09-21 QA 실측). 원인이 결과보다 먼저 와야 그림이 논지를 말한다.
+     */
+    private static final int ORDER_ASSESSMENT = 0;
+    private static final int ORDER_ACTION = 1;
+    private static final int ORDER_WORK_PLAN = 2;
+    private static final int ORDER_INCIDENT = 3;
+    /** 사고가 만든 수시평가는 그 사고 뒤에 온다 */
+    private static final int ORDER_FOLLOW_UP = 4;
+
     private final EquipmentRepository equipmentRepository;
     private final ProcessRepository processRepository;
     private final HazardRepository hazardRepository;
@@ -68,7 +82,12 @@ public class EquipmentTimelineService {
         events.addAll(workPlanEvents(workPlans, actions));
         events.addAll(incidentEvents(incidents, hazardById, actions, assessmentEventIdByAssessment));
 
-        events.sort(Comparator.comparing(TimelineEvent::at));
+        events.sort(Comparator.comparing(TimelineEvent::at)
+                .thenComparingInt(TimelineEvent::causalOrder)
+                .thenComparing(TimelineEvent::id));
+
+        // 내부 식별자(assessment-1)를 화면에 띄우지 않는다. 심사위원이 보는 화면이다
+        events = withLinkLabels(events);
 
         TimelineDtos.TimelineSummary summary =
                 summary(hazards, incidents, workPlans, actions, events);
@@ -136,7 +155,8 @@ public class EquipmentTimelineService {
                     "%s 위험성평가".formatted(assessment.getKind().getLabel()),
                     detail, level,
                     worst == null ? null : axisOf(hazardById, worst.getHazardId()),
-                    assessment.getStatus(), assessment.getId(), linked,
+                    assessment.getStatus(), assessment.getId(), linked, List.of(),
+                    triggerIncidentId != null ? ORDER_FOLLOW_UP : ORDER_ASSESSMENT,
                     level == RiskLevel.HIGH ? Emphasis.WARNING : Emphasis.NORMAL));
         }
         return out;
@@ -169,7 +189,8 @@ public class EquipmentTimelineService {
             out.add(new TimelineEvent("action-" + action.getId(), EventType.ACTION,
                     action.getDueDate(), action.getCreatedAt(),
                     action.getContent(), detail, null, null,
-                    action.getStatus().name(), action.getId(), linked,
+                    action.getStatus().name(), action.getId(), linked, List.of(),
+                    ORDER_ACTION,
                     overdue ? Emphasis.CRITICAL : Emphasis.NORMAL));
         }
         return out;
@@ -207,7 +228,8 @@ public class EquipmentTimelineService {
             out.add(new TimelineEvent("workplan-" + plan.getId(), EventType.WORK_PLAN,
                     plan.getWorkDate(), plan.getBriefingAckAt(),
                     plan.getWorkName(), detail, null, null,
-                    plan.getStatus().name(), plan.getId(), linked,
+                    plan.getStatus().name(), plan.getId(), linked, List.of(),
+                    ORDER_WORK_PLAN,
                     acknowledged && !linked.isEmpty() ? Emphasis.WARNING : Emphasis.NORMAL));
         }
         return out;
@@ -258,8 +280,8 @@ public class EquipmentTimelineService {
                     incident.getOccurredAt().toLocalDate(), incident.getOccurredAt(),
                     incidentTitle(incident, hazardById), detail.toString(),
                     null, incident.getAccidentType(),
-                    incident.getReportStatus().name(), incident.getId(), linked,
-                    Emphasis.CRITICAL));
+                    incident.getReportStatus().name(), incident.getId(), linked, List.of(),
+                    ORDER_INCIDENT, Emphasis.CRITICAL));
         }
         return out;
     }
@@ -268,6 +290,29 @@ public class EquipmentTimelineService {
         String axis = incident.getAccidentType() == null ? "재해"
                 : incident.getAccidentType().getLabel();
         return "%s 사고 발생".formatted(axis);
+    }
+
+    /**
+     * 연결 대상의 표시 이름을 채운다.
+     *
+     * <p>{@code "연결: assessment-1"}은 개발자의 말이다. 화면에는
+     * {@code "2026-06-20 상시 위험성평가"}처럼 사람이 읽는 말이 떠야 한다.
+     */
+    private List<TimelineEvent> withLinkLabels(List<TimelineEvent> events) {
+        Map<String, String> labelById = new HashMap<>();
+        for (TimelineEvent e : events) {
+            labelById.put(e.id(), "%s %s".formatted(e.at(), e.title()));
+        }
+        List<TimelineEvent> out = new ArrayList<>(events.size());
+        for (TimelineEvent e : events) {
+            List<String> labels = e.linkedEventIds().stream()
+                    .map(id -> labelById.getOrDefault(id, id))
+                    .toList();
+            out.add(new TimelineEvent(e.id(), e.type(), e.at(), e.occurredAt(),
+                    e.title(), e.detail(), e.riskLevel(), e.accidentType(), e.status(),
+                    e.refId(), e.linkedEventIds(), labels, e.causalOrder(), e.emphasis()));
+        }
+        return out;
     }
 
     // ---------- 요약 ----------

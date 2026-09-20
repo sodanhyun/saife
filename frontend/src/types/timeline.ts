@@ -34,7 +34,11 @@ export interface TimelineSummary {
   headline: string;
 }
 
-/** @property linkedEventIds 연결선의 반대쪽 끝. 백엔드가 계산한다 */
+/**
+ * @property linkedEventIds 연결선의 반대쪽 끝. 백엔드가 계산한다
+ * @property linkedLabels   그 대상을 사람이 읽는 말로. 화면에는 이쪽을 띄운다
+ * @property causalOrder    같은 날짜 안의 인과 순서 (백엔드가 정렬까지 마쳐서 준다)
+ */
 export interface TimelineEvent {
   id: string;
   type: EventType;
@@ -47,6 +51,8 @@ export interface TimelineEvent {
   status: string | null;
   refId: number;
   linkedEventIds: string[];
+  linkedLabels: string[];
+  causalOrder: number;
   emphasis: Emphasis;
 }
 

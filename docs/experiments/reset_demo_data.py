@@ -40,8 +40,15 @@ DELETE FROM assessment WHERE id > 3;
 DELETE FROM action WHERE id > 5;
 DELETE FROM hazard WHERE id > 7;
 
--- 시드 위험요인의 채택 상태 복원 (사진 판독 테스트가 바꿔놓는다)
-UPDATE hazard SET ai_adopted = TRUE WHERE id <= 7 AND ai_suggested = TRUE;
+-- 시드 위험요인의 채택 상태 복원 (사진 판독 테스트가 바꿔놓는다).
+--
+-- ⚠️ 전부 TRUE로 밀면 안 된다. V2 시드는 일부러 섞어놨다 — 6번은 사람이 반려한
+--    후보다. 전부 채택으로 만들면 화면의 채택률이 100%가 되고, 심사위원에게
+--    100%는 신뢰가 아니라 의심을 부른다 ("AI가 다 맞았다고?").
+--    실제 시드 값 그대로 되돌린다.
+UPDATE hazard SET ai_suggested = TRUE,  ai_adopted = TRUE  WHERE id IN (1, 2, 4, 7);
+UPDATE hazard SET ai_suggested = TRUE,  ai_adopted = FALSE WHERE id = 6;
+UPDATE hazard SET ai_suggested = FALSE, ai_adopted = NULL  WHERE id IN (3, 5);
 
 -- 시드 조치 상태 복원
 UPDATE action SET status = 'OVERDUE' WHERE id = 1;

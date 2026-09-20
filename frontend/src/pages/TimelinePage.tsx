@@ -196,9 +196,9 @@ function TimelineRow({
 
         <p className="mt-1 text-sm text-slate-700">{event.detail}</p>
 
-        {event.linkedEventIds.length > 0 && (
+        {event.linkedLabels.length > 0 && (
           <p className="mt-1 text-xs text-slate-500">
-            연결: {event.linkedEventIds.join(", ")}
+            연결된 기록: {event.linkedLabels.join(" · ")}
           </p>
         )}
 

@@ -50,6 +50,9 @@ public final class TimelineDtos {
      *
      * @param id             {@code "incident-1"} 형태. 연결선의 양 끝을 잇는 키
      * @param linkedEventIds 이 사건이 가리키는 다른 사건들. <b>선이 그려지는 근거다</b>
+     * @param linkedLabels   그 사건들을 사람이 읽는 말로. 화면에 내부 식별자를 띄우지 않는다
+     * @param causalOrder    같은 날짜 안에서의 인과 순서. 날짜만으로 정렬하면
+     *                       사고와 그 사고가 만든 수시평가가 같은 날일 때 순서가 뒤집힌다
      * @param emphasis       강조 수준. 프로젝터 가독성 때문에 <b>백엔드가 정한다</b> —
      *                       화면마다 다르게 판단하면 시연에서 색이 흔들린다
      */
@@ -64,6 +67,8 @@ public final class TimelineDtos {
                                 String status,
                                 Long refId,
                                 List<String> linkedEventIds,
+                                List<String> linkedLabels,
+                                int causalOrder,
                                 Emphasis emphasis) {}
 
     public enum EventType {
