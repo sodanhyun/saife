@@ -8,7 +8,7 @@
 
 시드 경계:
   assessment  id <= 3
-  hazard      id <= 7
+  hazard      id <= 8
   action      id <= 5
   equipment / process / site / public_case / kosha_guide / msds_cache 는 건드리지 않는다
 
@@ -35,19 +35,21 @@ DELETE FROM tool_call;
 DELETE FROM conversation;
 
 -- 시드 밖의 평가·위험요인
-DELETE FROM assessment_hazard WHERE assessment_id > 3 OR hazard_id > 7;
+DELETE FROM assessment_hazard WHERE assessment_id > 3 OR hazard_id > 8;
 DELETE FROM assessment WHERE id > 3;
 DELETE FROM action WHERE id > 5;
-DELETE FROM hazard WHERE id > 7;
+DELETE FROM hazard WHERE id > 8;
 
 -- 시드 위험요인의 채택 상태 복원 (사진 판독 테스트가 바꿔놓는다).
 --
 -- ⚠️ 전부 TRUE로 밀면 안 된다. V2 시드는 일부러 섞어놨다 — 6번은 사람이 반려한
 --    후보다. 전부 채택으로 만들면 화면의 채택률이 100%가 되고, 심사위원에게
 --    100%는 신뢰가 아니라 의심을 부른다 ("AI가 다 맞았다고?").
+--    8번은 V7이 넣은 PPE 반려 건이다 — 게이트 반영으로 6번(STRUCK)이 집계에서
+--    빠지면서 통과 축에도 반려 건이 필요해졌다.
 --    실제 시드 값 그대로 되돌린다.
 UPDATE hazard SET ai_suggested = TRUE,  ai_adopted = TRUE  WHERE id IN (1, 2, 4, 7);
-UPDATE hazard SET ai_suggested = TRUE,  ai_adopted = FALSE WHERE id = 6;
+UPDATE hazard SET ai_suggested = TRUE,  ai_adopted = FALSE WHERE id IN (6, 8);
 UPDATE hazard SET ai_suggested = FALSE, ai_adopted = NULL  WHERE id IN (3, 5);
 
 -- 시드 조치 상태 복원
@@ -56,7 +58,7 @@ UPDATE action SET status = 'DONE'    WHERE id IN (2, 3);
 UPDATE action SET status = 'PENDING' WHERE id IN (4, 5);
 
 SELECT setval('assessment_id_seq', 3);
-SELECT setval('hazard_id_seq', 7);
+SELECT setval('hazard_id_seq', 8);
 SELECT setval('action_id_seq', 5);
 SELECT setval('work_plan_id_seq', 1, false);
 SELECT setval('incident_id_seq', 1, false);
@@ -76,7 +78,7 @@ ORDER BY 1;
 """
 
 EXPECTED = {
-    "assessment": 3, "hazard": 7, "action": 5,
+    "assessment": 3, "hazard": 8, "action": 5,
     "work_plan": 0, "incident": 0, "equipment": 6,
 }
 
