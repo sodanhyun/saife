@@ -11,10 +11,14 @@ vi.mock("@/api/incidentApi", () => ({
   incidentApi: { list: vi.fn(), register: vi.fn() },
 }));
 // useApiData가 실패 시 토스트를 띄운다 — 이 테스트에서는 토스트 자체는 관심사가 아니다.
-// useIncident도 훅으로 직접 호출하므로(useToastStore()) 함수이면서 getState도 갖는 형태로 만든다.
+// useIncident는 셀렉터로 구독하므로(useToastStore((s) => s.success)) 셀렉터를 받는 함수이면서 getState도 갖는 형태로 만든다.
 vi.mock("@/stores/useToastStore", () => {
   const state = { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() };
-  const useToastStore = Object.assign(() => state, { getState: () => state });
+  type State = typeof state;
+  const useToastStore = Object.assign(
+    (selector?: (s: State) => unknown) => (selector ? selector(state) : state),
+    { getState: () => state },
+  );
   return { useToastStore };
 });
 

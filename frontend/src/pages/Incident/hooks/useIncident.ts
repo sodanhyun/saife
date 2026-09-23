@@ -17,7 +17,8 @@ export function useIncident() {
   const [response, setResponse] = useState<IncidentRegisterResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const toast = useToastStore();
+  // 셀렉터로 구독 — 스토어 전체를 구독하면 토스트가 뜰 때마다 이 훅(=페이지)이 다시 렌더된다
+  const toastSuccess = useToastStore((s) => s.success);
 
   // 첫 설비를 기본 선택 — 렌더 중 파생(effect+setState로 동기화하지 않는다).
   // equipmentId===null은 "아직 고르지 않음"이고, ""는 사용자가 명시적으로 고른 "(설비 미상)"이라
@@ -30,7 +31,7 @@ export function useIncident() {
     setError(null);
     try {
       setResponse(await incidentApi.register(toRegisterRequest(effectiveForm)));
-      toast.success("사고를 등록했습니다");
+      toastSuccess("사고를 등록했습니다");
       incidents.refetch();
     } catch (e) {
       setError(getServerMessage(e) ?? "사고를 등록하지 못했습니다");

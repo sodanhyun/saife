@@ -29,6 +29,30 @@ function sseResponse(chunks: string[]): Response {
   } as unknown as Response;
 }
 
+/** 청크를 다 내보낸 뒤 abort될 때까지 매달려 있는 응답 — 스트리밍 도중 상태를 보기 위한 목 */
+function hangingResponse(chunks: string[], signal: AbortSignal | null | undefined): Response {
+  const enc = new TextEncoder();
+  let i = 0;
+  return {
+    ok: true, status: 200,
+    body: { getReader: () => ({
+      read: () => (i < chunks.length
+        ? Promise.resolve({ done: false, value: enc.encode(chunks[i++]) })
+        : new Promise((_, reject) => {
+          signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        })),
+      cancel: async () => {}, releaseLock: () => {},
+    }) },
+  } as unknown as Response;
+}
+
+/** abort될 때까지 응답하지 않는 fetch 목 */
+function abortableFetch(_url: unknown, init?: RequestInit): Promise<Response> {
+  return new Promise((_, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+  });
+}
+
 beforeEach(() => {
   sessionStorage.clear();
   mockFetch.mockReset();
@@ -84,6 +108,66 @@ describe("useAgentStream", () => {
     await act(async () => { resolveTranscript({ data: [{ role: "user", text: "옛 질문" }] }); });
     await waitFor(() => expect(result.current.restoring).toBe(false));
     expect(result.current.turns.map((t) => t.text)).toEqual(["새 질문", "새 답"]);
+  });
+
+  it("ai.error 페이로드는 error로 드러나고 streaming은 false로 끝난다", async () => {
+    mockFetch.mockResolvedValue(sseResponse([envelope("ai.error", 1, { message: "모델 호출에 실패했습니다" })]));
+    const { result } = renderHook(() => useAgentStream());
+    await act(async () => { await result.current.send("x"); });
+    expect(result.current.error).toBe("모델 호출에 실패했습니다");
+    expect(result.current.streaming).toBe(false);
+  });
+
+  it("start()가 error로 끝나면(fetch 거부) 그 메시지를 error로 둔다", async () => {
+    mockFetch.mockRejectedValue(new Error("네트워크 연결이 끊겼습니다"));
+    const { result } = renderHook(() => useAgentStream());
+    await act(async () => { await result.current.send("x"); });
+    expect(result.current.error).toBe("네트워크 연결이 끊겼습니다");
+    expect(result.current.streaming).toBe(false);
+  });
+
+  it("send가 겹치면 밀려난 앞 턴이 새 턴의 streaming·error를 덮지 않는다", async () => {
+    mockFetch.mockImplementationOnce(abortableFetch);
+    let resolveSecond!: (r: Response) => void;
+    mockFetch.mockImplementationOnce(() => new Promise<Response>((r) => { resolveSecond = r; }));
+    const { result } = renderHook(() => useAgentStream());
+
+    let p1: Promise<void> | undefined;
+    let p2: Promise<void> | undefined;
+    act(() => { p1 = result.current.send("첫 질문"); });
+    // 두 번째 send가 첫 스트림을 abort한다 — 첫 send는 aborted로 끝난다
+    await act(async () => { p2 = result.current.send("두 번째 질문"); await p1; });
+    expect(result.current.streaming).toBe(true); // 앞 턴의 마무리가 새 턴을 끝난 것으로 만들면 안 된다
+
+    await act(async () => { resolveSecond(sseResponse([envelope("ai.token", 1, "답"), envelope("ai.done", 2, null)])); await p2; });
+    expect(result.current.streaming).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(result.current.turns.map((t) => t.text)).toEqual(["첫 질문", "두 번째 질문", "답"]);
+  });
+
+  it("스트리밍 도중 reset()하면 스트림을 중단하고 turns·trace·pendingSlot을 비운다", async () => {
+    let signal: AbortSignal | null | undefined;
+    mockFetch.mockImplementation((_u, init) => {
+      signal = init?.signal;
+      return Promise.resolve(hangingResponse([
+        envelope("ai.tool.start", 1, { toolName: "findLocationEquipment", params: "{}", callOrder: 1 }),
+        envelope("ai.slot.request", 2, { slotKey: "work_height", question: "작업 높이는?", options: [] }),
+      ], init?.signal));
+    });
+    const { result } = renderHook(() => useAgentStream());
+    let p: Promise<void> | undefined;
+    act(() => { p = result.current.send("천장 도장"); });
+    await waitFor(() => expect(result.current.pendingSlot?.slotKey).toBe("work_height"));
+    expect(result.current.trace).toHaveLength(1);
+    expect(result.current.streaming).toBe(true);
+
+    await act(async () => { result.current.reset(); await p; });
+    expect(signal?.aborted).toBe(true);
+    expect(result.current.turns).toEqual([]);
+    expect(result.current.trace).toEqual([]);
+    expect(result.current.pendingSlot).toBeNull();
+    expect(result.current.streaming).toBe(false);
+    expect(result.current.error).toBeNull();
   });
 
   it("복원 도중 reset()하면 뒤늦게 도착한 옛 대화로 turns가 채워지지 않는다", async () => {

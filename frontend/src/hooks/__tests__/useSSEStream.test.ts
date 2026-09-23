@@ -102,6 +102,55 @@ describe("useSSEStream (명령형)", () => {
     expect(result.current.connectionState).toBe("connecting");
   });
 
+  it("핸들러 안에서 동기 abort()하면 aborted로 끝나고 connectionState는 idle이다", async () => {
+    const env = { type: "ai.token", correlationId: "c1", targetId: null, seq: 1, ts: "t", payload: "첫 토큰" };
+    mockFetch.mockResolvedValue(sseResponse([
+      `event: ai.token\ndata: ${JSON.stringify(env)}\n\n`,
+      `event: ai.token\ndata: ${JSON.stringify({ ...env, seq: 2, payload: "안 와야 함" })}\n\n`,
+    ]));
+    let abortFn: () => void = () => {};
+    const onToken = vi.fn(() => abortFn());
+    const { result } = renderHook(() =>
+      useSSEStream<{ "ai.token": string }>({ url: "/x", method: "POST", handlers: { "ai.token": onToken } }),
+    );
+    abortFn = result.current.abort;
+    let outcome;
+    await act(async () => { outcome = await result.current.start({}); });
+    expect(outcome).toEqual({ reason: "aborted" });
+    expect(onToken).toHaveBeenCalledTimes(1);
+    expect(result.current.connectionState).toBe("idle");
+  });
+
+  it("system.heartbeat 봉투는 건너뛰고 뒤따르는 ai.token은 그대로 디스패치한다", async () => {
+    const hb = { type: "system.heartbeat", correlationId: "c1", targetId: null, seq: 1, ts: "t", payload: null };
+    const tok = { type: "ai.token", correlationId: "c1", targetId: null, seq: 2, ts: "t", payload: "본문" };
+    mockFetch.mockResolvedValue(sseResponse([
+      `event: system.heartbeat\ndata: ${JSON.stringify(hb)}\n\n`,
+      `event: ai.token\ndata: ${JSON.stringify(tok)}\n\n`,
+    ]));
+    const onToken = vi.fn();
+    const { result } = renderHook(() =>
+      useSSEStream<{ "ai.token": string }>({ url: "/x", method: "POST", handlers: { "ai.token": onToken } }),
+    );
+    await act(async () => { await result.current.start({}); });
+    expect(onToken).toHaveBeenCalledTimes(1);
+    expect(onToken).toHaveBeenCalledWith("본문", expect.objectContaining({ seq: 2 }));
+  });
+
+  it("한 청크에 담긴 두 이벤트를 순서대로 모두 디스패치한다", async () => {
+    const a = { type: "ai.token", correlationId: "c1", targetId: null, seq: 1, ts: "t", payload: "가" };
+    const b = { ...a, seq: 2, payload: "나" };
+    mockFetch.mockResolvedValue(sseResponse([
+      `event: ai.token\ndata: ${JSON.stringify(a)}\n\nevent: ai.token\ndata: ${JSON.stringify(b)}\n\n`,
+    ]));
+    const seen: string[] = [];
+    const { result } = renderHook(() =>
+      useSSEStream<{ "ai.token": string }>({ url: "/x", method: "POST", handlers: { "ai.token": (p) => { seen.push(p); } } }),
+    );
+    await act(async () => { await result.current.start({}); });
+    expect(seen).toEqual(["가", "나"]);
+  });
+
   it("언마운트하면 진행 중 스트림이 중단된다", async () => {
     let capturedSignal: AbortSignal | undefined;
     mockFetch.mockImplementation((_i, init) => {

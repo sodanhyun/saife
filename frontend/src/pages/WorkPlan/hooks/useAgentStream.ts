@@ -43,6 +43,9 @@ export function useAgentStream() {
   const lastSeqRef = useRef(0);
   // send가 한 번이라도 불리면 복원 결과로 turns를 덮지 않는다
   const sentRef = useRef(false);
+  // 턴 세대 번호 — send가 겹치면(앞 턴이 밀려나 aborted로 끝나면) 뒤늦게 끝난 앞 턴이
+  // 새 턴의 streaming·error를 덮지 않게, 가장 최근 턴만 마무리 상태를 반영한다.
+  const turnRef = useRef(0);
 
   /** 봉투 공통 처리 — 역행 seq 폐기 + 대화 ID 동기화. true면 계속 처리. */
   const accept = useCallback((env: SseEnvelope<unknown>) => {
@@ -86,6 +89,7 @@ export function useAgentStream() {
 
   const send = useCallback(async (message: string, slotKey?: string) => {
     sentRef.current = true;
+    const myTurn = ++turnRef.current;
     setError(null);
     setPendingSlot(null);
     lastSeqRef.current = 0; // seq는 턴마다 새로 시작한다
@@ -93,6 +97,7 @@ export function useAgentStream() {
     setTurns((prev) => [...prev, { role: "user", text: message }]);
     setTrace([]);
     const outcome = await start({ message, conversationId: conversationIdRef.current, slotKey: slotKey ?? null });
+    if (myTurn !== turnRef.current) return; // 더 새 턴(또는 reset)이 이미 상태를 가져갔다
     if (outcome.reason === "error") setError(outcome.error?.message ?? "스트림 오류");
     setStreaming(false);
   }, [start]);
@@ -116,6 +121,7 @@ export function useAgentStream() {
   }, []);
 
   const reset = useCallback(() => {
+    turnRef.current += 1; // 진행 중이던 send의 뒤늦은 마무리가 비운 상태를 건드리지 않게 한다
     abort();
     conversationIdRef.current = null;
     storeConversationId(null);

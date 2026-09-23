@@ -1,5 +1,5 @@
 // src/components/ui/ToastContainer.tsx
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import cn from "@/lib/cn";
 import type { ToastMessage, ToastType } from "@/stores/useToastStore";
@@ -16,19 +16,24 @@ const STYLE_MAP: Record<ToastType, { bg: string; icon: string }> = {
   info: { bg: "bg-slate-700", icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
 };
 
-/** 퇴장 중인 토스트 ID를 추적 */
+/** 퇴장 중인 토스트 ID를 추적. 콜백은 안정 참조여야 한다 — ToastItem 타이머 effect의 의존성이다. */
 function useExitingIds() {
   const [exitingIds, setExitingIds] = useState<Set<string>>(new Set());
 
-  const markExiting = (id: string) =>
-    setExitingIds((prev) => new Set(prev).add(id));
+  const markExiting = useCallback(
+    (id: string) => setExitingIds((prev) => new Set(prev).add(id)),
+    [],
+  );
 
-  const clearExiting = (id: string) =>
-    setExitingIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
+  const clearExiting = useCallback(
+    (id: string) =>
+      setExitingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      }),
+    [],
+  );
 
   return { exitingIds, markExiting, clearExiting };
 }
@@ -43,16 +48,17 @@ function ToastItem({
   /** 스택 내 위치 (0 = 최상단/최신) */
   index: number;
   isExiting: boolean;
-  onStartExit: () => void;
+  /** 안정 참조(useCallback)로 받는다 — 매 렌더 새 클로저면 자동 제거 타이머가 리셋된다 */
+  onStartExit: (id: string) => void;
 }) {
-  const { removeToast } = useToastStore();
+  const removeToast = useToastStore((s) => s.removeToast);
   const { id, type, message, duration, action } = toast;
   const style = STYLE_MAP[type];
 
   // 자동 제거 타이머
   useEffect(() => {
     if (!duration) return;
-    const timer = setTimeout(onStartExit, duration);
+    const timer = setTimeout(() => onStartExit(id), duration);
     return () => clearTimeout(timer);
   }, [id, duration, onStartExit]);
 
@@ -87,7 +93,7 @@ function ToastItem({
           "flex items-center gap-2.5 px-4 py-2.5 rounded-lg shadow-toast text-white text-sm leading-snug cursor-pointer",
           style.bg
         )}
-        onClick={onStartExit}
+        onClick={() => onStartExit(id)}
       >
         <svg
           className="w-4 h-4 shrink-0 opacity-90"
@@ -119,7 +125,7 @@ function ToastItem({
 }
 
 export default function ToastContainer() {
-  const { toasts } = useToastStore();
+  const toasts = useToastStore((s) => s.toasts);
   const { exitingIds, markExiting, clearExiting } = useExitingIds();
 
   // 퇴장 완료된 ID 정리
@@ -150,7 +156,7 @@ export default function ToastContainer() {
           toast={toast}
           index={index}
           isExiting={exitingIds.has(toast.id)}
-          onStartExit={() => markExiting(toast.id)}
+          onStartExit={markExiting}
         />
       ))}
 

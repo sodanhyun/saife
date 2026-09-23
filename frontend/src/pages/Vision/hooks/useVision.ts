@@ -16,12 +16,19 @@ export function useVision() {
   const [preview, setPreview] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const stream = useVisionStream();
-  const toast = useToastStore();
+  const toastError = useToastStore((s) => s.error);
   // 미리보기 object URL — 언마운트·재선택 시 revoke해서 누수시키지 않는다.
   const previewRef = useRef<string | null>(null);
 
-  // 판독이 끝나면 채택률을 다시 읽는다 — 서버 값에서만 파생
-  useEffect(() => { if (!stream.analyzing) rate.refetch(); }, [stream.analyzing, stream.result]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 판독이 끝나면(analyzing true→false 전이) 채택률을 다시 읽는다 — 서버 값에서만 파생.
+  // 첫 렌더에는 useApiData가 이미 읽고 있으므로 다시 부르지 않는다(마운트 시 이중 요청 방지).
+  const refetchRate = rate.refetch;
+  const prevAnalyzingRef = useRef(stream.analyzing);
+  useEffect(() => {
+    const wasAnalyzing = prevAnalyzingRef.current;
+    prevAnalyzingRef.current = stream.analyzing;
+    if (wasAnalyzing && !stream.analyzing) refetchRate();
+  }, [stream.analyzing, refetchRate]);
 
   // 언마운트 시 마지막 미리보기 URL을 정리한다. setState 업데이터 안에서 revoke하지 않는다 —
   // StrictMode가 업데이터를 두 번 실행해 살아있는 URL을 먼저 revoke해버릴 수 있다.
@@ -45,7 +52,7 @@ export function useVision() {
       stream.applyDecision(hazardId, updated.adopted);
       rate.refetch();
     } catch (e) {
-      toast.error(getServerMessage(e) ?? "처리하지 못했습니다");
+      toastError(getServerMessage(e) ?? "처리하지 못했습니다");
     } finally {
       setBusyId(null);
     }

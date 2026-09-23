@@ -98,7 +98,12 @@ export function useSSEStream<TEventMap>(options: UseSSEStreamOptions<TEventMap>)
         }
         // signal이 이미 abort된 상태면 readSseStream이 정상 종료한 것처럼 보여도
         // 실제로는 중단된 것 — "ended"가 아니라 "aborted"로 보고한다.
-        if (controller.signal.aborted) return { reason: "aborted" };
+        // 핸들러 안에서 동기 abort()된 경우에도 "connected"로 남지 않게 idle로 돌린다
+        // (setIfLive라 이 스트림을 밀어낸 새 스트림의 상태는 건드리지 않는다).
+        if (controller.signal.aborted) {
+          setIfLive("idle");
+          return { reason: "aborted" };
+        }
         setIfLive("idle");
         return { reason: "ended" };
       } catch (err) {

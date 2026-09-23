@@ -73,4 +73,24 @@ describe("useVision", () => {
     unmount();
     expect(revokeSpy).toHaveBeenCalledWith("blob:2");
   });
+
+  it("채택률은 마운트 때 한 번만 읽고, 판독이 끝날 때(analyzing true→false) 다시 읽는다", async () => {
+    Object.defineProperty(URL, "createObjectURL", { value: vi.fn(() => "blob:x"), writable: true });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), writable: true });
+    let resolveFetch!: (r: Response) => void;
+    mockFetch.mockImplementationOnce(() => new Promise<Response>((r) => { resolveFetch = r; }));
+
+    const { result } = renderHook(() => useVision());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.rate).not.toBeNull());
+    expect(mockAdoptionRate).toHaveBeenCalledTimes(1);
+
+    await act(async () => { result.current.pick(new File(["a"], "a.jpg", { type: "image/jpeg" })); });
+    expect(result.current.stream.analyzing).toBe(true);
+    expect(mockAdoptionRate).toHaveBeenCalledTimes(1);
+
+    await act(async () => { resolveFetch(sseResponse()); });
+    await waitFor(() => expect(result.current.stream.analyzing).toBe(false));
+    await waitFor(() => expect(mockAdoptionRate).toHaveBeenCalledTimes(2));
+  });
 });
