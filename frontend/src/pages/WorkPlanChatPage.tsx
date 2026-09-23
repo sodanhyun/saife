@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { ToolTracePanel } from "@/components/ToolTracePanel";
-import { AgentMessage } from "@/components/AgentMessage";
+import AgentMessage from "@/components/common/AgentMessage";
 import { formUrl, workPlanApi } from "@/api/saifeApi";
 import { WORK_PLAN_STATUS_LABEL } from "@/types/domain";
 import type { WorkPlanDetail, WorkPlanListItem } from "@/types/workPlan";

@@ -15,7 +15,7 @@ import { Fragment, type ReactNode } from "react";
  * <p>지원하는 것은 모델이 실제로 쓰는 것만이다: 굵게, 불릿, 구분선, 제목, 인용.
  * 표나 링크는 나오지 않았고, 나오면 그때 추가한다.
  */
-export function AgentMessage({ text }: { text: string }) {
+export default function AgentMessage({ text }: { text: string }) {
   if (!text) return null;
 
   const blocks: ReactNode[] = [];
