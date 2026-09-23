@@ -44,8 +44,6 @@ export function useWorkPlans() {
     refetch,
     detail,
     busyAction,
-    /** 호환용 — 어떤 액션이든 진행 중이면 true */
-    busy: busyAction !== null,
     openDetail: (id: number) => run("open", () => workPlanApi.detail(id)),
     closeDetail: () => setDetail(null),
     acknowledge: (id: number) => run("ack", () => workPlanApi.acknowledge(id), "브리핑 확인이 기록됐습니다 (TBM)"),

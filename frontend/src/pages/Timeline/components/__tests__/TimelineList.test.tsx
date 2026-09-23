@@ -36,11 +36,13 @@ describe("TimelineList", () => {
     expect(onFocus).toHaveBeenLastCalledWith(null);
   });
 
-  it("법정 서식 링크는 버튼 안에 중첩되지 않고, 눌러도 카드 포커스를 바꾸지 않는다", () => {
+  it("법정 서식 링크는 role=button 카드 밖 형제 요소이고, 눌러도 카드 포커스를 바꾸지 않는다", () => {
     const onFocus = vi.fn();
     const { container } = render(<TimelineList events={[ev("a")]} focusId={null} onFocus={onFocus} />);
-    expect(container.querySelector("button a")).toBeNull();
-    fireEvent.click(screen.getByRole("link", { name: "법정 서식" }));
+    expect(container.querySelector('[role="button"] a')).toBeNull();
+    const link = screen.getByRole("link", { name: "법정 서식" });
+    expect(link.closest("li")!.querySelector('[role="button"]')).not.toContainElement(link);
+    fireEvent.click(link);
     expect(onFocus).not.toHaveBeenCalled();
   });
 });

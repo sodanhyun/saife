@@ -32,4 +32,12 @@ describe("ChatThread", () => {
     const { getByLabelText } = render(<ChatThread turns={[{ role: "user", text: "안녕" }]} streaming={false} restoring={false} />);
     expect(getByLabelText("대화 내용")).toHaveAttribute("aria-live", "polite");
   });
+
+  it("streaming 중에는 aria-busy가 true여서 토큰마다 읽어주지 않는다", () => {
+    const { getByLabelText, rerender } = render(<ChatThread turns={[{ role: "user", text: "안녕" }]} streaming={true} restoring={false} />);
+    expect(getByLabelText("대화 내용")).toHaveAttribute("aria-busy", "true");
+
+    rerender(<ChatThread turns={[{ role: "user", text: "안녕" }]} streaming={false} restoring={false} />);
+    expect(getByLabelText("대화 내용")).toHaveAttribute("aria-busy", "false");
+  });
 });

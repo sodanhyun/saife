@@ -31,11 +31,10 @@ export default function TimelineList({ events, focusId, onFocus }: Props) {
         return (
           <li key={ev.id} className="relative mb-4">
             <span className={cn("absolute -left-8 top-5 h-3.5 w-3.5 rounded-full ring-4 ring-page", dot)} />
-            {/* 카드 안에 법정 서식 링크(<a>)가 있어 <button>으로 감쌀 수 없다(대화형 요소 중첩은 무효 HTML).
-                div role="button"으로 두고 Enter·Space를 직접 처리한다. */}
+            {/* 카드에는 이제 대화형 자식이 없다 — 법정 서식 링크는 카드 밖 형제 요소로 뺐다
+                (보조기술이 role="button" 영역 안에 갇히지 않고 링크에 곧장 접근하도록). */}
             <div role="button" tabIndex={0} aria-pressed={focused} onClick={toggle}
               onKeyDown={(e) => {
-                if (e.target !== e.currentTarget) return; // 안쪽 링크의 Enter는 링크 몫이다
                 if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
               }}
               className={cn("w-full cursor-pointer rounded-lg border bg-white p-4 text-left shadow-card transition-colors",
@@ -50,8 +49,12 @@ export default function TimelineList({ events, focusId, onFocus }: Props) {
               </div>
               <p className="mt-1 text-sm text-slate-700">{ev.detail}</p>
               {ev.linkedLabels.length > 0 && <p className="mt-1 text-xs text-slate-500">연결된 기록: {ev.linkedLabels.join(" · ")}</p>}
-              {href && <LinkButton className="mt-2" href={href} external onClick={(e) => e.stopPropagation()}>법정 서식</LinkButton>}
             </div>
+            {href && (
+              <div className="mt-2 pl-4">
+                <LinkButton href={href} external>법정 서식</LinkButton>
+              </div>
+            )}
           </li>
         );
       })}
