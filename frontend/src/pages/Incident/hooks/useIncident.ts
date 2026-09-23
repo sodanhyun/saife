@@ -19,9 +19,11 @@ export function useIncident() {
   const [error, setError] = useState<string | null>(null);
   const toast = useToastStore();
 
-  // 첫 설비를 기본 선택 — 렌더 중 파생(effect+setState로 동기화하지 않는다)
+  // 첫 설비를 기본 선택 — 렌더 중 파생(effect+setState로 동기화하지 않는다).
+  // equipmentId===null은 "아직 고르지 않음"이고, ""는 사용자가 명시적으로 고른 "(설비 미상)"이라
+  // 한 번 골라지면 다시 기본값으로 되돌리지 않는다(null일 때만 기본 설비를 채운다).
   const defaultEquipmentId = equipment.data?.[0] ? String(equipment.data[0].id) : "";
-  const effectiveForm = form.equipmentId ? form : { ...form, equipmentId: defaultEquipmentId };
+  const effectiveForm = form.equipmentId === null ? { ...form, equipmentId: defaultEquipmentId } : form;
 
   const submit = async () => {
     setBusy(true);

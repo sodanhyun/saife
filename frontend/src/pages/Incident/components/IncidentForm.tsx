@@ -30,7 +30,8 @@ export default function IncidentForm({ form, setForm, equipment, plans, busy, er
     <Card>
       <div className="grid gap-3 md:grid-cols-3">
         <FormField label="사고 설비">
-          <Select value={form.equipmentId} onChange={set("equipmentId")}>
+          {/* effectiveForm이 전달되므로 null은 실제로 오지 않지만, 타입이 string | null이라 안전하게 처리 */}
+          <Select value={form.equipmentId ?? ""} onChange={set("equipmentId")}>
             <option value="">(설비 미상)</option>
             {equipment.map((e) => (
               <option key={e.id} value={e.id}>

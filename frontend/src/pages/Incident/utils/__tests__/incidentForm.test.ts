@@ -12,6 +12,18 @@ describe("toRegisterRequest", () => {
     expect(req.equipmentId).toBe(3);
     expect(req.workPlanId).toBeNull();
   });
+  it("설비 id가 null(아직 미선택)이면 null이다", () => {
+    const req = toRegisterRequest({ ...defaultIncidentForm(), equipmentId: null });
+    expect(req.equipmentId).toBeNull();
+  });
+  it("설비 id가 빈 문자열(명시적 설비 미상)이어도 null이다", () => {
+    const req = toRegisterRequest({ ...defaultIncidentForm(), equipmentId: "" });
+    expect(req.equipmentId).toBeNull();
+  });
+  it("설비 id가 숫자 문자열이면 숫자로 변환한다", () => {
+    const req = toRegisterRequest({ ...defaultIncidentForm(), equipmentId: "3" });
+    expect(req.equipmentId).toBe(3);
+  });
   it("발생 일시에 오프셋을 붙인다", () => {
     const req = toRegisterRequest({ ...defaultIncidentForm(), occurredAt: "2026-09-21T06:41" });
     expect(req.occurredAt).toMatch(/^2026-09-21T06:41:00[+-]\d{2}:\d{2}$/);
