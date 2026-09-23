@@ -20,7 +20,12 @@ export default function SlotPrompt({ slot, disabled, onAnswer }: Props) {
           <SegmentedControl ariaLabel={slot.question} size="sm" value={value || null}
             options={slot.options.map((o) => ({ value: o, label: o }))} onChange={setValue} className="flex-1" />
         ) : (
-          <Input value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) submit(); }} placeholder="답변을 입력하세요" />
+          <Input value={value} onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              // 한글 IME 조합 중 Enter는 조합 확정 키다 — 여기서 제출하면 마지막 음절이 잘리거나 두 번 제출된다.
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter" && !disabled) submit();
+            }} placeholder="답변을 입력하세요" />
         )}
         <Button size="sm" disabled={disabled || !value.trim()} onClick={submit}>답변</Button>
       </div>

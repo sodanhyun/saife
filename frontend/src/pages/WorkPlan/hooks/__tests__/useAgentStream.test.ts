@@ -85,4 +85,19 @@ describe("useAgentStream", () => {
     await waitFor(() => expect(result.current.restoring).toBe(false));
     expect(result.current.turns.map((t) => t.text)).toEqual(["새 질문", "새 답"]);
   });
+
+  it("복원 도중 reset()하면 뒤늦게 도착한 옛 대화로 turns가 채워지지 않는다", async () => {
+    sessionStorage.setItem("saife.conversationId", "conv-old");
+    let resolveTranscript!: (v: { data: { role: string; text: string }[] }) => void;
+    mockGet.mockReturnValue(new Promise((r) => { resolveTranscript = r; }) as never);
+    const { result } = renderHook(() => useAgentStream());
+    expect(result.current.restoring).toBe(true);
+
+    act(() => { result.current.reset(); });
+    expect(result.current.restoring).toBe(false);
+    expect(sessionStorage.getItem("saife.conversationId")).toBeNull();
+
+    await act(async () => { resolveTranscript({ data: [{ role: "user", text: "옛 질문" }] }); });
+    expect(result.current.turns).toEqual([]);
+  });
 });

@@ -119,6 +119,9 @@ export function useAgentStream() {
     abort();
     conversationIdRef.current = null;
     storeConversationId(null);
+    // 복원 중이던 옛 대화가 reset 이후 도착해 turns를 덮어쓰지 않게 한다(sentRef 가드 재사용)
+    sentRef.current = true;
+    setRestoring(false);
     setTrace([]); setTurns([]); setPendingSlot(null); setError(null); setStreaming(false);
   }, [abort]);
 

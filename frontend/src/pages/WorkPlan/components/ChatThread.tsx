@@ -11,7 +11,7 @@ export default function ChatThread({ turns, streaming, restoring }: Props) {
   useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [turns]);
   const waiting = streaming && turns[turns.length - 1]?.role === "user";
   return (
-    <div ref={ref} className="flex-1 space-y-3 overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+    <div ref={ref} className="max-h-[60vh] min-h-[320px] flex-1 space-y-3 overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-card">
       {turns.length === 0 && (
         <p className="text-sm text-slate-400">
           {restoring ? "이전 대화를 불러오는 중…" : "예: 내일 공장동 후면 차양부에서 사다리 놓고 천장 페인트 칠할 건데요"}
