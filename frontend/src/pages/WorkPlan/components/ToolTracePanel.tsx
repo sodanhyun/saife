@@ -20,7 +20,9 @@ export default function ToolTracePanel({ rows, connectionState }: { rows: ToolTr
             <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full",
               row.status === "running" && "bg-progress animate-pulse",
               row.status === "ok" && "bg-slate-400",
-              row.status === "failed" && "bg-risk-high")} />
+              row.status === "failed" && "bg-risk-high")} aria-hidden="true" />
+            {/* 점 색만으로 상태를 전하지 않는다 — 스크린리더용 상태 문구 */}
+            <span className="sr-only">{row.status === "running" ? "실행 중" : row.status === "ok" ? "완료" : "실패"}</span>
             <span className="font-mono">{row.toolName}</span>
             {row.durationMs !== undefined && <span className="ml-auto text-sm tabular-nums text-slate-500">{row.durationMs}ms</span>}
           </li>

@@ -2,6 +2,7 @@ import { formUrl } from "@/api/formUrl";
 import Callout from "@/components/ui/Callout";
 import EmptyState from "@/components/ui/EmptyState";
 import KpiCell from "@/components/ui/KpiCell";
+import LinkButton from "@/components/ui/LinkButton";
 import PageHeader from "@/components/ui/PageHeader";
 import PageLayout from "@/components/ui/PageLayout";
 import CandidateCard from "@/pages/Vision/components/CandidateCard";
@@ -27,7 +28,7 @@ export default function VisionPage() {
           {result?.demoMode && <Callout tone="neutral">데모 모드입니다. API 키가 없어 모델 응답 대신 고정 픽스처를 표시하고 있습니다.</Callout>}
           {result && result.candidates.length === 0 && <EmptyState message="빠진 안전조치를 찾지 못했습니다" description="판정 대상 6축 중 이 사진에 해당하는 항목이 없습니다." />}
           {result?.candidates.map((c) => <CandidateCard key={c.hazardId} c={c} busy={v.busyId === c.hazardId} onDecide={(id, adopt) => void v.decide(id, adopt)} />)}
-          {result && <a className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50" href={formUrl.assessment(result.assessmentId)} target="_blank" rel="noreferrer">위험성평가표 (평가 #{result.assessmentId})</a>}
+          {result && <LinkButton href={formUrl.assessment(result.assessmentId)} external>위험성평가표 (평가 #{result.assessmentId})</LinkButton>}
         </div>
       </div>
     </PageLayout>

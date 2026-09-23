@@ -11,18 +11,18 @@ export default function ChatThread({ turns, streaming, restoring }: Props) {
   useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [turns]);
   const waiting = streaming && turns[turns.length - 1]?.role === "user";
   return (
-    <div ref={ref} className="max-h-[60vh] min-h-[320px] flex-1 space-y-3 overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-card">
+    <div ref={ref} aria-live="polite" aria-label="대화 내용" className="max-h-[60vh] min-h-[320px] flex-1 space-y-3 overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-card">
       {turns.length === 0 && (
         <p className="text-sm text-slate-400">
           {restoring ? "이전 대화를 불러오는 중…" : "예: 내일 공장동 후면 차양부에서 사다리 놓고 천장 페인트 칠할 건데요"}
         </p>
       )}
       {turns.map((turn, i) => turn.role === "user" ? (
-        <div key={i} className="flex justify-end">
+        <div key={`${i}-${turn.role}`} className="flex justify-end">
           <p className="max-w-[80%] rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">{turn.text}</p>
         </div>
       ) : (
-        <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"><AgentMessage text={turn.text} /></div>
+        <div key={`${i}-${turn.role}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"><AgentMessage text={turn.text} /></div>
       ))}
       {waiting && <p className="text-sm text-slate-400 animate-cursor-blink">확인하고 있습니다…</p>}
     </div>

@@ -3,24 +3,11 @@ import { Badge, RiskBadge } from "@/components/ui/Badge";
 import Callout from "@/components/ui/Callout";
 import Card from "@/components/ui/Card";
 import KpiCell from "@/components/ui/KpiCell";
+import LinkButton from "@/components/ui/LinkButton";
 import { ACCIDENT_LABEL, RISK_LABEL } from "@/types/domain";
 import type { IncidentRegisterResponse } from "@/types/incident";
 import { dDayLabel, formatDate, formatDateTime } from "@/utils/datetime";
 import { reportDutyTone } from "@/utils/statusColors";
-
-/** 법정 서식 링크 — 새 탭에서 연다(index.tsx export에는 포함하지 않는다) */
-function FormLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a
-      className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-    >
-      {children}
-    </a>
-  );
-}
 
 /** 등록 결과 — ① 소환 배너 ② KPI 3개 ③ 사전 이력·수시평가 2열 ④ 조사표 초안 순서 고정 */
 export default function IncidentResult({ r }: { r: IncidentRegisterResponse }) {
@@ -42,7 +29,7 @@ export default function IncidentResult({ r }: { r: IncidentRegisterResponse }) {
               ? `${r.reportDuty.statusLabel} · ${formatDate(r.reportDuty.dueDate)}`
               : r.reportDuty.basis
           }
-          tone={dutyTone === "neutral" ? undefined : dutyTone}
+          tone={dutyTone}
           title={r.reportDuty.basis}
         />
         <KpiCell
@@ -104,7 +91,7 @@ export default function IncidentResult({ r }: { r: IncidentRegisterResponse }) {
           description={r.followUp.legalBasis}
           actions={
             r.followUp.assessmentId ? (
-              <FormLink href={formUrl.assessment(r.followUp.assessmentId)}>위험성평가표</FormLink>
+              <LinkButton href={formUrl.assessment(r.followUp.assessmentId)} external>위험성평가표</LinkButton>
             ) : undefined
           }
         >
@@ -136,7 +123,7 @@ export default function IncidentResult({ r }: { r: IncidentRegisterResponse }) {
             산업재해조사표 초안{!r.draft.aiGenerated && <Badge>AI 생성 아님</Badge>}
           </span>
         }
-        actions={<FormLink href={formUrl.incident(r.incident.id)}>산업재해조사표</FormLink>}
+        actions={<LinkButton href={formUrl.incident(r.incident.id)} external>산업재해조사표</LinkButton>}
       >
         <h3 className="text-xs font-semibold text-slate-500">재해 발생 원인</h3>
         <p className="whitespace-pre-wrap text-sm">{r.draft.cause}</p>

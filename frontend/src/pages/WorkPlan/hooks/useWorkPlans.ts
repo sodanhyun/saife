@@ -6,6 +6,9 @@ import { useToastStore } from "@/stores/useToastStore";
 import type { WorkPlanDetail } from "@/types/workPlan";
 import { getServerMessage } from "@/utils/errorMessage";
 
+/** 진행 중인 상세 모달 액션 — 누른 버튼만 loading을 띄우기 위해 종류까지 기억한다. */
+export type WorkPlanAction = "open" | "ack" | "approve";
+
 /** 목록·상세·확인·승인. 목록은 서버 데이터에서만 파생한다(낙관적 플래그 없음). */
 export function useWorkPlans() {
   const { data, loading, error, refetch } = useApiData({
@@ -15,22 +18,24 @@ export function useWorkPlans() {
     skipFirstSkeleton: true,
   });
   const [detail, setDetail] = useState<WorkPlanDetail | null>(null);
-  const [busy, setBusy] = useState(false);
-  const toast = useToastStore();
+  const [busyAction, setBusyAction] = useState<WorkPlanAction | null>(null);
+  // 셀렉터로 구독 — 스토어 전체를 구독하면 토스트가 뜰 때마다 페이지가 다시 렌더된다
+  const toastSuccess = useToastStore((s) => s.success);
+  const toastError = useToastStore((s) => s.error);
 
   /** done이 없으면 조용히 처리한다 — 목록을 여는 것까지 시끄러운 토스트를 띄우지 않는다. */
-  const run = useCallback(async (fn: () => Promise<WorkPlanDetail>, done?: string) => {
-    setBusy(true);
+  const run = useCallback(async (action: WorkPlanAction, fn: () => Promise<WorkPlanDetail>, done?: string) => {
+    setBusyAction(action);
     try {
       setDetail(await fn());
-      if (done) toast.success(done);
+      if (done) toastSuccess(done);
       refetch();
     } catch (e) {
-      toast.error(getServerMessage(e) ?? "처리하지 못했습니다");
+      toastError(getServerMessage(e) ?? "처리하지 못했습니다");
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
-  }, [refetch, toast]);
+  }, [refetch, toastSuccess, toastError]);
 
   return {
     plans: data ?? [],
@@ -38,10 +43,12 @@ export function useWorkPlans() {
     loadError: error,
     refetch,
     detail,
-    busy,
-    openDetail: (id: number) => run(() => workPlanApi.detail(id)),
+    busyAction,
+    /** 호환용 — 어떤 액션이든 진행 중이면 true */
+    busy: busyAction !== null,
+    openDetail: (id: number) => run("open", () => workPlanApi.detail(id)),
     closeDetail: () => setDetail(null),
-    acknowledge: (id: number) => run(() => workPlanApi.acknowledge(id), "브리핑 확인이 기록됐습니다 (TBM)"),
-    approve: (id: number) => run(() => workPlanApi.approve(id, "관리부"), "승인했습니다"),
+    acknowledge: (id: number) => run("ack", () => workPlanApi.acknowledge(id), "브리핑 확인이 기록됐습니다 (TBM)"),
+    approve: (id: number) => run("approve", () => workPlanApi.approve(id, "관리부"), "승인했습니다"),
   };
 }

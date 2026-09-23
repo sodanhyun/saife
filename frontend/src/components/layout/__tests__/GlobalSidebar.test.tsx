@@ -26,4 +26,18 @@ describe("GlobalSidebar", () => {
 
     expect(useUiStore.getState().sidebarCollapsed).toBe(true);
   });
+
+  it("접힌 상태에서 누르면 펼쳐지고 이름이 '메뉴 접기'로 바뀐다", () => {
+    useUiStore.setState({ sidebarCollapsed: true });
+    render(
+      <MemoryRouter initialEntries={["/vision"]}>
+        <GlobalSidebar isOpen={false} onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 펼치기" }));
+
+    expect(useUiStore.getState().sidebarCollapsed).toBe(false);
+    expect(screen.getByRole("button", { name: "메뉴 접기" })).toBeInTheDocument();
+  });
 });

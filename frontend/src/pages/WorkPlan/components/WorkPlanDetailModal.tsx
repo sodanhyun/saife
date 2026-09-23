@@ -1,22 +1,32 @@
 import { formUrl } from "@/api/formUrl";
 import AgentMessage from "@/components/common/AgentMessage";
 import Button from "@/components/ui/Button";
+import LinkButton from "@/components/ui/LinkButton";
 import Modal from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/Badge";
+import type { WorkPlanAction } from "@/pages/WorkPlan/hooks/useWorkPlans";
 import { WORK_PLAN_STATUS_LABEL } from "@/types/domain";
 import type { WorkPlanDetail } from "@/types/workPlan";
 import { formatDateTime } from "@/utils/datetime";
 import { workPlanStatusTone } from "@/utils/statusColors";
 
-interface Props { detail: WorkPlanDetail | null; busy: boolean; onClose: () => void; onAcknowledge: (id: number) => void; onApprove: (id: number) => void }
+interface Props {
+  detail: WorkPlanDetail | null;
+  /** 진행 중인 액션 — 누른 버튼만 loading, 나머지는 disabled로 중복 요청을 막는다 */
+  busyAction: WorkPlanAction | null;
+  onClose: () => void;
+  onAcknowledge: (id: number) => void;
+  onApprove: (id: number) => void;
+}
 
-export default function WorkPlanDetailModal({ detail, busy, onClose, onAcknowledge, onApprove }: Props) {
+export default function WorkPlanDetailModal({ detail, busyAction, onClose, onAcknowledge, onApprove }: Props) {
   if (!detail) return null;
+  const busy = busyAction !== null;
   const footer = (
     <>
-      <a className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50" href={formUrl.workPlan(detail.id)} target="_blank" rel="noreferrer">법정 서식</a>
-      {!detail.briefingAckAt && detail.briefing && <Button size="sm" variant="secondary" loading={busy} onClick={() => onAcknowledge(detail.id)}>브리핑 확인 (TBM 기록)</Button>}
-      {detail.status === "SUBMITTED" && <Button size="sm" loading={busy} onClick={() => onApprove(detail.id)}>승인</Button>}
+      <LinkButton href={formUrl.workPlan(detail.id)} external>법정 서식</LinkButton>
+      {!detail.briefingAckAt && detail.briefing && <Button size="sm" variant="secondary" loading={busyAction === "ack"} disabled={busy} onClick={() => onAcknowledge(detail.id)}>브리핑 확인 (TBM 기록)</Button>}
+      {detail.status === "SUBMITTED" && <Button size="sm" loading={busyAction === "approve"} disabled={busy} onClick={() => onApprove(detail.id)}>승인</Button>}
     </>
   );
   return (

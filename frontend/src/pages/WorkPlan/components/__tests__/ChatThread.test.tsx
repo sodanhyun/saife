@@ -27,4 +27,9 @@ describe("ChatThread", () => {
     render(<ChatThread turns={turns} streaming={false} restoring={false} />);
     expect(setter).toHaveBeenCalled();
   });
+
+  it("스레드는 새 답변을 알리는 polite 라이브 영역이고 이름이 '대화 내용'이다", () => {
+    const { getByLabelText } = render(<ChatThread turns={[{ role: "user", text: "안녕" }]} streaming={false} restoring={false} />);
+    expect(getByLabelText("대화 내용")).toHaveAttribute("aria-live", "polite");
+  });
 });

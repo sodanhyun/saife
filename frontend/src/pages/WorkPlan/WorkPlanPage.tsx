@@ -45,7 +45,7 @@ export default function WorkPlanPage() {
         </section>
         <ToolTracePanel rows={agent.trace} connectionState={agent.connectionState} />
       </div>
-      <WorkPlanDetailModal detail={plans.detail} busy={plans.busy} onClose={plans.closeDetail} onAcknowledge={plans.acknowledge} onApprove={plans.approve} />
+      <WorkPlanDetailModal detail={plans.detail} busyAction={plans.busyAction} onClose={plans.closeDetail} onAcknowledge={plans.acknowledge} onApprove={plans.approve} />
     </PageLayout>
   );
 }

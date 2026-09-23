@@ -38,6 +38,7 @@ SAIFE는 **무대 밀도** 한 표면이다. 프로젝터(1280×720)에서 읽�
 | 표 | `DataTable` |
 | 수치 요약 | `KpiCell` |
 | 버튼 · 입력 · 셀렉트 · 여러 줄 | `Button` · `Input` · `Select` · `Textarea` (+`FormField`) |
+| 버튼 모양의 링크(법정 서식 등) | `LinkButton` (`external`이면 새 탭) |
 | 배지 | `Badge` · `RiskBadge` · `StatusBadge` |
 | 모달 / 확인 | `Modal` / `ConfirmModal`(+`useConfirm`) |
 | 빈 상태 / 로딩 | `EmptyState` / `Skeleton`·`PageSkeleton` |

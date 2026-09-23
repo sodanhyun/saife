@@ -21,4 +21,9 @@ describe("Composer", () => {
     fireEvent.keyDown(textarea, { key: "Enter" });
     expect(onSend).toHaveBeenCalledWith("내일 사다리 작업");
   });
+
+  it("입력창에 접근 가능한 이름(작업 내용)이 있다", () => {
+    render(<Composer disabled={false} onSend={() => {}} />);
+    expect(screen.getByLabelText("작업 내용").tagName).toBe("TEXTAREA");
+  });
 });

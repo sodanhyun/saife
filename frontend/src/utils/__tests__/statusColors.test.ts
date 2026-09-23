@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { emphasisTone, reportDutyTone, riskColor, toneColor, workPlanStatusTone } from "@/utils/statusColors";
+import { emphasisTone, reportDutyTone, riskColor, riskTone, toneColor, workPlanStatusTone } from "@/utils/statusColors";
 
 describe("statusColors — 색 매핑 SSOT", () => {
   it("등급 상은 risk-high 연톤 칩이다", () => {
     expect(riskColor("HIGH").chip).toBe("bg-risk-high-bg text-risk-high-text border-risk-high-border");
+  });
+
+  it("riskTone은 등급을 같은 이름의 톤으로 옮긴다(HIGH→high, MEDIUM→medium, LOW→low)", () => {
+    expect(riskTone("HIGH")).toBe("high");
+    expect(riskTone("MEDIUM")).toBe("medium");
+    expect(riskTone("LOW")).toBe("low");
   });
 
   it("neutral은 slate 무채색이다(정상 상태는 색을 갖지 않는다)", () => {
