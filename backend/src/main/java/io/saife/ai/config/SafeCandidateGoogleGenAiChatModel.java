@@ -183,7 +183,7 @@ public class SafeCandidateGoogleGenAiChatModel extends GoogleGenAiChatModel {
                             Usage cumulativeUsage = UsageCalculator.getCumulativeUsage(
                                     currentUsage, previousChatResponse);
 
-                            // ★ 핵심 수정: .get() → .orElse("unknown")
+                            // 핵심 수정: .get() → .orElse("unknown")
                             String modelVersion = response.modelVersion().orElse("unknown");
 
                             var chatResponse = new ChatResponse(generations,

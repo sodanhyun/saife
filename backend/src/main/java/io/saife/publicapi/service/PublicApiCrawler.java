@@ -152,7 +152,7 @@ public class PublicApiCrawler {
                 verify(dataset, items.get(0));
                 saved += save(dataset, items);
 
-                // ⚠️ 페이지마다 커밋한다. 여기서 끊겨도 다음 실행이 이어받는다
+                // 페이지마다 커밋한다. 여기서 끊겨도 다음 실행이 이어받는다
                 saveCheckpoint(dataset.dataset(), page, total, saved,
                         CrawlCheckpoint.STATUS_RUNNING, null);
 

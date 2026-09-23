@@ -189,7 +189,7 @@ public class AgentService {
             emitError(sessionId, conversationId, sanitize(e));
 
         } finally {
-            // ⚠️ 반드시 닫는다. 안 닫으면 클라이언트가 emitter 타임아웃(5분)까지 기다린다.
+            // 반드시 닫는다. 안 닫으면 클라이언트가 emitter 타임아웃(5분)까지 기다린다.
             // 무대에서 턴마다 5분씩 멈추는 사고가 여기서 난다.
             closeStream(sessionId);
         }

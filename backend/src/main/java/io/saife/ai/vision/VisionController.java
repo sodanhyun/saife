@@ -71,7 +71,7 @@ public class VisionController {
         Long processId = equipmentId == null ? null
                 : equipmentRepository.findById(equipmentId).map(Equipment::getProcessId).orElse(null);
 
-        // ⚠️ 비동기 디스패치 "전에" 판독 중 상태를 커밋한다 (sse-streaming.md)
+        // 비동기 디스패치 "전에" 판독 중 상태를 커밋한다 (sse-streaming.md)
         Long assessmentId = visionAssessmentService.markAnalyzing(DEMO_SITE_ID);
 
         String correlationId = UUID.randomUUID().toString().replace("-", "");
