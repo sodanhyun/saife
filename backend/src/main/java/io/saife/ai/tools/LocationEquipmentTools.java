@@ -73,7 +73,7 @@ public class LocationEquipmentTools {
             if (match.needsConfirmation()) {
                 StringBuilder sb = new StringBuilder("비슷한 설비가 여러 건입니다. 어느 것인지 확인이 필요합니다.\n");
                 for (EquipmentMatcher.Candidate c : match.candidates()) {
-                    sb.append("- [id=%d] %s (%s)%n".formatted(
+                    sb.append("- [id=%d] %s (%s)\n".formatted(
                             c.equipmentId(), c.name(), nvl(c.locationTag(), "위치 미지정")));
                 }
                 return ToolResult.of(sb.toString());
@@ -87,8 +87,8 @@ public class LocationEquipmentTools {
     /** 설비 + 그 설비에 걸린 이력을 사람이 읽는 형태로 */
     private String describe(Equipment eq, WorkProcess process) {
         StringBuilder sb = new StringBuilder();
-        sb.append("설비 확인됨 [id=%d] %s%n".formatted(eq.getId(), eq.getName()));
-        sb.append("위치: %s%n".formatted(nvl(eq.getLocationTag(), "미지정")));
+        sb.append("설비 확인됨 [id=%d] %s\n".formatted(eq.getId(), eq.getName()));
+        sb.append("위치: %s\n".formatted(nvl(eq.getLocationTag(), "미지정")));
         sb.append(processLine(process));
 
         List<Hazard> hazards = hazardRepository.findByEquipmentIdOrderByCreatedAtDesc(eq.getId());
@@ -97,12 +97,12 @@ public class LocationEquipmentTools {
             return sb.toString();
         }
 
-        sb.append("\n기존 위험요인 %d건:%n".formatted(hazards.size()));
+        sb.append("\n기존 위험요인 %d건:\n".formatted(hazards.size()));
         List<Long> hazardIds = new ArrayList<>();
         for (Hazard h : hazards) {
             hazardIds.add(h.getId());
             String grade = latestGrade(h.getId());
-            sb.append("- [%s] %s%s%n".formatted(
+            sb.append("- [%s] %s%s\n".formatted(
                     h.getAccidentType().getLabel(),
                     h.getMissingControl() != null ? h.getMissingControl() : h.getDescription(),
                     grade));
@@ -110,9 +110,9 @@ public class LocationEquipmentTools {
 
         List<Action> pending = actionRepository.findPendingByHazardIds(hazardIds, ActionStatus.DONE);
         if (!pending.isEmpty()) {
-            sb.append("\n⚠️ 미이행 조치 %d건:%n".formatted(pending.size()));
+            sb.append("\n미이행 조치 %d건:\n".formatted(pending.size()));
             for (Action a : pending) {
-                sb.append("- %s (담당 %s, 기한 %s)%n".formatted(
+                sb.append("- %s (담당 %s, 기한 %s)\n".formatted(
                         a.getContent(), nvl(a.getOwner(), "미지정"),
                         a.getDueDate() != null ? a.getDueDate().toString() : "미지정"));
             }
@@ -130,7 +130,7 @@ public class LocationEquipmentTools {
     }
 
     private String processLine(WorkProcess p) {
-        return p == null ? "" : "공정/장소: %s (%s)%n".formatted(p.getName(), nvl(p.getWorkType(), "작업유형 미지정"));
+        return p == null ? "" : "공정/장소: %s (%s)\n".formatted(p.getName(), nvl(p.getWorkType(), "작업유형 미지정"));
     }
 
     private String nvl(String v, String fallback) {

@@ -63,3 +63,13 @@ export interface ToolTraceRow {
   durationMs?: number;
   errorMessage?: string;
 }
+
+/** 스트림 연결 상태 — useSSEStream이 관리한다. 재연결은 없다(POST 스트림은 재연결이 곧 재요청). */
+export type ConnectionState = "idle" | "connecting" | "connected" | "disconnected" | "error";
+
+/** 에러 이벤트 표준 payload(ai.error · assess.failed 공통, sse-streaming.md) */
+export interface SseErrorPayload {
+  errorType?: string;
+  message: string;
+  detail?: string;
+}

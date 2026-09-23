@@ -1,38 +1,47 @@
-/**
- * 얇은 fetch 래퍼.
- *
- * axios를 쓰지 않는 이유: SSE를 fetch + ReadableStream으로 직접 읽어야 해서
- * 어차피 fetch가 필요하고, 두 방식을 섞으면 에러 처리가 두 벌이 된다.
- */
+// axios 인스턴스(REST) + fetch 래퍼(SSE). 인증은 아직 없다 — 붙일 자리만 남긴다.
+import axios from "axios";
+
+import { registerAbortController, unregisterAbortController } from "@/utils/abortRegistry";
 
 export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
+  constructor(readonly status: number, message: string) {
     super(message);
+    this.name = "ApiError";
   }
 }
 
-async function handle<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new ApiError(res.status, body || `${res.status} ${res.statusText}`);
+/** 회선이 죽어도 요청이 영원히 매달리지 않게 상한을 둔다. */
+export const DEFAULT_TIMEOUT_MS = 60_000;
+
+export const api = axios.create({ timeout: DEFAULT_TIMEOUT_MS });
+
+/**
+ * SSE·멀티파트용 fetch 래퍼. non-ok면 본문 message를 담은 ApiError를 던진다 —
+ * 스트림 파서가 HTML 에러 페이지를 읽으려 들지 않게 여기서 끊는다.
+ */
+export async function fetchWithAuth(input: RequestInfo, init?: RequestInit): Promise<Response> {
+  let internal: AbortController | null = null;
+  let signal = init?.signal;
+  if (!signal) {
+    internal = new AbortController();
+    signal = internal.signal;
+    registerAbortController(internal);
   }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
-}
-
-export async function get<T>(path: string): Promise<T> {
-  return handle<T>(await fetch(path));
-}
-
-export async function post<T>(path: string, body?: unknown): Promise<T> {
-  return handle<T>(
-    await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }),
-  );
+  try {
+    const res = await fetch(input, { ...init, signal });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      // 본문이 비었거나 HTML(에러 페이지 등)이면 사용자에게 그대로 보여주지 않는다 —
+      // 상태 코드·문구로 대체하고, 너무 긴 본문은 200자로 자른다.
+      let message = !text || /^\s*</.test(text) ? `${res.status} ${res.statusText}` : text.slice(0, 200);
+      try {
+        const body = JSON.parse(text) as { message?: string };
+        if (body?.message) message = body.message;
+      } catch { /* JSON이 아니면 원문 유지 */ }
+      throw new ApiError(res.status, message);
+    }
+    return res;
+  } finally {
+    if (internal) unregisterAbortController(internal);
+  }
 }

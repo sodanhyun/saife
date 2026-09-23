@@ -1,7 +1,18 @@
+/* 웹폰트 — 자체 호스팅(외부 CDN 요청 0). 무대에서 네트워크가 끊겨도 글꼴이 바뀌지 않는다.
+   unicode-range 청크 분할이라 화면에 뜬 글자 범위만 내려받는다. font-display: swap 내장. */
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  font-family: Pretendard, system-ui, -apple-system, sans-serif;
+  /* tailwind.config.js의 sans 체인과 동일하게 유지할 것 */
+  font-family: "Pretendard Variable", Pretendard, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }

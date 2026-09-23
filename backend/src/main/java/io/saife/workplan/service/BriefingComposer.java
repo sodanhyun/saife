@@ -54,7 +54,7 @@ public class BriefingComposer {
     public String compose(WorkPlan plan) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("작업: %s / %s / %s%n".formatted(
+        sb.append("작업: %s / %s / %s\n".formatted(
                 plan.getWorkName(),
                 nvl(plan.getWorkPlace(), "장소 미지정"),
                 plan.getWorkDate()));
@@ -89,10 +89,10 @@ public class BriefingComposer {
             return;
         }
 
-        sb.append("\n⚠️ 이 설비에 미이행 조치가 있습니다\n");
+        sb.append("\n이 설비에 미이행 조치가 있습니다\n");
         for (Action a : pending) {
             String grade = gradeOf(a.getHazardId());
-            sb.append("- %s%s (기한 %s)%n".formatted(
+            sb.append("- %s%s (기한 %s)\n".formatted(
                     a.getContent(), grade,
                     a.getDueDate() != null ? a.getDueDate().toString() : "미지정"));
         }
@@ -117,7 +117,7 @@ public class BriefingComposer {
         sb.append("\n[위험요인 및 등급]\n");
         for (AccidentType axis : axes) {
             RiskRuleEngine.Decision d = riskRuleEngine.decide(axis, slots);
-            sb.append("- %s: 위험성 '%s'%n  근거: %s%n".formatted(
+            sb.append("- %s: 위험성 '%s'\n  근거: %s\n".formatted(
                     axis.getLabel(), d.riskLevel().getLabel(), d.ruleTrace()));
         }
     }
@@ -152,7 +152,7 @@ public class BriefingComposer {
             if (first.isBlank()) {
                 continue;
             }
-            sb.append("- %s: %s%n".formatted(nvl(row.getItemName(), row.getSectionCode()), first));
+            sb.append("- %s: %s\n".formatted(nvl(row.getItemName(), row.getSectionCode()), first));
         }
     }
 
@@ -172,7 +172,7 @@ public class BriefingComposer {
 
         sb.append("\n[유사 사고사례]\n");
         cases.stream().limit(2).forEach(c ->
-                sb.append("- %s%n".formatted(nvl(c.getKeyword(), c.getContents()))));
+                sb.append("- %s\n".formatted(nvl(c.getKeyword(), c.getContents()))));
     }
 
     private void appendEquipmentLine(StringBuilder sb, Long equipmentId) {

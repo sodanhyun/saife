@@ -13,6 +13,7 @@
 saife/
 ├── backend/    Spring Boot 3.4 + Java 21 + Spring AI 1.1.5 (Gemini) + PostgreSQL 16/pgvector
 ├── frontend/   React 19 + Vite + TypeScript
+│   └── .claude/rules/   프론트 규칙 (design-system, ui-styling, architecture)
 ├── docs/       설계·계약 SSOT
 └── .claude/
     ├── rules/      공통 규칙 (api-contract, sse-streaming, ai-tool-calling, public-api, risk-domain)

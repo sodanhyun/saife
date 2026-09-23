@@ -33,12 +33,6 @@ export const RISK_LABEL: Record<RiskLevel, string> = {
   LOW: "하",
 };
 
-export const RISK_CLASS: Record<RiskLevel, string> = {
-  HIGH: "bg-red-100 text-red-800 border-red-300",
-  MEDIUM: "bg-amber-100 text-amber-800 border-amber-300",
-  LOW: "bg-emerald-100 text-emerald-800 border-emerald-300",
-};
-
 export const WORK_PLAN_STATUS_LABEL: Record<WorkPlanStatus, string> = {
   DRAFT: "작성 중",
   SUBMITTED: "승인 대기",
