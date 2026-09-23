@@ -197,3 +197,12 @@ pages/{Vision,WorkPlan,Incident,Timeline}/
 - `npm run lint && npm run check:types && npm run test && npm run build`
 - 백엔드 데모 모드로 기동 후 4화면 스모크: UC3 대화 1회 완주(도구 6개 점등·슬롯 되묻기), 사고 등록 1건, 타임라인 설비 1개, 사진 판독 1장.
 - 1280×720 스크린샷 4장을 `.gstack/qa-reports/screenshots/redesign-*.png`로 저장해 이전 스크린샷과 비교.
+
+## 11. 구현 중 확정된 변경 (2026-09-23)
+
+- (a) §5.4/§8의 60초 하트비트 감시는 구현하지 않는다 — 스트림이 전부 POST라 재연결이 재요청이고, 백엔드 `AgentService`가 `finally`에서 emitter를 항상 닫는다. `ConnectionState.disconnected`는 향후 확장용으로만 남긴다.
+- (b) §7 작업계획서 말풍선: 사용자 `bg-slate-900 text-white`, 에이전트 `bg-slate-50 border`.
+- (c) §3.4 카드 밖 섹션 제목(`SectionTitle`)은 `text-sm font-semibold text-slate-600`. `text-base … slate-900`은 `Card` 제목에 적용한다.
+- (d) §5.3 `workPlanStatusColor`/`eventTypeColor` 대신 `workPlanStatusTone`/`emphasisTone`/`reportDutyTone`가 톤을 정하고, 타입 태그는 무채색이다.
+- (e) §3.3 등급 '하'의 녹색, 사이드바 접힘 기본값 `/work-plan`은 사용자 확정 사항이다.
+- (f) §8: REST 실패 시 페이지 상단 `Callout tone="high"` + 토스트(`errorMessage`).

@@ -23,7 +23,7 @@ SAIFE는 **무대 밀도** 한 표면이다. 프로젝터(1280×720)에서 읽�
 
 ## 형태
 
-- 반경 `rounded`(4) · `md`(8) · `lg`(10) · `xl`(12)까지. `2xl` 이상 금지. 알약(`rounded-full`)은 상태 점만.
+- 반경 `rounded-sm`(6) · `md`(8) · `lg`(10) · `xl`(12)까지. `2xl` 이상 금지. 알약(`rounded-full`)은 상태 점만.
 - 그림자는 `shadow-card` 하나. `shadow-modal`·`shadow-toast`는 해당 컴포넌트 전용.
 - 금지: 그라데이션, `backdrop-blur`(Modal 배경 제외), 이모지, 장식 아이콘, 임의 픽셀 클래스(`text-[10px]` 등).
 - 배지는 각진 태그(`Badge`). 카드는 `Card`(흰 배경 + slate-200 테두리).
