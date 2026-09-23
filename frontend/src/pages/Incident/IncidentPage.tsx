@@ -1,3 +1,4 @@
+import Callout from "@/components/ui/Callout";
 import PageHeader from "@/components/ui/PageHeader";
 import PageLayout from "@/components/ui/PageLayout";
 import SectionTitle from "@/components/ui/SectionTitle";
@@ -26,6 +27,7 @@ export default function IncidentPage() {
         />
         {s.response && <IncidentResult r={s.response} />}
         <section>
+          {s.loadError && <Callout tone="high" className="mb-3">데이터를 불러오지 못했습니다. 백엔드 연결을 확인한 뒤 새로고침하세요.</Callout>}
           <SectionTitle className="mb-2">사고 목록 · 제출 기한</SectionTitle>
           <IncidentTable incidents={s.incidents} />
         </section>

@@ -21,6 +21,7 @@ export function useTimeline() {
     equipmentId, setEquipmentId,
     timeline: timeline.data,
     loading: equipment.loading || (timeline.loading && !timeline.initialLoaded),
+    loadError: equipment.error || timeline.error,
     initialLoaded: timeline.initialLoaded,
   };
 }

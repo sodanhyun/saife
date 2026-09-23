@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { equipmentApi } from "@/api/equipmentApi";
 import { visionApi } from "@/api/visionApi";
@@ -17,13 +17,24 @@ export function useVision() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const stream = useVisionStream();
   const toast = useToastStore();
+  // 미리보기 object URL — 언마운트·재선택 시 revoke해서 누수시키지 않는다.
+  const previewRef = useRef<string | null>(null);
 
   // 판독이 끝나면 채택률을 다시 읽는다 — 서버 값에서만 파생
   useEffect(() => { if (!stream.analyzing) rate.refetch(); }, [stream.analyzing, stream.result]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 언마운트 시 마지막 미리보기 URL을 정리한다. setState 업데이터 안에서 revoke하지 않는다 —
+  // StrictMode가 업데이터를 두 번 실행해 살아있는 URL을 먼저 revoke해버릴 수 있다.
+  useEffect(() => () => {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+  }, []);
+
   const pick = (file: File | undefined) => {
     if (!file) return;
-    setPreview(URL.createObjectURL(file));
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    const url = URL.createObjectURL(file);
+    previewRef.current = url;
+    setPreview(url);
     void stream.analyze(file, equipmentId);
   };
 
@@ -40,5 +51,5 @@ export function useVision() {
     }
   };
 
-  return { equipment: equipment.data ?? [], loading: equipment.loading, equipmentId, setEquipmentId: setSelectedId, rate: rate.data, preview, pick, decide, busyId, stream };
+  return { equipment: equipment.data ?? [], loading: equipment.loading, loadError: equipment.error, equipmentId, setEquipmentId: setSelectedId, rate: rate.data, preview, pick, decide, busyId, stream };
 }

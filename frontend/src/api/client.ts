@@ -31,7 +31,9 @@ export async function fetchWithAuth(input: RequestInfo, init?: RequestInit): Pro
     const res = await fetch(input, { ...init, signal });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      let message = text || `${res.status} ${res.statusText}`;
+      // 본문이 비었거나 HTML(에러 페이지 등)이면 사용자에게 그대로 보여주지 않는다 —
+      // 상태 코드·문구로 대체하고, 너무 긴 본문은 200자로 자른다.
+      let message = !text || /^\s*</.test(text) ? `${res.status} ${res.statusText}` : text.slice(0, 200);
       try {
         const body = JSON.parse(text) as { message?: string };
         if (body?.message) message = body.message;

@@ -39,6 +39,7 @@ export default function WorkPlanPage() {
           {agent.pendingSlot && <SlotPrompt key={agent.pendingSlot.slotKey} slot={agent.pendingSlot} disabled={agent.streaming} onAnswer={(k, v) => void sendTurn(v, k)} />}
           {agent.error && <Callout tone="high">{agent.error}</Callout>}
           <Composer disabled={agent.streaming} onSend={(m) => void sendTurn(m)} />
+          {plans.loadError && <Callout tone="high">데이터를 불러오지 못했습니다. 백엔드 연결을 확인한 뒤 새로고침하세요.</Callout>}
           <SectionTitle className="mt-2">작업계획서 목록</SectionTitle>
           <WorkPlanTable plans={plans.plans} onOpen={plans.openDetail} />
         </section>

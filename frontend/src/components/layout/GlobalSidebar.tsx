@@ -113,17 +113,17 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
       </aside>
 
       {/* 경계선 토글 */}
-      <div
+      <button
+        type="button"
         onClick={() => toggleSidebar(collapsed)}
         onMouseEnter={() => setEdgeHover(true)}
         onMouseLeave={() => setEdgeHover(false)}
-        role="button"
         aria-label={collapsed ? "메뉴 펼치기" : "메뉴 접기"}
-        className="hidden lg:block relative w-1.5 h-screen sticky top-0 cursor-pointer shrink-0 z-50 -ml-1.5"
+        className="hidden lg:block relative w-1.5 h-screen sticky top-0 cursor-pointer shrink-0 z-50 -ml-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border"
       >
-        <div className={cn("absolute left-1/2 -translate-x-1/2 inset-y-0 rounded-full transition-all duration-200", edgeHover ? "w-1 bg-progress/80" : "w-0.5 bg-slate-800/30")} />
-        <div className="absolute -left-4 -right-4 inset-y-0" />
-      </div>
+        <div aria-hidden className={cn("absolute left-1/2 -translate-x-1/2 inset-y-0 rounded-full transition-all duration-200", edgeHover ? "w-1 bg-progress/80" : "w-0.5 bg-slate-800/30")} />
+        <div aria-hidden className="absolute -left-4 -right-4 inset-y-0" />
+      </button>
 
       <FixedTooltip tooltip={tooltip} />
 

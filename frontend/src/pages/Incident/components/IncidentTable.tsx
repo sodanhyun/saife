@@ -36,7 +36,7 @@ export default function IncidentTable({ incidents }: { incidents: IncidentListIt
     {
       key: "due",
       header: "기한",
-      width: "w-36",
+      width: "w-44",
       render: (i) => (
         <span className="tabular-nums">
           {formatDate(i.reportDueDate)}

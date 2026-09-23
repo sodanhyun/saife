@@ -8,7 +8,7 @@ import { getServerMessage } from "@/utils/errorMessage";
 
 /** 목록·상세·확인·승인. 목록은 서버 데이터에서만 파생한다(낙관적 플래그 없음). */
 export function useWorkPlans() {
-  const { data, loading, refetch } = useApiData({
+  const { data, loading, error, refetch } = useApiData({
     fetchFn: (signal) => workPlanApi.list(0, 10, signal).then((p) => p.content),
     deps: [],
     errorMessage: "작업계획서 목록을 불러오지 못했습니다",
@@ -35,6 +35,7 @@ export function useWorkPlans() {
   return {
     plans: data ?? [],
     loading,
+    loadError: error,
     refetch,
     detail,
     busy,

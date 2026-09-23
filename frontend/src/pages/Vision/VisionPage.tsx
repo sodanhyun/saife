@@ -18,6 +18,7 @@ export default function VisionPage() {
     <PageLayout>
       <PageHeader title="현장 사진 판독" description="사진에서 빠진 안전조치를 찾습니다. 물리적으로 있거나 없는 것만 판정합니다."
         actions={v.rate && <KpiCell className="min-w-[180px]" label={`후보 채택률${v.rate.axes?.length ? ` (${v.rate.axes.join("·")})` : ""}`} value={`${v.rate.adopted}/${v.rate.suggested}`} subText={v.rate.rate !== null ? `${Math.round(v.rate.rate * 100)}%` : v.rate.note} title={v.rate.note} />} />
+      {v.loadError && <Callout tone="high" className="mb-4">데이터를 불러오지 못했습니다. 백엔드 연결을 확인한 뒤 새로고침하세요.</Callout>}
       <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
         <UploadPanel equipment={v.equipment} equipmentId={v.equipmentId} onEquipmentChange={v.setEquipmentId} preview={v.preview} analyzing={analyzing} progress={progress} onPick={v.pick} />
         <div className="space-y-3">

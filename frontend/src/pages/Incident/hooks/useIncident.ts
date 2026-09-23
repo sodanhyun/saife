@@ -11,8 +11,8 @@ import { getServerMessage } from "@/utils/errorMessage";
 
 export function useIncident() {
   const equipment = useApiData({ fetchFn: (s) => equipmentApi.list(s), deps: [], errorMessage: "설비 목록을 불러오지 못했습니다" });
-  const plans = useApiData({ fetchFn: (s) => workPlanApi.list(0, 20, s).then((p) => p.content), deps: [] });
-  const incidents = useApiData({ fetchFn: (s) => incidentApi.list(0, 20, s).then((p) => p.content), deps: [], skipFirstSkeleton: true });
+  const plans = useApiData({ fetchFn: (s) => workPlanApi.list(0, 20, s).then((p) => p.content), deps: [], errorMessage: "작업계획서 목록을 불러오지 못했습니다" });
+  const incidents = useApiData({ fetchFn: (s) => incidentApi.list(0, 20, s).then((p) => p.content), deps: [], skipFirstSkeleton: true, errorMessage: "사고 목록을 불러오지 못했습니다" });
   const [form, setForm] = useState<IncidentFormState>(defaultIncidentForm);
   const [response, setResponse] = useState<IncidentRegisterResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,6 +44,7 @@ export function useIncident() {
     plans: plans.data ?? [],
     incidents: incidents.data ?? [],
     loading: equipment.loading || plans.loading,
+    loadError: equipment.error || plans.error || incidents.error,
     form: effectiveForm,
     setForm,
     submit,
