@@ -81,4 +81,38 @@ describe("useSSEStream (명령형)", () => {
     const outcome = await p!;
     expect(outcome.reason).toBe("aborted");
   });
+
+  it("새 start()가 이전 스트림을 중단해도 상태는 새 스트림의 것이다", async () => {
+    // 첫 번째 스트림 — abort되면 거부되고, 그 전까지는 영원히 pending
+    mockFetch.mockImplementationOnce((_i, init) => new Promise((_, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    }));
+    // 두 번째 스트림 — 응답이 도착하지 않는다(헤더 수신 전까지 "connecting" 유지)
+    mockFetch.mockImplementationOnce(() => new Promise(() => {}));
+
+    const { result } = renderHook(() => useSSEStream<Record<string, never>>({ url: "/x", method: "POST", handlers: {} }));
+
+    let p1: Promise<{ reason: string; error?: Error }> | undefined;
+    act(() => { p1 = result.current.start({}); });
+    act(() => { result.current.start({}); }); // 새 start()가 이전 스트림을 중단한다
+
+    const outcome1 = await p1!;
+    expect(outcome1).toEqual({ reason: "aborted" });
+    // 이전 스트림의 뒤늦은 "idle" 전이가 새 스트림의 "connecting"을 덮어쓰면 안 된다
+    expect(result.current.connectionState).toBe("connecting");
+  });
+
+  it("언마운트하면 진행 중 스트림이 중단된다", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    mockFetch.mockImplementation((_i, init) => {
+      capturedSignal = init?.signal ?? undefined;
+      return new Promise(() => {});
+    });
+    const { result, unmount } = renderHook(() => useSSEStream<Record<string, never>>({ url: "/x", method: "POST", handlers: {} }));
+    act(() => { result.current.start({}); });
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal?.aborted).toBe(false);
+    unmount();
+    expect(capturedSignal?.aborted).toBe(true);
+  });
 });

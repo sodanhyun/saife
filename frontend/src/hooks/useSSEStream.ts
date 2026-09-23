@@ -66,6 +66,13 @@ export function useSSEStream<TEventMap>(options: UseSSEStreamOptions<TEventMap>)
       registerAbortController(controller);
       updateState("connecting");
 
+      // 이 스트림이 여전히 "현재" 스트림일 때만 상태를 반영한다 — 새 start()가 이미
+      // 이 스트림을 밀어냈다면(controllerRef.current가 바뀌었다면) 뒤늦게 도착하는
+      // 이전 스트림의 완료/실패가 새 스트림의 connectionState를 덮어쓰면 안 된다.
+      const setIfLive = (s: ConnectionState) => {
+        if (controllerRef.current === controller) updateState(s);
+      };
+
       try {
         const fetchBody = overrideBody ?? bodyRef.current;
         const reqHeaders: Record<string, string> = { ...headersRef.current };
@@ -78,7 +85,7 @@ export function useSSEStream<TEventMap>(options: UseSSEStreamOptions<TEventMap>)
         }
 
         const response = await fetchWithAuth(url, init);
-        updateState("connected");
+        setIfLive("connected");
 
         for await (const ev of readSseStream(response, controller.signal)) {
           const envelope = safeJson<SseEnvelope>(ev.data);
@@ -89,14 +96,17 @@ export function useSSEStream<TEventMap>(options: UseSSEStreamOptions<TEventMap>)
             (handler as (p: unknown, e: SseEnvelope) => void)(envelope.payload, envelope);
           }
         }
-        updateState("idle");
+        // signal이 이미 abort된 상태면 readSseStream이 정상 종료한 것처럼 보여도
+        // 실제로는 중단된 것 — "ended"가 아니라 "aborted"로 보고한다.
+        if (controller.signal.aborted) return { reason: "aborted" };
+        setIfLive("idle");
         return { reason: "ended" };
       } catch (err) {
         if (isAbortError(err)) {
-          updateState("idle");
+          setIfLive("idle");
           return { reason: "aborted" };
         }
-        updateState("error");
+        setIfLive("error");
         return { reason: "error", error: err instanceof Error ? err : new Error(String(err)) };
       } finally {
         if (controllerRef.current === controller) controllerRef.current = null;
