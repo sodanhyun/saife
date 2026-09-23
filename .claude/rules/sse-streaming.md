@@ -108,32 +108,24 @@ sseService.createSession(correlationId, timeoutMs, group);  // 그룹
 
 ### 3계층 구조
 
-현재 구현은 **훅 1개**다. 소비자가 하나(에이전트 대화)뿐이라 계층을 나누지 않았다.
+| 계층 | 파일 | 역할 |
+|---|---|---|
+| 프레임 파서 (React 무관) | `src/utils/sseStream.ts` | `readSseStream(response, signal)` — `event:`/`data:` 블록을 async generator로 |
+| 봉투 훅 | `src/hooks/useSSEStream.ts` | 봉투 파싱 + `handlers[type]` 디스패치 + `connectionState`. `start(body)`는 스트림이 끝날 때까지 기다리는 Promise |
+| 도메인 훅 | `src/pages/WorkPlan/hooks/useAgentStream.ts`, `src/pages/Vision/hooks/useVisionStream.ts` | 이벤트별 상태 갱신, seq 처리, 대화 ID 보존 |
 
-| 파일 | 역할 |
-|---|---|
-| `src/types/sse.ts` | `SseEnvelope<T>` · `SseEventType` union · 이벤트별 payload 인터페이스 |
-| `src/hooks/useAgentStream.ts` | fetch + ReadableStream으로 SSE 프레임을 직접 파싱하고 봉투를 처리 |
-| `src/components/ToolTracePanel.tsx` | 트레이스 행 렌더링 |
-
-**`EventSource`를 쓰지 않는다.** POST로 대화를 시작해야 하고 JWT 헤더가 필요하다.
-
-### 소비자가 늘어나면 분리한다
-
-사진 판독(`assess.*`) 등 두 번째 소비자가 생기면 그때 나눈다:
-프레임 파서(React 무관) → 봉투 파싱 훅 → 도메인별 handlers 주입.
-**지금 미리 나누지 않는다.**
+**`EventSource`를 쓰지 않는다.** POST로 시작해야 하고(대화 턴·멀티파트 업로드) 헤더가 필요하다.
+**재연결이 없다.** SAIFE의 스트림은 전부 POST라 재연결이 곧 재요청이다. 끊기면 `connectionState`가 `error`로 남고 `SseConnectionStatus`가 표시한다.
 
 ### seq 처리
 
-재개 후에도 `seq`가 이어지므로 **역행하는 seq만 중복으로 버린다.**
-정렬하지 말고 도착 순서대로 처리한다.
+재개 후에도 `seq`가 이어지므로 **역행하는 seq만 중복으로 버린다.** 정렬하지 않고 도착 순서대로 처리한다. 턴 시작 시 `lastSeq=0`으로 초기화한다(도메인 훅 책임).
 
-## 새 SSE 이벤트 추가 절차
+### 새 SSE 이벤트 추가 절차
 
-1. **백엔드**: `SseEvent.of("domain.action", ...)` 호출 추가
-2. **프론트**: `src/types/sse.ts`의 `SseEventType` union에 추가 + payload 인터페이스 정의
-3. **프론트**: `useAgentStream`의 `handleEvent` switch에 case 추가
+1. 백엔드: `SseEvent.of("domain.action", ...)`
+2. 프론트: `src/types/sse.ts`의 `SseEventType` union + payload 인터페이스
+3. 프론트: 해당 도메인 훅의 `EventMap`과 `handlers`에 case 추가
 4. 이 파일의 이벤트 목록 갱신
 
 ## 비동기 작업 SSE 연결 패턴

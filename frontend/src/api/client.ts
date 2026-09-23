@@ -43,8 +43,3 @@ export async function fetchWithAuth(input: RequestInfo, init?: RequestInit): Pro
     if (internal) unregisterAbortController(internal);
   }
 }
-
-/** @deprecated 구 페이지 호환용 — Task 13에서 saifeApi.ts와 함께 제거 */
-export const get = <T>(path: string) => api.get<T>(path).then((r) => r.data);
-/** @deprecated 구 페이지 호환용 — Task 13에서 saifeApi.ts와 함께 제거 */
-export const post = <T>(path: string, body?: unknown) => api.post<T>(path, body).then((r) => r.data);
