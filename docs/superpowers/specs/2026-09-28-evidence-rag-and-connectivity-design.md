@@ -58,7 +58,7 @@ PostgreSQL 16 + pgvector: evidence_chunk(vector 768, HNSW cosine) · law_article
 
 ## 4. 데이터 모델 (Flyway V9__evidence_schema.sql)
 
-V8은 연결성(`work_plan.warning_note`, 고소작업대 이야기 시드)이 쓴다. V9가 근거 계층이다.
+V8은 연결성(`work_plan.warning_note`, 고소작업대 이야기 시드)이 쓴다. V9가 근거 계층이다. 검색 구조는 Inufleet(`C:\Users\taeli\taelim\tealim-be`, `ai/chat/rag`·`ai/embedding`)에서 검증된 것을 이식하되, 그쪽에서 드러난 함정(§5.6)은 처음부터 피한다.
 
 ```sql
 ALTER TABLE public_case
@@ -83,19 +83,27 @@ CREATE TABLE law_article (
 );
 
 CREATE TABLE evidence_chunk (
-  id          BIGSERIAL PRIMARY KEY,
-  kind        VARCHAR(20)  NOT NULL,     -- CASE_FATALITY / CASE_DISASTER / GUIDE / LAW
-  ref_id      BIGINT       NOT NULL,     -- public_case.id / kosha_guide.id / law_article.id
-  ref_key     VARCHAR(120) NOT NULL,     -- source_key / guide_no#page / law_id:조:항 (시드 재적재 시 매칭 키)
-  title       VARCHAR(500) NOT NULL,
-  text        TEXT         NOT NULL,     -- 임베딩 대상 텍스트
-  metadata    JSONB        NOT NULL DEFAULT '{}'::jsonb,
-  embedding   vector(768),
-  updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  id            BIGSERIAL PRIMARY KEY,
+  kind          VARCHAR(20)  NOT NULL,   -- CASE_FATALITY / CASE_DISASTER / GUIDE / LAW
+  ref_id        BIGINT       NOT NULL,   -- public_case.id / kosha_guide.id / law_article.id
+  ref_key       VARCHAR(120) NOT NULL,   -- source_key / guide_no#c3 / law_id:조:항 (시드 재적재 시 매칭 키)
+  chunk_level   VARCHAR(10)  NOT NULL DEFAULT 'child',  -- child / parent (Inufleet Parent-Child)
+  parent_id     BIGINT       REFERENCES evidence_chunk(id),
+  searchable    BOOLEAN      NOT NULL DEFAULT true,     -- parent=false. NULL 배제 문제를 피하려고 불리언으로 명시
+  section_title VARCHAR(300),
+  title         VARCHAR(500) NOT NULL,
+  text          TEXT         NOT NULL,   -- 검색·임베딩 텍스트 = [맥락 프리픽스]\n원문(+오버랩)
+  metadata      JSONB        NOT NULL DEFAULT '{}'::jsonb,
+  embedding     vector(768),             -- parent는 NULL (임베딩하지 않는다)
+  tsv           tsvector GENERATED ALWAYS AS (
+                  to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(section_title,'') || ' ' || text)
+                ) STORED,                -- 생성 컬럼이라 어떤 INSERT 경로에서도 빠지지 않는다
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
   UNIQUE (kind, ref_key)
 );
-CREATE INDEX ix_evidence_chunk_embedding ON evidence_chunk USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX ix_evidence_chunk_kind ON evidence_chunk (kind);
+CREATE INDEX ix_evidence_chunk_embedding ON evidence_chunk USING hnsw (embedding vector_cosine_ops) WHERE searchable;
+CREATE INDEX ix_evidence_chunk_tsv  ON evidence_chunk USING gin (tsv);
+CREATE INDEX ix_evidence_chunk_kind ON evidence_chunk (kind, searchable);
 CREATE INDEX ix_evidence_chunk_meta ON evidence_chunk USING gin (metadata);
 
 CREATE TABLE conversation_evidence (
@@ -116,40 +124,70 @@ CREATE TABLE work_plan_evidence (
 );
 ```
 
-Spring AI의 `vector_store` 자동 테이블은 쓰지 않는다. `spring.ai.vectorstore.pgvector.initialize-schema`는 `false`로 바꾼다(불필요한 테이블 생성 방지). `ddl-auto: validate`이므로 엔티티(`PublicCase`, `MsdsCache`, `LawArticle`, `EvidenceChunk`, `ConversationEvidence`, `WorkPlanEvidence`)를 같은 커밋에서 갱신한다. `vector` 컬럼은 JPA에서 `@JdbcTypeCode(SqlTypes.VECTOR)` 대신 **네이티브 쿼리**로만 읽고 쓴다(엔티티에는 `float[]`를 두지 않고 `@Column(insertable=false, updatable=false)`로 validate만 통과시키거나, `columnDefinition = "vector(768)"`를 명시).
+Spring AI의 `vector_store` 자동 테이블은 쓰지 않는다. `spring.ai.vectorstore.pgvector.initialize-schema`는 `false`로 바꾼다. `ddl-auto: validate`이므로 엔티티(`PublicCase`, `MsdsCache`, `LawArticle`, `EvidenceChunk`, `ConversationEvidence`, `WorkPlanEvidence`)를 같은 커밋에서 갱신한다. `embedding`·`tsv` 컬럼은 JPA 매핑 없이 네이티브 쿼리(JdbcTemplate)로만 다룬다(엔티티에는 `columnDefinition`만 명시해 validate 통과).
 
-**청크 구성 규칙.**
+### 4.1 청킹 규칙 (Inufleet `ChunkOverlapUtil`·Parent-Child 이식)
 
-| kind | 단위 | text | metadata |
-|---|---|---|---|
-| CASE_FATALITY / CASE_DISASTER | 사례 1건 = 1청크 | `keyword + " " + contents`(정리본) | `accidentType, business, region, occurredOn, hasImage` |
-| GUIDE | 지침 1건 = 표지 청크 1(제목 + 1~2페이지 텍스트 최대 1,200자) + 본문 청크 최대 8(약 800자, 200자 겹침) | 추출 텍스트 | `guideNo, guideName, page, announcedOn` |
-| LAW | 항 1개 = 1청크(항 없으면 조 1청크) | `법령명 제N조(제목) ①` + 항 원문 | `lawId, lawName, articleNo, articleSub, paragraphNo, effectiveOn` |
+| kind | Parent | Child | 오버랩 | 맥락 프리픽스 |
+|---|---|---|---|---|
+| CASE_FATALITY / CASE_DISASTER | 없음(사례 1건이 자기 완결) | 1건 = 1청크, `keyword + " " + contents` | 없음 | 없음. 대신 제목에 `[발생형태 라벨] [업종]`을 넣어 tsvector가 축·업종 단어로도 맞게 한다 |
+| GUIDE | 섹션(제목 휴리스틱: `제N장`, 숫자 접두, 로마숫자, 60자 이하 제목줄) 단위, 없으면 연속 child 5개. 텍스트만 저장, `searchable=false`, 임베딩 안 함 | 약 1,200자(최소 300, 3,000 초과 시 재분할), PDFBox `PDFTextStripper` 페이지 순서 유지 | 이전 청크 꼬리 200자를 문장 경계(`. \n ? ! 다`)에서 잘라 앞에 붙임 | **적용.** `ContextualEnricher`가 지침 앞 3,000자 + 청크 주변 ±2,500자를 보고 "이 청크가 어느 섹션·주제인지" 50~150자 한 줄을 만들어 `[…]\n` 프리픽스로 붙인다(Gemini Flash, temperature 0, maxOutputTokens 150, thinkingBudget 0). 실패 시 원문 그대로 |
+| LAW | 조(條) = parent(항 전체 합본, `searchable=false`) | 항 1개 = child. 항 없는 조는 child 1개(parent 없음) | 없음 | 없음. 제목 `산업안전보건법 제36조(위험성평가의 실시) ①`이 곧 맥락 |
 
-MSDS는 청크에 넣지 않는다(제품명 직접 조회). 예상 청크 수: 사례 9,312 + 지침 약 5,000 + 조문 약 1,500 = 약 16,000. 768차원 float32 → 벡터 49MB, jsonl.gz 시드 약 45~55MB(텍스트 포함). 100MB 한도 내.
+Inufleet과 달리 **parent는 임베딩하지 않는다**(검색 대상이 아닌데 임베딩·enrich 비용을 내던 낭비 지점). child 1개짜리 그룹은 parent 없이 child만 둔다. 예상 청크: 사례 9,312 + 지침 child 약 5,000(+ parent 약 1,200) + 조문 child 약 1,500(+ parent 약 600) ≈ 17,600행, 임베딩은 약 15,800건. 768차원 float32 → 약 48MB, `evidence_chunk.jsonl.gz` 약 50MB.
 
-**시드 파일.** `backend/src/main/resources/seed/`에 `law_article.jsonl.gz`, `evidence_chunk.jsonl.gz`(각 줄: `{kind, refKey, title, text, metadata, embedding(base64 float32 LE)}`) 추가. `public_case.jsonl.gz`는 `imageUrl, sourceUrl` 필드 추가로 재생성. `PublicCacheSeedLoader`가 순서대로 적재: public_case → kosha_guide → law_article → evidence_chunk(ref_key로 ref_id 해석). 적재는 500건 배치 네이티브 INSERT(`?::vector`).
+**시드 파일.** `backend/src/main/resources/seed/`에 `law_article.jsonl.gz`, `evidence_chunk.jsonl.gz`(각 줄: `{kind, refKey, chunkLevel, parentRefKey, searchable, sectionTitle, title, text, metadata, embedding(base64 float32 LE, parent는 null)}`) 추가. `public_case.jsonl.gz`는 `imageUrl, sourceUrl` 추가로 재생성. `PublicCacheSeedLoader` 적재 순서: public_case → kosha_guide → law_article → evidence_chunk(parent 먼저, child가 `parentRefKey`로 parent id 해석). 500건 배치 네이티브 INSERT(`?::vector`). 차원을 바꾸면 시드·컬럼·인덱스를 한 커밋에서 같이 바꾼다(Inufleet V85가 staging 테이블을 빠뜨려 두 번 고친 지점).
 
 ---
 
-## 5. 검색 — `EvidenceSearchService`
+## 5. 검색 — `EvidenceSearchService` (Inufleet `AgenticRagService` 파이프라인 이식)
 
 ```java
 public record SearchRequest(String query, Set<EvidenceKind> kinds, AccidentType accidentType,
-                            String business, int k)
-public record Evidence(int no /*원장 번호, 검색 단계에서는 0*/, EvidenceKind kind, Long refId, String refKey,
-                       String title, String snippet, String sourceUrl, String mediaUrl, String thumbnailUrl,
+                            String business, int k, boolean rerank)
+public record Evidence(int no, EvidenceKind kind, Long refId, String refKey, String title, String snippet,
+                       String sourceUrl, String mediaUrl, String thumbnailUrl,
                        Origin origin /*LIVE|CACHE|KEYWORD_FALLBACK*/, double score, OffsetDateTime fetchedAt,
                        Map<String,Object> meta)
 ```
 
-1. `QueryEmbedder.embed(query)` — 인터페이스. 구현 `GeminiQueryEmbedder`(`EmbeddingModel`, 768차원, 8초 타임아웃, 회로 차단 적용). 데모 모드나 실패 시 `Optional.empty()`.
-2. 벡터가 있으면 네이티브 쿼리: `SELECT ..., 1 - (embedding <=> :q) AS score FROM evidence_chunk WHERE kind = ANY(:kinds) AND (:axis IS NULL OR metadata->>'accidentType' = :axis) ORDER BY embedding <=> :q LIMIT :k3` (k3 = k×3).
-3. 벡터가 없으면 키워드 폴백: 질의를 공백으로 나눠 상위 4개 토큰으로 `text ILIKE` OR 매칭 + 같은 필터, `updated_at DESC LIMIT k3`. origin = KEYWORD_FALLBACK, score = 0.
-4. 재정렬: `score + (같은 발생형태 ? 0.05 : 0) + (business == '제조업' ? 0.03 : 0) + (hasImage ? 0.02 : 0)`. 상위 k. 같은 지침의 청크는 1개만(guideNo 기준 dedupe).
-5. `Evidence`로 변환: `sourceUrl`(사례 1060=포털 목록, 지침=fileDownloadUrl, 조문=law source_url), `mediaUrl`(사례 사진 `/api/media/case/{id}/photo`, 지침 `/api/media/guide/{guideNo}.pdf`), `thumbnailUrl`(사례 사진 `?w=320`), `snippet` 200자.
+파이프라인 (한 호출):
 
-성능 목표: 질의 임베딩 300ms + HNSW 10ms. 한 UC3 턴 최대 3회.
+```
+질의 → ① 후보 수집: 벡터 top k×4  ‖  키워드 top k×4      (kinds·축·업종 필터, searchable=true)
+     → ② 가중 RRF 합산 (0.6 / 0.4, K=60) → 상위 k×4
+     → ③ Parent 확장 (child→parent, 같은 parent는 1건으로, 확장 실패 시 child 유지)
+     → ④ LLM 리랭크 (Gemini Flash, 0~10점, 4점 미만 제외) → 상위 k
+     → ⑤ 도메인 보정 (+같은 축 0.05, +제조업 0.03, +사진 0.02) → Evidence 변환
+```
+
+1. **벡터 후보**: `QueryEmbedder.embed(query)`(인터페이스, 구현 `GeminiQueryEmbedder` 768차원, 8초 타임아웃, 회로 차단). `SELECT …, 1 - (embedding <=> :q) AS sim FROM evidence_chunk WHERE searchable AND kind = ANY(:kinds) AND (:axis IS NULL OR metadata->>'accidentType' = :axis) AND 1 - (embedding <=> :q) >= 0.40 ORDER BY embedding <=> :q LIMIT :k4`. 실패·키 없음 → 빈 리스트(예외를 밖으로 내지 않는다).
+2. **키워드 후보**(`KeywordSearchRepository`, JdbcTemplate 격리): Inufleet의 `plainto_tsquery`(모든 토큰 AND)는 조사가 붙은 한국어에서 거의 안 맞았다. 여기서는 `TsQueryBuilder`가 질의를 공백·구두점으로 나눠 2자 이상 토큰 최대 8개를 **OR**로 묶고(`'사다리' | '천장' | '페인트'`), 명사 뒤 조사(`은/는/이/가/을/를/에서/으로/와/과/의`)를 벗긴 변형을 함께 넣는다. `WHERE tsv @@ to_tsquery('simple', :q) AND searchable AND kind = ANY(:kinds) … ORDER BY ts_rank_cd(tsv, to_tsquery('simple', :q)) DESC LIMIT :k4`. 실패 → 빈 리스트.
+3. **RRF**: `score[id] += 0.6/(60+rank_vec+1)`, `+= 0.4/(60+rank_kw+1)` → 내림차순 상위 k×4(`HybridRrf`, 순수 함수).
+4. **Parent 확장**(`ParentChunkExpander`): child 중 `parent_id`가 있는 것은 parent로 치환(같은 parent 여러 child → 1건, 원래 RRF 순위 중 최고를 유지). parent 조회 실패 시 **child를 그대로 남긴다**(Inufleet은 여기서 child를 버렸다). 사례는 parent가 없으므로 그대로.
+5. **LLM 리랭크**(`LlmReranker`): 후보가 k 이하면 건너뜀. 입력 상한 40건, 문서당 1,500자(맥락 프리픽스는 유지, 리랭커에 유용). 프롬프트는 Inufleet `prompts/rag-rerank.txt`를 그대로 가져와 `backend/src/main/resources/prompts/evidence-rerank.txt`에 둔다(0~10점 기준표, "JSON 정수 배열만"). 옵션: `model(gemini-3.8-flash)`, `temperature(0.0)`, `maxOutputTokens(500)`, `responseMimeType("application/json")`, **`thinkingBudget(0)`**(안 끄면 Flash가 JSON 지시를 무시한 것이 Inufleet 실측). 파싱: 첫 `[`~마지막 `]` 추출 → `int[]` → 실패 시 객체 배열의 첫 숫자 필드 → **길이가 문서 수와 다르면 폴백**(Inufleet은 int[] 경로에서 길이를 안 봐서 꼬리가 조용히 잘렸다). 점수 내림차순, 4점 미만 제외, 상위 k. 어떤 예외든 RRF 순서 상위 k로 폴백. 데모 모드(키 없음)에서는 이 단계를 건너뛴다.
+6. **도메인 보정과 변환**: 같은 발생형태 +0.05, 제조업 +0.03, 사진 있음 +0.02(사례만). 같은 지침(guideNo)은 1건만. `Evidence`로 변환하면서 맥락 프리픽스를 벗긴다(`stripContextualPrefix`: 앞의 `[…]\n`을 200자 이내에서 반복 제거). `snippet` 200자, `sourceUrl`/`mediaUrl`/`thumbnailUrl`은 §6.5. `origin`: 벡터가 있었으면 CACHE(LIVE는 라이브 API 카드에만), 키워드만 썼으면 KEYWORD_FALLBACK.
+
+호출 비용: 임베딩 1회(300ms) + 리랭크 1회(Flash, 약 1초) + SQL 2회(각 10ms) ≈ 1.5초. UC3 한 턴에 최대 3회이므로 도구 병렬화 없이도 5초 이내. `rerank=false`로 호출하면(UC1 후보별 검색처럼 다건일 때) 리랭크를 생략해 300ms로 끝낸다.
+
+### 5.6 Inufleet에서 미리 피하는 함정
+
+| Inufleet에서 겪은 것 | SAIFE에서의 처리 |
+|---|---|
+| QNA 경로가 `updateTsvector`를 안 불러 키워드 검색이 빠짐 | `tsv`를 생성 컬럼으로 두어 INSERT 경로와 무관하게 채워진다 |
+| `chunkLevel != 'parent'` 필터가 NULL 행을 배제 | `searchable` 불리언 NOT NULL |
+| `plainto_tsquery` AND 매칭이 한국어 조사에 약함 | OR 매칭 + 조사 제거 변형, `ts_rank_cd` |
+| parent 조회 실패 시 child 유실 | child 유지 |
+| 리랭크 입력 80건×1,500자 | 상한 40건 |
+| 리랭크 `thinkingBudget` 기본값으로 JSON 무시, `maxOutputTokens 100`으로 배열 잘림 | `thinkingBudget(0)`, `maxOutputTokens 500` |
+| `int[]` 파싱이 길이 불일치를 안 봄 | 길이 검사 후 폴백 |
+| parent까지 enrich·임베딩해 비용 낭비 | parent는 텍스트만 |
+| HyDE(예상 질문 프리픽스)로 의미 격차 발생 | 사실 기반 맥락 프리픽스(Contextual Enrichment)만 |
+| 대화 이력 기반 쿼리 재작성이 키워드를 희석 | 재작성 없음. 모델이 도구 파라미터 `query`로 직접 질의를 쓴다 |
+| 차원 변경 시 staging 테이블을 빠뜨림 | 시드·컬럼·인덱스를 한 커밋에서 |
+| yml에 실제 API 키가 기본값으로 박힘 | 기본값은 빈 문자열만. Inufleet 키는 회전 권장 |
+| 출처 행에 fileId가 없어 이름으로 역조회 | `Evidence.refId/refKey`를 항상 저장 |
+| 규칙 문서와 코드가 어긋남 | `.claude/rules/ai-tool-calling.md`에 검색 파라미터를 상수 이름과 함께 적고, 테스트가 상수를 참조한다 |
 
 ---
 
@@ -271,7 +309,7 @@ public record Evidence(int no /*원장 번호, 검색 단계에서는 0*/, Evide
 |---|---|---|---|
 | 0 | 기준선: 연결성 B1~B5 + 근거 B9(턴당 근거 카드 수, 현재 0) B10(응답 내 URL 유효율, 현재 측정 불가=0) B11(유사 사례 사진 비율, 현재 0). `baseline_connectivity.py` 하나에 통합 | 9/29 저녁 | — |
 | 1 | 연결성 ① 설비 홈·상세 | 9/29~9/30 | 프론트 |
-| 2 | 근거 코어: V9·엔티티, 크롤러 image_url·PDF 텍스트, 법제처 크롤, IndexBuilder·SeedExporter, 시드 생성(1회 임베딩 실행), `EvidenceSearchService`, `MediaController`, `MsdsLiveClient`, `LiveOrCache`, `/api/system/status` | 9/29~10/1 | 백엔드 (Phase 1과 동시) |
+| 2 | 근거 코어: V9·엔티티, 크롤러 image_url·PDF 텍스트, 법제처 크롤, IndexBuilder·SeedExporter, 시드 생성(1회 임베딩 실행), `EvidenceSearchService`(하이브리드 RRF·Parent 확장·LLM 리랭크·Contextual Enrichment 이식), `MediaController`, `MsdsLiveClient`, `LiveOrCache`, `/api/system/status` | 9/29~10/1 | 백엔드 (Phase 1과 동시) |
 | 3 | 연결성 ② 회상 카드 + 근거 UC3(도구 재배선, 원장, 후처리, 두 SSE 이벤트, EvidenceCard 패밀리, ChatThread, transcript 복원, 서식 참고 자료) | 10/1~10/2 | 백엔드/프론트 |
 | 4 | 연결성 ② 사고 연쇄 + 근거 UC2 | 10/2~10/3 | 백엔드/프론트 |
 | 5 | 연결성 ③ 오늘 할 일 + ④ 시드 V8 | 10/3 | 백엔드/프론트 |
@@ -280,7 +318,7 @@ public record Evidence(int no /*원장 번호, 검색 단계에서는 0*/, Evide
 
 각 Phase 끝: `./gradlew test` · `npm run lint && npm run build && npx vitest run` · 해당 스모크 실행 · 커밋(Conventional Commits, 한국어 본문).
 
-**절단선(밀리면 이 순서로 뺀다)**: ① UC1 근거 카드 → ② 오늘 할 일을 OVERDUE_ACTION·REPORT_DUE 2종으로 축소 → ③ GUIDE PDF 본문 청크를 표지 청크만으로 축소 → ④ 법제처 런타임 라이브 확인 제거(시드만). **절단 불가**: 회상 카드, 사고 연쇄, UC3 근거 카드, 시드 V8.
+**절단선(밀리면 이 순서로 뺀다)**: ① UC1 근거 카드 → ② 오늘 할 일을 OVERDUE_ACTION·REPORT_DUE 2종으로 축소 → ③ GUIDE PDF 본문 청크를 표지 청크만으로 축소 → ④ 법제처 런타임 라이브 확인 제거(시드만) → ⑤ Contextual Enrichment 생략(지침 청크를 원문만으로 임베딩; 리랭크·RRF는 유지). **절단 불가**: 회상 카드, 사고 연쇄, UC3 근거 카드, 시드 V8.
 
 ---
 
@@ -299,7 +337,7 @@ public record Evidence(int no /*원장 번호, 검색 단계에서는 0*/, Evide
 
 ## 12. 테스트
 
-백엔드: `EvidenceSearchServiceTest`(키워드 폴백, 필터, 재정렬, 지침 dedupe — `QueryEmbedder` 가짜), `EvidenceLedgerTest`(번호 유일·재사용·턴 경계), `CitationSanitizerTest`, `LawCitationTableTest`(매핑 조문이 시드에 존재), `LawArticleParserTest`(실측 JSON 픽스처), `MsdsXmlParserTest`(실측 XML 픽스처), `LiveOrCacheTest`(폴백·회로), `MediaControllerTest`(허용 호스트·404 degrade), `CaseTextCleanerTest` 확장(image_url 추출), `PublicCacheSeedLoaderTest`(벡터 라운드트립). `EquipmentMatcherTest`처럼 DB가 필요한 테스트는 `@ActiveProfiles("test")`에 `application-test.yml`을 추가해 로컬 5432/5433을 명시한다(Testcontainers 전환은 범위 밖).
+백엔드: `HybridRrfTest`(양쪽에 있는 문서가 1위, 한쪽 비면 다른 쪽 순서, topK 상한), `TsQueryBuilderTest`(OR 결합·조사 제거·토큰 상한), `ParentChunkExpanderTest`(같은 parent 병합, parent 실패 시 child 유지, parent 없는 child 유지), `LlmRerankerTest`(점수 정렬·4점 미만 제외·객체 배열·길이 불일치 폴백·예외 폴백·k 이하 시 LLM 미호출), `ChunkOverlapUtilTest`(문장 경계 200자), `ContextualEnricherTest`(실패 시 원문), `EvidenceSearchServiceTest`(키워드 폴백, 필터, 도메인 보정, 지침 dedupe, 프리픽스 제거 — `QueryEmbedder`·리랭커 가짜), `EvidenceLedgerTest`(번호 유일·재사용·턴 경계), `CitationSanitizerTest`, `LawCitationTableTest`(매핑 조문이 시드에 존재), `LawArticleParserTest`(실측 JSON 픽스처), `MsdsXmlParserTest`(실측 XML 픽스처), `LiveOrCacheTest`(폴백·회로), `MediaControllerTest`(허용 호스트·404 degrade), `CaseTextCleanerTest` 확장(image_url 추출), `PublicCacheSeedLoaderTest`(벡터 라운드트립). `EquipmentMatcherTest`처럼 DB가 필요한 테스트는 `@ActiveProfiles("test")`에 `application-test.yml`을 추가해 로컬 5432/5433을 명시한다(Testcontainers 전환은 범위 밖).
 
 프론트: `EvidenceCard`(kind별, 사진 없음 degrade, origin 배지), `CitationChip`, `useAgentStream`(evidence 누적·복원·recall), `IncidentResult`(similarCases), `CandidateCard`(근거 접기), 연결성 테스트(프롬프트 문서 기준).
 
@@ -309,7 +347,7 @@ public record Evidence(int no /*원장 번호, 검색 단계에서는 0*/, Evide
 
 | 리스크 | 대응 |
 |---|---|
-| 시드 임베딩 1회 실행 비용·시간(약 16,000건) | 배치 100건/호출, 체크포인트 재개. 9/30 저녁 전에 1회 완료. 실패 시 절단선 ③ |
+| 시드 임베딩 1회 실행(약 15,800건) + 지침 청크 Contextual Enrichment(약 5,000회 Flash 호출) | 임베딩은 배치 100건/호출, enrichment는 5개 병렬·체크포인트 재개. 9/30 저녁 전에 1회 완료. 시간이 모자라면 절단선 ⑤(enrichment 생략) 먼저, 그다음 ③ |
 | 공단 사진 URL이 무대에서 막힘 | 프리페치로 디스크 캐시. 프록시는 캐시 우선 |
 | 라이브 호출 지연이 도구 체인을 늦춤 | 8초 타임아웃 + 회로 차단. 리허설에서 회로 열림 상태도 1회 연습 |
 | 모델이 `[#n]`을 안 쓰거나 잘못 씀 | 카드는 어차피 백엔드가 붙인다. 후처리로 환각 번호 제거. M12로 실측만 기록 |
