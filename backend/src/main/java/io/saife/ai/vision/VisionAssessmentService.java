@@ -9,6 +9,7 @@ import io.saife.core.repository.HazardRepository;
 import io.saife.core.service.PhotoRiskTable;
 import io.saife.core.service.RiskRuleEngine;
 import io.saife.common.error.ApiExceptions.NotFoundException;
+import io.saife.evidence.Evidence;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -60,6 +61,7 @@ public class VisionAssessmentService {
     private final PhotoRiskTable photoRiskTable;
     private final SseService sseService;
     private final DemoModeConfig demoModeConfig;
+    private final CandidateEvidenceCollector evidenceCollector;
 
     // 자기 호출로 @Transactional(REQUIRES_NEW)를 태우려면 프록시를 거쳐야 한다.
     // 순환 의존성은 @Lazy가 아니라 ObjectProvider로 푼다 (CLAUDE.md 규칙)
@@ -71,11 +73,15 @@ public class VisionAssessmentService {
      *                     참이면 신규 발견이 아니라 <b>재확인</b>이다 — 화면에서 구분해야 한다.
      *                     "이미 아는 위험을 사진이 또 잡았다"와 "새 위험을 찾았다"는
      *                     심사에서 의미가 완전히 다르다
+     * @param evidenceItems 근거 카드 최대 3장(지침 1 · 조문 1 · 사진 있는 사례 1).
+     *                      {@link CandidateEvidenceCollector}가 그때그때 계산한다 — 영속화하지
+     *                      않는다. {@code evidence}(모델이 사진에서 근거로 든 서술)와는 다른 값이다
      */
     public record Candidate(Long hazardId, AccidentType accidentType, String accidentLabel,
                             String missingControl, String evidence, Double confidence,
                             RiskLevel riskLevel, String ruleTrace, Boolean adopted,
-                            boolean alreadyKnown, GateStatus gateStatus, String gateNote) {}
+                            boolean alreadyKnown, GateStatus gateStatus, String gateNote,
+                            List<Evidence> evidenceItems) {}
 
     public record AnalysisResult(Long assessmentId, String status,
                                  List<Candidate> candidates, boolean demoMode) {}
@@ -181,12 +187,15 @@ public class VisionAssessmentService {
                     .ruleTrace(decision.ruleTrace())
                     .build());
 
+            List<Evidence> evidenceItems =
+                    evidenceCollector.forCandidate(finding.accidentType(), finding.missingControl());
+
             candidates.add(new Candidate(hazard.getId(), finding.accidentType(),
                     finding.accidentType().getLabel(), finding.missingControl(),
                     finding.evidence(), finding.confidence(),
                     decision.riskLevel(), decision.ruleTrace(), hazard.getAiAdopted(),
                     alreadyKnown, GateStatus.of(finding.accidentType()),
-                    gateNote(finding.accidentType())));
+                    gateNote(finding.accidentType()), evidenceItems));
         }
 
         updateStatus(assessmentId, STATUS_ANALYZED);
@@ -221,13 +230,15 @@ public class VisionAssessmentService {
         AssessmentHazard latest = graded.isEmpty() ? null : graded.get(0);
 
         log.info("[UC1] 위험요인 {} {}", hazardId, adopt ? "채택" : "반려");
+        List<Evidence> evidenceItems =
+                evidenceCollector.forCandidate(hazard.getAccidentType(), hazard.getMissingControl());
         return new Candidate(hazard.getId(), hazard.getAccidentType(),
                 hazard.getAccidentType().getLabel(), hazard.getMissingControl(),
                 hazard.getDescription(), null,
                 latest == null ? null : latest.getRiskLevel(),
                 latest == null ? null : latest.getRuleTrace(),
                 hazard.getAiAdopted(), true, GateStatus.of(hazard.getAccidentType()),
-                gateNote(hazard.getAccidentType()));
+                gateNote(hazard.getAccidentType()), evidenceItems);
     }
 
     /** 채택률 지표. 분모는 AI가 제안한 전체, 분자는 사람이 채택한 것 */
@@ -275,7 +286,8 @@ public class VisionAssessmentService {
                             link.getRiskLevel(), link.getRuleTrace(), h.getAiAdopted(),
                             h.getSource() != HazardSource.PHOTO,
                             GateStatus.of(h.getAccidentType()),
-                            gateNote(h.getAccidentType()))));
+                            gateNote(h.getAccidentType()),
+                            evidenceCollector.forCandidate(h.getAccidentType(), h.getMissingControl()))));
         }
         return new AnalysisResult(assessmentId, assessment.getStatus(), candidates,
                 demoModeConfig.isDemoMode());

@@ -1,0 +1,7 @@
+# Windows 체크아웃(core.autocrlf=true)이 실행 스크립트에 CRLF를 넣으면
+# 리눅스 컨테이너에서 셔뱅(#!/bin/sh)이 깨져 "not found"(exit 127)로 빌드가 죽는다.
+# 2026-09-29 Task 6a 클린 빌드 검증 중 backend/gradlew에서 실측.
+* text=auto eol=lf
+*.bat text eol=crlf
+gradlew text eol=lf
+gradlew.bat text eol=crlf

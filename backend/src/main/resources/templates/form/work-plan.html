@@ -113,6 +113,24 @@
     </tr>
   </table>
 
+  <div class="section-title" th:if="${form.warningNote != null}">사고 연쇄 경고</div>
+  <table th:if="${form.warningNote != null}">
+    <tr><td class="pre" th:text="${form.warningNote}">-</td></tr>
+  </table>
+
+  <div class="section-title" th:if="${!form.references.isEmpty()}">참고 자료</div>
+  <table th:if="${!form.references.isEmpty()}">
+    <tbody>
+    <tr th:each="r : ${form.references}">
+      <td class="pre">
+        <span th:text="'#' + ${r.no} + ' ' + ${r.title}">-</span>
+        <a th:if="${r.sourceUrl != null}" th:href="${r.sourceUrl}" th:text="${r.sourceUrl}" target="_blank" rel="noreferrer"></a>
+        <span class="muted" th:text="' (조회 ' + ${r.fetchedAt} + ')'"></span>
+      </td>
+    </tr>
+    </tbody>
+  </table>
+
   <div class="notice" th:text="${form.tbmNotice}">TBM 안내</div>
   <div class="notice" th:text="${form.aiNotice}">AI 활용 고지</div>
 

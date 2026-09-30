@@ -4,14 +4,14 @@ import Callout from "@/components/ui/Callout";
 import PageHeader from "@/components/ui/PageHeader";
 import PageLayout from "@/components/ui/PageLayout";
 import Select from "@/components/ui/Select";
-import TimelineList from "@/pages/Timeline/components/TimelineList";
-import TimelineSummary from "@/pages/Timeline/components/TimelineSummary";
-import { useTimeline } from "@/pages/Timeline/hooks/useTimeline";
+import TimelineList from "@/components/timeline/TimelineList";
+import TimelineSummary from "@/components/timeline/TimelineSummary";
+import { useEquipmentTimeline } from "@/hooks/useEquipmentTimeline";
 import TimelineSkeleton from "@/pages/Timeline/TimelineSkeleton";
 
 /** UC4 — 이 화면이 증명하는 건 기능이 아니라 구조다. 전부 같은 설비 ID에 매달려 있다. */
 export default function TimelinePage() {
-  const { equipment, equipmentId, setEquipmentId, timeline, loading, loadError } = useTimeline();
+  const { equipment, equipmentId, setEquipmentId, timeline, loading, loadError } = useEquipmentTimeline();
   const [focusId, setFocusId] = useState<string | null>(null);
   if (loading) return <TimelineSkeleton />;
   return (

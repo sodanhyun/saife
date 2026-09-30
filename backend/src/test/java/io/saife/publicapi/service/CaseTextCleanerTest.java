@@ -95,4 +95,24 @@ class CaseTextCleanerTest {
         assertThat(CaseTextCleaner.clean(null)).isNull();
         assertThat(CaseTextCleaner.clean("")).isEmpty();
     }
+
+    @Test
+    void imageUrl_첫_img_src를_뽑는다() {
+        String raw = "<p><img src='https://portal.kosha.or.kr/api/compn24/auth/stdtboard/getImage.do?bbsId=B1&pstNo=P1&bbsAtcflNo=E1' style='width: 931px;'></p><p>본문</p>";
+        assertThat(CaseTextCleaner.imageUrlOf(raw))
+                .isEqualTo("https://portal.kosha.or.kr/api/compn24/auth/stdtboard/getImage.do?bbsId=B1&pstNo=P1&bbsAtcflNo=E1");
+    }
+
+    @Test
+    void imageUrl_쌍따옴표와_복수_태그() {
+        String raw = "<img src=\"https://portal.kosha.or.kr/a.png\"><img src='https://portal.kosha.or.kr/b.png'>";
+        assertThat(CaseTextCleaner.imageUrlOf(raw)).isEqualTo("https://portal.kosha.or.kr/a.png");
+    }
+
+    @Test
+    void imageUrl_base64나_외부호스트는_버린다() {
+        assertThat(CaseTextCleaner.imageUrlOf("<img src='data:image/png;base64,AAAA'>")).isNull();
+        assertThat(CaseTextCleaner.imageUrlOf("<img src='https://evil.example/x.png'>")).isNull();
+        assertThat(CaseTextCleaner.imageUrlOf(null)).isNull();
+    }
 }

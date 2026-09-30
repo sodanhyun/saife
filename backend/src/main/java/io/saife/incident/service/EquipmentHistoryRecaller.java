@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -79,18 +80,31 @@ public class EquipmentHistoryRecaller {
                                 AccidentType accidentType, String description) {}
 
     /**
+     * 이 소환이 어떤 문맥에서 쓰이는지 — <b>headline 문구만</b> 바꾼다.
+     *
+     * <p>{@code POST_INCIDENT}는 사고가 이미 등록된 뒤("이 사고는 예고되어 있었습니다").
+     * {@code PRE_WORK}는 사고가 나기 전, 작업 신고 화면에서 시스템이 먼저 아는 것을
+     * 말하는 문맥이다("최근 평가...미이행 조치..."). 소환 로직·정렬·판정은 동일하다.
+     */
+    public enum Purpose { PRE_WORK, POST_INCIDENT }
+
+    /**
      * 설비 이력을 소환한다.
      *
-     * @param equipmentId 사고가 난 설비
-     * @param axis        사고의 발생형태. 같은 축의 위험요인을 앞으로 올린다
-     * @param occurredAt  사고 발생 시각. 작업계획서·과거 사고를 이 시점으로 자른다
-     * @param knownAsOf   <b>이 사고가 기록된 시각.</b> 이후에 만들어진 기록은 소환하지 않는다 —
+     * @param equipmentId 대상 설비
+     * @param axis        사고의 발생형태. {@code PRE_WORK}에서는 아직 사고가 없으므로 null을 준다 —
+     *                    그러면 {@code sameAxisAsIncident}는 전부 false, {@code predicted}도 false가
+     *                    된다. 이건 정상이다("사고 전 회상"이라 예측 축이 없다)
+     * @param occurredAt  기준 시각. 작업계획서·과거 사고를 이 시점으로 자른다.
+     *                    {@code PRE_WORK}에서는 지금 시각을 준다
+     * @param knownAsOf   <b>이 기록이 남는 시각.</b> 이후에 만들어진 기록은 소환하지 않는다 —
      *                    사고가 스스로 만든 수시평가를 "사고 전에 알고 있었다"의 근거로 쓰면
      *                    순환 논증이 된다. 실제로 그렇게 됐다 (2026-09-20 스모크 테스트)
+     * @param purpose     headline 문구 분기용
      */
     @Transactional(readOnly = true)
     public Recall recall(Long equipmentId, AccidentType axis,
-                         OffsetDateTime occurredAt, OffsetDateTime knownAsOf) {
+                         OffsetDateTime occurredAt, OffsetDateTime knownAsOf, Purpose purpose) {
         Equipment equipment = equipmentId == null ? null
                 : equipmentRepository.findById(equipmentId).orElse(null);
 
@@ -118,14 +132,14 @@ public class EquipmentHistoryRecaller {
                 .findFirst()
                 .orElse(null);
 
-        log.info("[RECALL] 설비 {} — 위험요인 {}건, 미이행 {}건, 작업계획 {}건, 과거사고 {}건, 예고됨={}",
-                equipmentId, priorHazards.size(), unfinished.size(),
+        log.info("[RECALL] 설비 {} ({}) — 위험요인 {}건, 미이행 {}건, 작업계획 {}건, 과거사고 {}건, 예고됨={}",
+                equipmentId, purpose, priorHazards.size(), unfinished.size(),
                 workPlans.size(), priorIncidents.size(), predicted);
 
         return new Recall(equipmentId, equipment.getName(), locationTag,
                 priorHazards, unfinished, workPlans, priorIncidents,
                 predicted, warnedAt,
-                headline(predicted, unfinished, warnedAt, priorIncidents));
+                headline(purpose, predicted, priorHazards, unfinished, warnedAt, priorIncidents));
     }
 
     /**
@@ -213,12 +227,23 @@ public class EquipmentHistoryRecaller {
     }
 
     /**
-     * 화면 최상단 한 줄. 강한 순서대로 고른다.
+     * 화면 최상단 한 줄. 강한 순서대로 고른다. {@code purpose}에 따라
+     * 문구만 갈린다 — 소환 로직·판정은 완전히 같다.
      *
      * <p><b>과장하지 않는다.</b> 소환된 사실이 약하면 약하게 말한다 — 없는 이력을
      * 있는 것처럼 쓰면 심사위원이 데이터를 확인하는 순간 전부 무너진다.
      */
-    private String headline(boolean predicted, List<UnfinishedAction> unfinished,
+    private String headline(Purpose purpose, boolean predicted, List<PriorHazard> priorHazards,
+                            List<UnfinishedAction> unfinished, OffsetDateTime warnedAt,
+                            List<PriorIncident> priorIncidents) {
+        if (purpose == Purpose.PRE_WORK) {
+            return preWorkHeadline(priorHazards, unfinished, priorIncidents);
+        }
+        return postIncidentHeadline(predicted, unfinished, warnedAt, priorIncidents);
+    }
+
+    /** 사고 등록 후(UC2) — 예고 여부를 가장 강하게 말한다 */
+    private String postIncidentHeadline(boolean predicted, List<UnfinishedAction> unfinished,
                             OffsetDateTime warnedAt, List<PriorIncident> priorIncidents) {
 
         UnfinishedAction overdue = unfinished.stream()
@@ -246,5 +271,54 @@ public class EquipmentHistoryRecaller {
                     .formatted(overdue.content(), overdue.dueDate());
         }
         return "사고 전에 기록된 동일 발생형태의 위험요인은 없습니다. 새로운 위험요인으로 등록하십시오.";
+    }
+
+    /**
+     * 작업 신고 전(UC3 사전 회상) — 아직 사고가 없으므로 "예고" 문구를 쓰지 않는다.
+     * 지금 알고 있는 등급·미이행 조치를 사실 그대로 요약한다.
+     *
+     * <p>예: "최근 평가 '상'(추락) · 미이행 조치 1건(기한 32일 경과)"
+     */
+    private String preWorkHeadline(List<PriorHazard> priorHazards,
+                                   List<UnfinishedAction> unfinished,
+                                   List<PriorIncident> priorIncidents) {
+        PriorHazard worst = priorHazards.stream()
+                .filter(h -> h.lastRiskLevel() != null)
+                .max(Comparator.comparingInt(h -> severityRank(h.lastRiskLevel())))
+                .orElse(null);
+
+        UnfinishedAction overdue = unfinished.stream()
+                .filter(a -> a.overdueDays() != null && a.overdueDays() > 0)
+                .findFirst().orElse(null);
+
+        List<String> parts = new ArrayList<>();
+        if (worst != null) {
+            String axisLabel = worst.accidentType() == null ? "" : "(%s)".formatted(worst.accidentType().getLabel());
+            parts.add("최근 평가 '%s'%s".formatted(worst.lastRiskLevel().getLabel(), axisLabel));
+        }
+        if (overdue != null) {
+            parts.add("미이행 조치 %d건(기한 %d일 경과)".formatted(unfinished.size(), overdue.overdueDays()));
+        } else if (!unfinished.isEmpty()) {
+            parts.add("미이행 조치 %d건".formatted(unfinished.size()));
+        }
+        if (!priorIncidents.isEmpty()) {
+            parts.add("과거 사고 %d건".formatted(priorIncidents.size()));
+        }
+
+        if (parts.isEmpty()) {
+            return "이 설비에 기록된 위험요인이나 미이행 조치가 없습니다. 최초 평가부터 확인하십시오.";
+        }
+        return String.join(" · ", parts);
+    }
+
+    private int severityRank(RiskLevel level) {
+        if (level == null) {
+            return -1;
+        }
+        return switch (level) {
+            case HIGH -> 3;
+            case MEDIUM -> 2;
+            case LOW -> 1;
+        };
     }
 }

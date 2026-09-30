@@ -1,12 +1,13 @@
 import { useEffect, useRef } from "react";
 
 import AgentMessage from "@/components/common/AgentMessage";
+import EvidenceGrid from "@/components/evidence/EvidenceGrid";
 import type { Turn } from "@/pages/WorkPlan/hooks/useAgentStream";
 
-interface Props { turns: Turn[]; streaming: boolean; restoring: boolean }
+interface Props { turns: Turn[]; streaming: boolean; restoring: boolean; knownNos?: Set<number> }
 
 /** 대화 스레드. 새 답변이 오면 아래로 따라간다(발표자가 이전 턴을 보고 있게 되는 것을 막는다). */
-export default function ChatThread({ turns, streaming, restoring }: Props) {
+export default function ChatThread({ turns, streaming, restoring, knownNos }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [turns]);
   const waiting = streaming && turns[turns.length - 1]?.role === "user";
@@ -22,7 +23,10 @@ export default function ChatThread({ turns, streaming, restoring }: Props) {
           <p className="max-w-[80%] rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">{turn.text}</p>
         </div>
       ) : (
-        <div key={`${i}-${turn.role}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"><AgentMessage text={turn.text} /></div>
+        <div key={`${i}-${turn.role}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+          <AgentMessage text={turn.text} knownNos={knownNos} scope="chat" />
+          <EvidenceGrid items={turn.evidence} collapsedByDefault scope="chat" />
+        </div>
       ))}
       {waiting && <p className="text-sm text-slate-400 animate-cursor-blink">확인하고 있습니다…</p>}
     </div>

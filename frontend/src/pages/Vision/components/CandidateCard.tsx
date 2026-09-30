@@ -1,4 +1,5 @@
 // CandidateCard.tsx — 등급 옆에 룰 트레이스를 항상 같이 띄운다. 채택 버튼이 사람의 자리다.
+import EvidenceGrid from "@/components/evidence/EvidenceGrid";
 import { Badge, RiskBadge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -19,6 +20,7 @@ export default function CandidateCard({ c, busy, onDecide }: Props) {
       {c.gateNote && <p className="mt-1 text-xs text-slate-500">{c.gateNote}</p>}
       {c.evidence && <p className="mt-2 text-sm text-slate-700"><span className="text-slate-500">근거: </span>{c.evidence}</p>}
       <p className="mt-2 rounded-md bg-panel px-2 py-1 font-mono text-xs text-slate-600">{c.ruleTrace}</p>
+      <EvidenceGrid items={c.evidenceItems ?? []} title="근거" collapsedByDefault scope={`candidate-${c.hazardId}`} className="mt-2" />
       <div className="mt-3 flex items-center gap-2">
         {c.adopted === null ? (
           <>

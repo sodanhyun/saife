@@ -91,8 +91,8 @@ KOSHA GUIDE 경로에 `callApiId=1040`을 넣으면 **사고사망 데이터(tot
 쿼리 파라미터 이름도 `OC`다. 가입 이메일의 `@` 앞부분으로 자동 결정되어 재발급 개념이 없다.
 
 ```
-목록:  http://www.law.go.kr/DRF/lawSearch.do?OC=..&target=law&type=JSON&query=산업안전보건법
-본문:  http://www.law.go.kr/DRF/lawService.do?OC=..&target=law&type=JSON&MST=..
+목록:  http://www.law.go.kr/DRF/lawSearch.do?OC=<기관코드>&target=law&type=JSON&query=산업안전보건법
+본문:  http://www.law.go.kr/DRF/lawService.do?OC=<기관코드>&target=law&type=JSON&MST=..
 ```
 
 일 1,000건 제한이 적용되지 않는다(실제 한도는 미확인). 필요 조문이 ~15건이라 문제될 일은 없다.

@@ -49,8 +49,11 @@ public class AgentController {
      * @param conversationId 이어갈 대화. 없으면 새로 시작한다.
      *                       되묻기 답변도 이 필드로 들어온다 — 별도 재개 API가 없다.
      * @param slotKey        되묻기 답변이면 어떤 슬롯인지 (선택). 기록용이며 흐름 제어는 하지 않는다
+     * @param equipmentId    진입 컨텍스트(작업 신고 화면의 {@code ?equipmentId=}). 선택.
+     *                       프론트는 새 대화의 첫 턴에만 싣는다. 시스템 프롬프트의
+     *                       [시작 설비] 힌트와 {@code findLocationEquipment}의 단축 경로에 쓰인다
      */
-    public record ChatRequest(String message, String conversationId, String slotKey) {}
+    public record ChatRequest(String message, String conversationId, String slotKey, Long equipmentId) {}
 
     /**
      * 대화 한 턴.
@@ -87,7 +90,8 @@ public class AgentController {
             if (request.slotKey() != null && !request.slotKey().isBlank()) {
                 slotAnswerService.record(conversationId, request.slotKey(), request.message());
             }
-            agentService.chat(conversationId, session.sessionId(), DEMO_SITE_ID, request.message());
+            agentService.chat(conversationId, session.sessionId(), DEMO_SITE_ID, request.message(),
+                    request.equipmentId());
         });
 
         return session.emitter();

@@ -78,6 +78,13 @@ public class WorkPlan {
     @Column(name = "approval_note", columnDefinition = "text")
     private String approvalNote;
 
+    /**
+     * 사고 연쇄(UC2)가 붙인 경고 (R48, V8 컬럼). {@code approvalNote}와는 별개 컬럼이다 —
+     * 승인 조건과 사고 경고를 한 칸에 섞으면 승인자가 조건을 다시 읽을 때 경고 문구가 끼어든다.
+     */
+    @Column(name = "warning_note", columnDefinition = "text")
+    private String warningNote;
+
     @Column(name = "approved_by", length = 100)
     private String approvedBy;
 
@@ -122,5 +129,16 @@ public class WorkPlan {
 
     public void attachBriefing(String briefing) {
         this.briefing = briefing;
+    }
+
+    /**
+     * 사고 연쇄가 경고를 붙인다. 기존 경고가 있으면 줄바꿈으로 이어붙인다 (R48) —
+     * 이전 사고가 남긴 경고를 지우지 않는다. 같은 설비에서 사고가 반복되면 전부 남아야
+     * "이 작업계획서가 몇 번째 경고인가"를 승인자가 읽을 수 있다.
+     */
+    public void appendWarning(String text) {
+        this.warningNote = (this.warningNote == null || this.warningNote.isBlank())
+                ? text
+                : this.warningNote + "\n" + text;
     }
 }

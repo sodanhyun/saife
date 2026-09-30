@@ -64,6 +64,15 @@ docker compose up -d --build
 개발 중에는 `dev`를 쓴다. 전체 compose는 **10/4 코드 프리즈 전에 반드시 한 번
 빌드해서 돌려본다** — 마지막 날 처음 빌드하면 거기서 터진다.
 
+## nginx — `/form/*`도 프록시해야 한다
+
+법정 서식 화면(`/form/work-plan/{id}` 등)은 SPA 라우트가 아니라 **백엔드가 직접
+렌더하는 Thymeleaf 페이지**다. 개발 중엔 Vite 프록시가 `/form`도 `:8080`으로 넘겨
+문제가 안 보이지만, `frontend/nginx.conf`에 `/api/` 블록만 있으면 **컨테이너 스택에서
+서식 버튼이 전부 404**가 된다(2026-09-29 클린 빌드 검증에서 실측). `/form/` 블록을
+`/api/`와 같은 `backend:8080`으로 추가하되, SSE 버퍼링 옵션(`proxy_buffering off` 등)은
+`/api/` 전용으로 남긴다 — 서식 페이지는 스트림이 아니다.
+
 ## 이미지 태깅
 
 - 레지스트리에 올리지 않는다. 로컬 빌드가 전부다
@@ -78,6 +87,27 @@ docker compose up -d --build
 - 파일명 `V{n}__{설명}.sql`. 시드는 `V{n}__seed_{설명}.sql`로 구분해 둔다
 - **이미 커밋한 마이그레이션 파일을 수정하지 않는다.** 체크섬이 깨져 부팅이 막힌다.
   고칠 일이 생기면 새 번호로 추가한다
+- **V8 = 연결성 컬럼(`work_plan.warning_note`), V9 = 근거(RAG) 스키마, V10 = 고소작업대 이야기 시드.**
+  연결성 개선 프롬프트는 V8에 시드까지 넣으라고 했지만, V9(근거 스키마)가 먼저 커밋돼야 해서
+  V8은 컬럼만 두고 시드는 번호를 밀어 V10으로 옮겼다 — 이미 커밋된 V8·V9를 건드리지 않기 위해서다
+- ⚠️ **시드 날짜 드리프트.** V10 시드의 사건 날짜(기한 초과 31일 경과, D-7 등)는 시드
+  마이그레이션이 적용된 시점(=이미지를 처음 기동한 날) 기준 상대값으로 계산된다.
+  즉 **무대 전날 이미지를 새로 빌드하지 않고 오래된 볼륨을 그대로 쓰면** "31일 경과"
+  같은 문구가 실제 경과일과 어긋난다. **무대 하루 전에 데모 볼륨을 새로 기동해
+  시드 날짜를 오늘 기준으로 재계산시킬 것** (`docker compose down` 후 `up -d --build`,
+  `-v` 금지 사유는 없다 — 데이터가 전부 시드이므로 볼륨을 날려도 무방하다).
+  단, **날짜를 실제로 다시 계산하려면 `-v`가 필요하다** — 기존 DB 볼륨에서는 Flyway가 V10을
+  다시 돌리지 않는다.
+- ⚠️ **이 브랜치(V8~V11)를 기존 볼륨 위에 올리려면 `docker compose down -v`가 필요하다.**
+  V10은 `work_plan.id=1`·`incident.id=1`·`assessment` 4~6을 **고정 id로** 넣는다. main에서
+  리허설하며 작업계획서·사고를 만든 볼륨이면 id가 겹쳐 부팅 시 Flyway가 실패한다.
+  V10 파일은 체크섬 때문에 고칠 수 없으므로 볼륨을 새로 만드는 것이 유일한 경로다(최종 리뷰 F14).
+- **V11 = 법제처 OC 자격증명 제거**(조문 링크를 사람용 조문 페이지로 재작성, 근거 payload의 `OC=` 삭제).
+  멱등이라 새 볼륨에서는 사실상 no-op이다.
+- ⚠️ **첫 부팅 JVM 힙 여유 ≥ 1.5 GB.** `EvidenceSeedLoader`가 근거 청크 약 4만 행의 child JSON을
+  한 번에 메모리에 올린다(원시 JSON 약 108 MB). 이미지 기본값 `MaxRAMPercentage=75`로 Docker
+  VM 메모리가 2 GB 이상이면 충분하지만, 그보다 작은 VM에서는 OOM(`Error`라 잡히지 않는다)으로
+  부팅이 멈춘다. Docker Desktop 메모리 할당을 먼저 확인한다(최종 리뷰 F16).
 
 ## .dockerignore 필수 항목
 
@@ -108,6 +138,17 @@ docker-compose*.yml
 - 슬라이드 9에 "시연은 라이브입니다. 네트워크 장애 시 오프라인 폴백으로 전환합니다"를
   **먼저** 밝힌다. 먼저 말하면 강점, 질문받고 말하면 변명이 된다
 
+### 무대 전날 (최종 리뷰 F6·F14)
+
+1. `docker compose down -v` → `docker compose up -d --build` — 시드 날짜를 오늘 기준으로 재계산
+   (`-v`는 DB 볼륨과 함께 미디어 캐시 볼륨 `saife-media`도 지운다)
+2. 백엔드 로그에서 `[SEED] 근거 청크 …건 적재`까지 확인
+3. **그다음 `POST /api/admin/media/prefetch`** — 시연 설비의 위험요인 축으로 도구와 같은 검색을 돌려
+   나오는 사례 사진·지침 PDF를 먼저 받고 상한(사진 200·PDF 30)까지 채운다. 응답의
+   `demoPhotos`/`demoPdfs`가 0이 아니어야 한다. 캐시는 `saife-media` 볼륨에 남아 당일 `up -d`에도 유지된다
+4. 근거 재색인(`POST /api/admin/index/rebuild`)은 무대 준비에 필요 없다 — 완료된 kind는
+   `force=true` 없이 no-op이고, 키 없는 데모 모드에서는 아무것도 지우지 않고 `SKIPPED`를 돌려준다
+
 ### 무대 전 체크리스트 (발표 30분 전)
 
 1. `docker compose up -d` 후 컨테이너 3개 healthy
@@ -122,6 +163,16 @@ docker-compose*.yml
 - 무대에서 `docker compose build` — 빌드는 전날 끝낸다
 - 무대에서 Flyway 신규 마이그레이션 — 스키마는 프리즈 상태여야 한다
 - 발표 당일 코드 수정. **10/4가 프리즈다**
+
+## ⚠️ 공유 머신에서 스모크 돌릴 때 — `reset_demo_data.py`는 컨테이너 이름을 직접 때린다
+
+`docs/experiments/reset_demo_data.py`는 `SAIFE_BASE_URL`을 보지 않는다.
+`docker exec <컨테이너명> psql ...`로 **DB 컨테이너 이름을 직접 지정**한다
+(기본값 `saife-postgres`). 격리된 clean 스택(예: `docker compose -p saife-clean`)에
+스모크를 돌리면서 `SAIFE_BASE_URL`만 바꾸고 이 스크립트를 그대로 실행하면,
+**공유 세션 DB(`saife-postgres`)가 조용히 리셋된다** — 2026-09-29 클린 빌드
+검증 중 실제로 발생(상세: `docs/qa-report-20260929.md`). 격리 스택을 리셋할 때는
+반드시 `SAIFE_PG_CONTAINER=<그 스택의 postgres 컨테이너명>`을 같이 준다.
 
 ## 제출 전 저장소 점검 (10/5)
 

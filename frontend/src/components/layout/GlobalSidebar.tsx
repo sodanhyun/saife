@@ -3,9 +3,11 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { useSystemStatus } from "@/components/layout/hooks/useSystemStatus";
 import cn from "@/lib/cn";
 import { useUiStore } from "@/stores/uiStore";
-import { LANDING_PATH, MENU, resolveSidebarCollapsed, SITE_NAME } from "@/components/layout/menu";
+import { LANDING_PATH, MENU_GROUPS, resolveSidebarCollapsed, SITE_NAME } from "@/components/layout/menu";
+import SystemStatusLine from "@/components/layout/SystemStatusLine";
 
 interface Props {
   isOpen: boolean;
@@ -40,7 +42,10 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [edgeHover, setEdgeHover] = useState(false);
 
-  const isActive = (path: string) => pathname.startsWith(path);
+  const { status: systemStatus, loading: systemStatusLoading, refetch: refetchSystemStatus } = useSystemStatus();
+
+  // "/"는 모든 경로의 접두어라 startsWith로 판정하면 항상 활성화된다 — 완전 일치로만 본다.
+  const isActive = (path: string) => (path === "/" ? pathname === "/" : pathname.startsWith(path));
   const go = (path: string) => {
     navigate(path);
     onClose();
@@ -62,31 +67,38 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
 
   const nav = (railCollapsed: boolean) => (
     <nav className={cn("flex-1 space-y-1 overflow-y-auto overflow-x-hidden py-2", railCollapsed ? "px-1.5" : "px-3")}>
-      {MENU.map((item) => {
-        const Icon = item.icon;
-        const active = isActive(item.path);
-        return (
-          <button
-            key={item.key}
-            onClick={() => go(item.path)}
-            onMouseEnter={(e) => showTooltip(e, item.label)}
-            onMouseLeave={() => setTooltip(null)}
-            aria-label={item.label}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "relative w-full flex items-center rounded-lg transition-colors duration-200 group",
-              railCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
-              active ? "text-white bg-slate-800/70" : "text-slate-500 hover:text-white hover:bg-slate-800/40",
-            )}
-          >
-            {active && !railCollapsed && (
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-progress rounded-r-full" />
-            )}
-            <Icon size={20} className={cn("shrink-0 transition-colors", active ? "text-progress-border" : "text-slate-500 group-hover:text-white")} />
-            {!railCollapsed && <span className={cn("text-stage whitespace-nowrap", active ? "font-semibold" : "font-medium")}>{item.label}</span>}
-          </button>
-        );
-      })}
+      {MENU_GROUPS.map((group, gi) => (
+        <div key={group.key} className={gi > 0 ? "mt-3 border-t border-slate-800/60 pt-3" : undefined}>
+          {group.label && !railCollapsed && (
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</p>
+          )}
+          {group.items.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.path);
+            return (
+              <button
+                key={item.key}
+                onClick={() => go(item.path)}
+                onMouseEnter={(e) => showTooltip(e, item.label)}
+                onMouseLeave={() => setTooltip(null)}
+                aria-label={item.label}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative w-full flex items-center rounded-lg transition-colors duration-200 group",
+                  railCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
+                  active ? "text-white bg-slate-800/70" : "text-slate-500 hover:text-white hover:bg-slate-800/40",
+                )}
+              >
+                {active && !railCollapsed && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-progress rounded-r-full" />
+                )}
+                <Icon size={20} className={cn("shrink-0 transition-colors", active ? "text-progress-border" : "text-slate-500 group-hover:text-white")} />
+                {!railCollapsed && <span className={cn("text-stage whitespace-nowrap", active ? "font-semibold" : "font-medium")}>{item.label}</span>}
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 
@@ -110,6 +122,11 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
         <div className={cn("flex items-center border-b border-slate-800/60", collapsed ? "py-4 px-2 justify-center" : "h-16 px-4")}>{brand}</div>
         {nav(collapsed)}
         {footer(collapsed)}
+        {!collapsed && (
+          <div className="border-t border-slate-800/60">
+            <SystemStatusLine status={systemStatus} onRefresh={refetchSystemStatus} refreshing={systemStatusLoading} />
+          </div>
+        )}
       </aside>
 
       {/* 경계선 토글 */}
@@ -138,6 +155,9 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
         </div>
         {nav(false)}
         {footer(false)}
+        <div className="border-t border-slate-800/60">
+          <SystemStatusLine status={systemStatus} onRefresh={refetchSystemStatus} refreshing={systemStatusLoading} />
+        </div>
       </aside>
     </>
   );

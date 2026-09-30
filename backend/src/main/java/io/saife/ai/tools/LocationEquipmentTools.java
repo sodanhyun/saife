@@ -7,6 +7,8 @@ import io.saife.core.repository.ActionRepository;
 import io.saife.core.repository.AssessmentHazardRepository;
 import io.saife.core.repository.HazardRepository;
 import io.saife.core.service.EquipmentMatcher;
+import io.saife.dashboard.dto.TimelineDtos;
+import io.saife.dashboard.service.EquipmentTimelineService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
@@ -35,6 +37,8 @@ public class LocationEquipmentTools {
     private final AssessmentHazardRepository assessmentHazardRepository;
     private final ActionRepository actionRepository;
     private final SseService sseService;
+    /** 회상 카드 생성 — 대시보드 회상 API와 같은 경로를 재사용한다(중복 로직 없음) */
+    private final EquipmentTimelineService equipmentTimelineService;
 
     @Tool(description = """
             <tool-description>
@@ -63,6 +67,18 @@ public class LocationEquipmentTools {
 
             EquipmentMatcher.MatchResult match = equipmentMatcher.match(siteId, query, locationTag);
 
+            // 진입 컨텍스트(?equipmentId=)로 들어온 대화는 자유 텍스트 매칭이 실패·애매해도
+            // 이미 화면에서 고른 설비가 있다. "공장동 후면 차양부 천장 페인트 작업"처럼
+            // 같은 공정에 설비가 둘 이상이면 자유 텍스트만으로는 못 가른다(2026-09-29 실측,
+            // baseline_connectivity.py B2) — 그 문맥을 매칭기의 한계 때문에 버리지 않는다.
+            Long entryEquipmentId = AgentContextKeys.equipmentId(toolContext);
+            if (entryEquipmentId != null && (match.unmatched() || match.needsConfirmation())) {
+                EquipmentMatcher.MatchResult byId = equipmentMatcher.matchById(entryEquipmentId);
+                if (byId.isConfirmed()) {
+                    match = byId;
+                }
+            }
+
             if (match.unmatched()) {
                 return ToolResult.of("""
                         등록되지 않은 설비입니다. (unmatched)
@@ -80,8 +96,34 @@ public class LocationEquipmentTools {
             }
 
             Equipment eq = match.equipment();
+            // ai.tool.done보다 먼저 나가야 한다 — ToolCallTracker의 finally가 그 이벤트를
+            // 쏘기 전, 이 성공 분기 안에서 emitRecall을 호출한다(도구 레벨 발행이라
+            // 모델이 문장에 담든 말든 회상 카드는 뜬다).
+            emitRecall(eq.getId(), toolContext);
             return ToolResult.of(describe(eq, match.process()));
         });
+    }
+
+    /**
+     * 설비 매칭 성공 시 회상 이벤트를 발행한다 — <b>모델 문장과 무관하게 카드가 뜬다.</b>
+     *
+     * <p>대시보드 회상 API({@code EquipmentTimelineService.recall})와 같은 경로를 그대로
+     * 재사용해 PRE_WORK 문맥의 {@code RecallView}(+knownSlots)를 만든다. 회상 발행 실패가
+     * 도구 실행 실패로 번지면 안 되므로 예외를 삼키고 경고만 남긴다.
+     */
+    private void emitRecall(Long equipmentId, ToolContext toolContext) {
+        String conversationId = AgentContextKeys.conversationId(toolContext);
+        String sessionId = AgentContextKeys.sessionId(toolContext);
+        if (conversationId == null || sessionId == null) {
+            return; // 비-스트리밍 경로(테스트, 배치)에서는 조용히 넘어간다
+        }
+        try {
+            TimelineDtos.RecallView recallView = equipmentTimelineService.recall(equipmentId);
+            sseService.send(sessionId,
+                    SseService.SseEvent.of("ai.recall", conversationId, conversationId, recallView));
+        } catch (Exception e) {
+            log.warn("[RECALL] 회상 이벤트 발행 실패 equipmentId={}: {}", equipmentId, e.getMessage());
+        }
     }
 
     /** 설비 + 그 설비에 걸린 이력을 사람이 읽는 형태로 */

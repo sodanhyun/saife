@@ -35,7 +35,14 @@ SAIFE의 검색은 세 종류뿐이고, 각각 방식이 다르다.
   (건설 39% / 제조 32% / 서비스 20% / 조선 8.4%). 제조업 사례를 찾는데 건설 사례를
   올리면 근거로서 약하다
 - 발생형태(`accident_type`)로 2차 필터
-- pgvector HNSW / COSINE. 임베딩 모델 `gemini-embedding-2` (1536차원)
+- pgvector HNSW / COSINE. 임베딩 모델 `gemini-embedding-2` (**768차원** — 2026-09-20
+  당시 1536으로 적었으나 실제 연동 시 768로 확정됐다. `SearchPolicy.EMBEDDING_DIMENSIONS`,
+  `VectorCodec`, `application.yml`의 `dimensions: 768`이 근거)
+- 실제 검색 파이프라인(근거 계층): 하이브리드 RRF(벡터 0.6 + 키워드 tsquery 0.4, K=60) →
+  같은 parent로 병합되는 child는 parent 청크로 확장 → 상위 후보를 Gemini Flash로
+  0~10점 리랭크(4점 미만 제외) → **데모 모드(임베딩 불가)에서는 키워드 폴백**으로
+  내려간다. 도구 4 `searchCases`뿐 아니라 UC3 브리핑의 조문·지침·MSDS 근거 카드도
+  같은 파이프라인을 쓴다. 상세: `docs/superpowers/specs/2026-09-28-evidence-rag-and-connectivity-design.md`
 
 ## 3. 일반 목록 조회 — 구조 필터
 

@@ -13,16 +13,23 @@ UC2 스모크 테스트 — 루프가 닫히는지 확인한다.
   4. 수시평가가 생기고 등급이 올라가는가 (룰 엔진 근거 포함)
   5. 휴업 3일 이상 → 1개월 기한이 잡히는가
 
+추가(2-2 사고 연쇄): 등록 응답의 cascade 4단계가 order 순으로 오는지, UC3이 만든
+작업계획서가 affectedWorkPlans에 들어가고 warning이 붙는지, 이후
+GET /api/work-plan/{id}에 그 경고(warningNote)가 그대로 보이는지 확인한다.
+
 사용법:
   python uc2_smoke.py            # UC3부터 전체
   python uc2_smoke.py --no-uc3   # 사고 등록만 (UC3 데이터가 이미 있을 때)
+
+  SAIFE_BASE_URL=http://localhost:8081 python uc2_smoke.py
 """
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 
-BASE = "http://localhost:8080"
+BASE = os.environ.get("SAIFE_BASE_URL", "http://localhost:8080")
 
 
 def post(path, body):
@@ -144,6 +151,25 @@ def main():
     print(f"\n[재발방지]\n{draft['prevention']}")
     print(f"\n  {draft['disclaimer']}")
 
+    # --- 사고 연쇄(2-2): "한 사건이 세 곳을 차례로 바꾼다" ---
+    section("[7] 사고 연쇄 — cascade 4단계")
+    cascade = response.get("cascade") or []
+    for step in cascade:
+        print(f"  {step['order']}. [{step['kind']}] ({step['emphasis']}) {step['title']}")
+        print(f"       {step['detail']}")
+
+    section("[8] 사고 연쇄 — 진행 중 작업계획서에 붙은 경고")
+    affected = response.get("affectedWorkPlans") or []
+    for p in affected:
+        print(f"  #{p['workPlanId']} {p['workName']} ({p['workDate']}, {p['status']})")
+        print(f"       경고: {p['warning']}")
+
+    warned_detail = None
+    if affected:
+        section(f"[9] GET /api/work-plan/{affected[0]['workPlanId']} — warningNote 확인")
+        warned_detail = get(f"/api/work-plan/{affected[0]['workPlanId']}")
+        print(f"  warningNote = {warned_detail.get('warningNote')}")
+
     # --- 단언 ---
     section("검증")
     checks = [
@@ -160,6 +186,19 @@ def main():
         ("법정 기한이 잡혔다", duty["dueDate"] is not None and duty["status"] == "REQUIRED"),
         ("사고에 수시평가가 연결됐다", incident["followUpAssessmentId"] is not None),
         ("조사표 초안이 있다", bool(draft["cause"]) and bool(draft["prevention"])),
+        ("cascade 4단계가 있다", len(cascade) == 4),
+        ("cascade가 order 1~4 순서로 온다",
+         [s["order"] for s in cascade] == [1, 2, 3, 4]),
+        ("cascade kind가 RECALL/FOLLOW_UP/REPORT/WORK_PLAN 순서다",
+         [s["kind"] for s in cascade] == ["RECALL", "FOLLOW_UP", "REPORT", "WORK_PLAN"]),
+        ("UC3이 만든 작업계획서가 affectedWorkPlans에 들어갔다",
+         any(p["workPlanId"] == plan["id"] for p in affected)),
+        ("affectedWorkPlans 항목에 warning 문구가 붙었다",
+         all(p["warning"] for p in affected)),
+        ("GET /api/work-plan/{id}에 warningNote가 그대로 보인다",
+         warned_detail is not None
+         and warned_detail.get("warningNote")
+         and affected[0]["warning"] in warned_detail["warningNote"]),
     ]
     failed = 0
     for label, ok in checks:

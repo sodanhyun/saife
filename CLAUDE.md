@@ -66,11 +66,24 @@ docker compose up -d --build
 | `core/hazard` `core/assessment` `core/action` | 위험요인·평가·감소대책. 평가 종류(최초/수시/정기/상시) |
 | `workplan` | **UC3** 위험작업 작업계획서. 대화형 등록 → 브리핑 → 승인 → 완료 |
 | `incident` | **UC2** 산재 사후 등록. 설비 이력 자동 소환 → 수시평가 자동 생성 → 법정 기한 |
-| `dashboard` | **UC4** 설비 1개 타임라인 뷰 (평가→작업계획→사고→재평가) |
+| `dashboard` | **UC4** 설비 1개 타임라인 뷰 (평가→작업계획→사고→재평가). `dashboard.service`의
+  `EquipmentTimelineService`(카드 summary), `RecallService`(진입 회상 — `ai.recall`과 같은 payload를
+  카드 클릭 없이도 재사용), `TodayService`(홈 "오늘 할 일" 인박스 — OVERDUE_ACTION/DUE_ACTION/
+  RISKY_WORK_PLAN/PENDING_APPROVAL/REPORT_DUE/PATROL_DUE/PERIODIC_DUE 7종 규칙) |
 | `ai/agent` | 에이전트 오케스트레이션 (도구 호출 루프, 슬롯 되묻기) |
 | `ai/tools` | Spring AI `@Tool` 6종 + `ToolRegistry` |
 | `ai/vision` | 사진 → **빠진 안전조치 탐지** (Gemini 멀티모달) |
 | `ai/config` | Gemini 안정화 설정 — **아래 필독** |
+| `evidence` | 근거 계층(RAG). `evidence.chunk`(청킹·오버랩) · `evidence.search`(하이브리드 RRF·리랭크·
+  키워드 폴백) · `evidence.index`(시드 빌드·임베딩 배치·체크포인트 재개) · `evidence.media`(공단
+  사진·PDF 온디맨드 캐시 프록시) · `evidence.ledger`(대화별 `#n` 인용 번호·환각 인용 후처리) ·
+  `evidence.live`(법제처·MSDS 라이브 클라이언트, `LiveOrCache` 회로) |
+
+> **도구 파라미터 메모**: `POST /api/agent/chat`의 `ChatRequest.equipmentId`는 **첫 턴에만**
+> 실린다 — 설비 카드 클릭으로 진입하면 프론트가 이미 아는 설비 ID를 자유 텍스트 매칭 없이
+> 바로 넘긴다. 이게 있으면 `findLocationEquipment`가 모호한 문구(같은 위치에 설비 2건)에도
+> 곧바로 확정 매칭하고 `ai.recall`이 뜬다. 텍스트만으로 시작하는 대화(홈이 아니라 주소창
+> 직접 진입 등)는 이 필드 없이 기존 유사도 매칭 경로를 그대로 탄다.
 
 ## ⚠️ Gemini 연동 — 이미 겪은 문제들 (Inufleet에서 이식)
 

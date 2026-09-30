@@ -1,0 +1,574 @@
+{
+  "measured_at": "2026-09-29T23:19:57.477601+00:00",
+  "base_commit": "066f83c",
+  "base_url": "http://localhost:8081",
+  "system_status": {
+    "demoMode": true,
+    "embeddingAvailable": false,
+    "evidenceChunkCount": 41281,
+    "evidenceByKind": {
+      "CASE_DISASTER": 6372,
+      "CASE_FATALITY": 2946,
+      "GUIDE": 29097,
+      "LAW": 2866
+    },
+    "circuitOpenHosts": [],
+    "lastCrawlAt": "2026-09-29T09:01:17.347284+09:00"
+  },
+  "b9_single_turn": {
+    "n": 10,
+    "with_evidence": 10,
+    "b9": "10/10",
+    "all_unique_within_turn": true,
+    "all_start_at_1_contiguous": true,
+    "all_order_ok": true,
+    "details": [
+      {
+        "idx": 1,
+        "cid": "f62b4cd21cb44201970a1cf57177c8a4",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 2,
+        "cid": "f265b79488a5438480d5fecef3148e73",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 3,
+        "cid": "37f7d6d656a2484eb10a2a65f783069e",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 4,
+        "cid": "4f12ab94cde842dcad38a7ec6dbec599",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 5,
+        "cid": "c99430104f3045858dc0a4294100cdf1",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 6,
+        "cid": "91bac46ce7b44d729b8345ce46fb46ab",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 7,
+        "cid": "efafd930a6584b04a5bc1d2d68e1c443",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 8,
+        "cid": "e3e6cdf290b24e0a900bf9db116b1da3",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 9,
+        "cid": "54943001a39945cd9860ae9b300094d7",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      },
+      {
+        "idx": 10,
+        "cid": "6d7e6a7e97284f80a25b4958bc563770",
+        "card_count": 14,
+        "nos": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "has_evidence": true,
+        "unique_ok": true,
+        "starts_at_1": true,
+        "order_ok": true
+      }
+    ]
+  },
+  "uc3_conversation": {
+    "conversation_id": "b9190b4d2d054160acf323d4ccd9fe0a",
+    "workplan_id": 12,
+    "per_turn_evidence_nos": [
+      [],
+      [],
+      [],
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      []
+    ],
+    "evidence_appeared_on_turn": 4,
+    "workplan_detail_status": 200,
+    "workplan_has_evidence_field": true,
+    "workplan_evidence_count": 14,
+    "transcript_match": true,
+    "transcript_detail": {
+      "live_per_turn": [
+        [],
+        [],
+        [],
+        [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        []
+      ],
+      "transcript_per_turn": [
+        [],
+        [],
+        [],
+        [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        []
+      ]
+    },
+    "cited_numbers": [],
+    "citation_valid": true
+  },
+  "media_checks": {
+    "b10": "5/5",
+    "checked_count": 5,
+    "checked_ok": 5,
+    "external_count": 8,
+    "checked_urls": [
+      {
+        "url": "/api/media/guide/A-G-16-2026.pdf",
+        "kind": "GUIDE",
+        "status": 200,
+        "content_type": "application/pdf",
+        "size": null,
+        "ok": true,
+        "method": "HEAD",
+        "field": "sourceUrl",
+        "evidence_no": 1
+      },
+      {
+        "url": "/api/media/guide/D-C-2-2025.pdf",
+        "kind": "GUIDE",
+        "status": 200,
+        "content_type": "application/pdf",
+        "size": null,
+        "ok": true,
+        "method": "HEAD",
+        "field": "sourceUrl",
+        "evidence_no": 2
+      },
+      {
+        "url": "/api/media/guide/X-65-2013.pdf",
+        "kind": "GUIDE",
+        "status": 200,
+        "content_type": "application/pdf",
+        "size": null,
+        "ok": true,
+        "method": "HEAD",
+        "field": "sourceUrl",
+        "evidence_no": 3
+      },
+      {
+        "url": "/api/media/case/9359/photo",
+        "kind": "CASE_FATALITY",
+        "status": 200,
+        "content_type": "image/png",
+        "size": null,
+        "ok": true,
+        "method": "HEAD",
+        "field": "mediaUrl",
+        "evidence_no": 12
+      },
+      {
+        "url": "/api/media/case/9359/photo?w=320",
+        "kind": "CASE_FATALITY",
+        "status": 200,
+        "content_type": "image/jpeg",
+        "size": 20556,
+        "ok": true,
+        "method": "GET",
+        "field": "thumbnailUrl",
+        "evidence_no": 12
+      }
+    ],
+    "external_urls": [
+      {
+        "url": "https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B8%B0%EC%A4%80%EC%97%90%20%EA%B4%80%ED%95%9C%20%EA%B7%9C%EC%B9%99/%EC%A0%9C42%EC%A1%B0",
+        "kind": "LAW",
+        "ok": null,
+        "field": "sourceUrl",
+        "evidence_no": 4
+      },
+      {
+        "url": "https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B8%B0%EC%A4%80%EC%97%90%20%EA%B4%80%ED%95%9C%20%EA%B7%9C%EC%B9%99/%EC%A0%9C43%EC%A1%B0",
+        "kind": "LAW",
+        "ok": null,
+        "field": "sourceUrl",
+        "evidence_no": 5
+      },
+      {
+        "url": "https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B8%B0%EC%A4%80%EC%97%90%20%EA%B4%80%ED%95%9C%20%EA%B7%9C%EC%B9%99/%EC%A0%9C239%EC%A1%B0",
+        "kind": "LAW",
+        "ok": null,
+        "field": "sourceUrl",
+        "evidence_no": 6
+      },
+      {
+        "url": "https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B8%B0%EC%A4%80%EC%97%90%20%EA%B4%80%ED%95%9C%20%EA%B7%9C%EC%B9%99/%EC%A0%9C241%EC%A1%B0",
+        "kind": "LAW",
+        "ok": null,
+        "field": "sourceUrl",
+        "evidence_no": 7
+      },
+      {
+        "url": "https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B8%B0%EC%A4%80%EC%97%90%20%EA%B4%80%ED%95%9C%20%EA%B7%9C%EC%B9%99/%EC%A0%9C32%EC%A1%B0",
+        "kind": "LAW",
+        "ok": null,
+        "field": "sourceUrl",
+        "evidence_no": 8
+      },
+      {
+        "url": "https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EB%B2%95/%EC%A0%9C36%EC%A1%B0",
+        "kind": "LAW",
+        "ok": null,
+        "field": "sourceUrl",
+        "evidence_no": 9
+      },
+      {
+        "url": "https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EB%B2%95%20%EC%8B%9C%ED%96%89%EA%B7%9C%EC%B9%99/%EC%A0%9C37%EC%A1%B0",
+        "kind": "LAW",
+        "ok": null,
+        "field": "sourceUrl",
+        "evidence_no": 10
+      },
+      {
+        "url": "https://msds.kosha.or.kr/MSDSInfo/kcic/msdsdetail.do?chem_id=001032",
+        "kind": "MSDS",
+        "ok": null,
+        "field": "sourceUrl",
+        "evidence_no": 14
+      }
+    ],
+    "photo_bytes_check": {
+      "url": "/api/media/case/9359/photo?w=320",
+      "size": 20556,
+      "ok": true
+    },
+    "b11_photo_ratio": "11/33",
+    "case_card_count": 33,
+    "photo_card_count": 11
+  },
+  "photo_marker_check": "n/a — ai.tool.done payload carries no result text",
+  "diagnostics": {
+    "direct_proxy": null
+  },
+  "checks": [
+    {
+      "name": "system.status HTTP 200",
+      "passed": true,
+      "note": "200"
+    },
+    {
+      "name": "system.status demoMode=true",
+      "passed": true,
+      "note": "{'demoMode': True, 'embeddingAvailable': False, 'evidenceChunkCount': 41281, 'evidenceByKind': {'CASE_DISASTER': 6372, 'CASE_FATALITY': 2946, 'GUIDE': 29097, 'LAW': 2866}, 'circuitOpenHosts': [], 'lastCrawlAt': '2026-09-29T09:01:17.347284+09:00'}"
+    },
+    {
+      "name": "system.status embeddingAvailable=false",
+      "passed": true,
+      "note": ""
+    },
+    {
+      "name": "system.status evidenceChunkCount>15000",
+      "passed": true,
+      "note": "41281"
+    },
+    {
+      "name": "B9 = 10/10 근거 첨부 턴수",
+      "passed": true,
+      "note": "10/10"
+    },
+    {
+      "name": "카드 번호 턴 내 유일",
+      "passed": true,
+      "note": ""
+    },
+    {
+      "name": "새 대화 번호 1부터 연속",
+      "passed": true,
+      "note": ""
+    },
+    {
+      "name": "ai.evidence가 ai.token/ai.done보다 먼저 도착",
+      "passed": true,
+      "note": ""
+    },
+    {
+      "name": "UC3 완주 — workPlanId 확보",
+      "passed": true,
+      "note": "12"
+    },
+    {
+      "name": "work-plan 상세 evidence 필드 감지(정보성 — 부재해도 실패 아님)",
+      "passed": true,
+      "note": "present=True count=14"
+    },
+    {
+      "name": "work-plan.evidence 비어있지 않음 (B1 T4)",
+      "passed": true,
+      "note": "count=14"
+    },
+    {
+      "name": "transcript 근거 번호 == 라이브 근거 번호",
+      "passed": true,
+      "note": ""
+    },
+    {
+      "name": "인용 [#n]이 알려진 번호만 참조(0건이면 정보성 통과)",
+      "passed": true,
+      "note": "cited=[]"
+    },
+    {
+      "name": "B10 내부 미디어 URL 200 + 올바른 콘텐츠타입",
+      "passed": true,
+      "note": "5/5"
+    },
+    {
+      "name": "사진 카드(자연 대화, photo_card_count > 0) — STRICT",
+      "passed": true,
+      "note": "자연 대화에서 사진 카드 11건 확보 (STRICT PASS)"
+    }
+  ],
+  "overall_pass": true,
+  "summary": {
+    "B9_근거_첨부_턴수": "10/10",
+    "B10_카드_미디어_URL_유효율": "5/5",
+    "B10_외부_URL_미검증_건수": 8,
+    "B11_유사사례_사진비율": "11/33"
+  }
+}

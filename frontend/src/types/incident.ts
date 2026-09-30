@@ -4,7 +4,10 @@ import type {
   IncidentSeverity,
   ReportStatus,
   RiskLevel,
+  WorkPlanStatus,
 } from "@/types/domain";
+import type { Evidence } from "@/types/evidence";
+import type { Emphasis } from "@/types/timeline";
 
 /** 백엔드 IncidentDtos와 1:1. 필드를 바꾸면 양쪽을 같이 바꾼다 */
 
@@ -79,7 +82,12 @@ export interface PriorIncident {
   description: string | null;
 }
 
-/** @property predicted 같은 발생형태의 위험요인이 사고 전부터 있었다 */
+/**
+ * @property predicted 같은 발생형태의 위험요인이 사고 전부터 있었다
+ * @property knownSlots 이 설비에 대해 시스템이 이미 아는 항목(연결성 개선 — `types/timeline.ts`의
+ *   `RecallView`와 같은 백엔드 DTO를 공유한다). 이 화면(UC2)에서는 아직 쓰지 않지만
+ *   응답에 실려 오므로 타입에 반영해 둔다(additive, 기존 필드는 그대로).
+ */
 export interface RecallView {
   equipmentId: number | null;
   equipmentName: string;
@@ -91,6 +99,7 @@ export interface RecallView {
   unfinishedActions: UnfinishedAction[];
   priorWorkPlans: PriorWorkPlan[];
   priorIncidents: PriorIncident[];
+  knownSlots: string[];
 }
 
 export interface Regrade {
@@ -119,12 +128,52 @@ export interface DraftView {
   disclaimer: string;
 }
 
+/** 사고 연쇄 4단계 중 하나 — 백엔드 `IncidentDtos.CascadeStep`과 1:1(record). 순서는 백엔드가 정한다(화면마다 다르게 판단하면 흔들린다).
+ * order 1 RECALL: "이 설비의 사전 기록 소환" — predicted면 CRITICAL, headline을 detail로
+ * order 2 FOLLOW_UP: "수시평가 #N 자동 생성" — 등급 변화 요약(중→상 n건, 유지 m건)
+ * order 3 REPORT: "산업재해조사표 기한" — D-n · 법적 근거
+ * order 4 WORK_PLAN: "진행 중 작업계획서 n건에 경고 부착" — affectedWorkPlans 요약(0건이면 detail "해당 없음", NORMAL)
+ */
+export type CascadeKind = "RECALL" | "FOLLOW_UP" | "REPORT" | "WORK_PLAN";
+
+export interface CascadeStep {
+  order: number;
+  kind: CascadeKind;
+  title: string;
+  detail: string;
+  emphasis: Emphasis;
+  refId: number | null;
+  refType: string | null;
+}
+
+/** 사고 영향을 받는 진행 중 작업계획서 1건 — 백엔드 `IncidentDtos.AffectedWorkPlan`과 1:1(record).
+ * 같은 설비, 상태 SUBMITTED/APPROVED/CONDITIONAL, workDate >= 사고일인 계획서만 온다 */
+export interface AffectedWorkPlan {
+  workPlanId: number;
+  workName: string;
+  workDate: string;
+  status: WorkPlanStatus;
+  warning: string;
+}
+
+/**
+ * @property similarCases 동종 유사 사고(공단 사례) 근거 카드. B1 Task 5가 채울 때까지 응답에 없을 수 있다(optional)
+ * @property evidence     조사표 초안(cause·prevention)의 인용 [#n]이 가리키는 근거 원장 전체.
+ *   `RecallView`가 아니라 이 응답 최상위에 실린다(컨트롤러 판단 R28) — `RecallView`는 UC4와 공유하는
+ *   DTO라 여기서 손대지 않는다.
+ * @property cascade 사고 연쇄 4단계(순서 고정, order 1~4). Task 3a(백엔드)가 채울 때까지 응답에 없을 수 있다(optional)
+ * @property affectedWorkPlans 사고 영향을 받는 진행 중 작업계획서 목록. cascade와 같은 시점에 Task 3a가 채운다(optional)
+ */
 export interface IncidentRegisterResponse {
   incident: IncidentSummary;
   reportDuty: ReportDuty;
   recall: RecallView;
   followUp: FollowUpView;
   draft: DraftView;
+  similarCases?: Evidence[];
+  evidence?: Evidence[];
+  cascade?: CascadeStep[];
+  affectedWorkPlans?: AffectedWorkPlan[];
 }
 
 export interface IncidentListItem {

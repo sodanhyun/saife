@@ -1,5 +1,6 @@
 import { formUrl } from "@/api/formUrl";
 import AgentMessage from "@/components/common/AgentMessage";
+import EvidenceGrid from "@/components/evidence/EvidenceGrid";
 import Button from "@/components/ui/Button";
 import LinkButton from "@/components/ui/LinkButton";
 import Modal from "@/components/ui/Modal";
@@ -53,8 +54,11 @@ export default function WorkPlanDetailModal({ detail, busyAction, onClose, onAck
       {detail.briefing && (
         <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-xs font-semibold text-slate-500">작업 전 브리핑</h3>
-          <div className="mt-2 text-sm"><AgentMessage text={detail.briefing} /></div>
+          <div className="mt-2 text-sm"><AgentMessage text={detail.briefing} scope={`workplan-${detail.id}`} /></div>
         </section>
+      )}
+      {detail.evidence && detail.evidence.length > 0 && (
+        <EvidenceGrid items={detail.evidence} title="참고 자료" collapsedByDefault scope={`workplan-${detail.id}`} className="mt-4" />
       )}
     </Modal>
   );

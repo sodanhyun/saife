@@ -29,10 +29,19 @@ SSE data:  { type, correlationId, targetId, seq, ts, payload }
 
 | 도메인 | 이벤트 예시 |
 |--------|-----------|
-| `ai.*` | `ai.token`, `ai.done`, `ai.error`, `ai.tool.start`, `ai.tool.done`, **`ai.slot.request`** |
+| `ai.*` | `ai.token`, `ai.done`, `ai.error`, `ai.tool.start`, `ai.tool.done`, **`ai.slot.request`**, **`ai.recall`**, **`ai.evidence`** |
 | `assess.*` | `assess.progress`, `assess.done`, `assess.failed` — 사진 판독(비전) 잡 |
 | `batch.*` | `batch.progress`, `batch.done`, `batch.error` |
 | `system.*` | `system.heartbeat`, `system.keepalive` |
+
+## 이벤트별 payload 상세
+
+`ai.*`의 신규 이벤트 중 봉투 필드만으로는 payload 모양이 드러나지 않는 것들.
+
+| 이벤트 | 발행 시점 | payload |
+|---|---|---|
+| `ai.recall` | `findLocationEquipment` 매칭 성공 시 도구 레벨 | `RecallView`(+knownSlots). 모델 문장과 무관하게 회상 카드가 뜬다 |
+| `ai.evidence` | 턴 종료, `ai.token` 앞 | **감싸지 않은 배열** `Evidence[]` — 이번 턴에 새로 등록된 근거 카드(번호 매김). `targetId` = `conversationId`. `types/sse.ts`의 `EvidencePayload` |
 
 ## ⚠️ `ai.slot.request` — 스트림 중간에 멈추는 이벤트
 

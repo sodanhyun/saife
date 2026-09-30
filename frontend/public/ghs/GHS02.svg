@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><!-- 원저작: 자체 제작(단순화). 인화성 -->
+<polygon points="50,3 97,50 50,97 3,50" fill="#fff" stroke="#dc2626" stroke-width="6"/>
+<path fill-rule="evenodd" fill="#000" d="M50 15C35 35 30 45 32 58 34 72 46 82 50 85 54 82 66 72 68 58 70 45 65 35 50 15ZM50 40C56 50 58 58 54 66 51 71 46 71 44 66 41 59 44 50 50 40Z"/>
+</svg>

@@ -359,3 +359,22 @@ public record Evidence(int no, EvidenceKind kind, Long refId, String refKey, Str
 
 ## 14. 변경하지 않는 것
 `ai/config/` 5종, 도구 6종 개수, SSE 봉투 규약, DTO 1:1 규칙, Flyway 전진 원칙, 데모 모드 원칙, 룰 엔진 등급 판정, 기존 4 라우트, 타임라인 페이지, 가상 사업장 제약.
+
+---
+
+## 정오표 (2026-09-29)
+
+구현 중 기록된 판정(ruling)에 따라 본문과 달라진 점. 본문은 설계 당시 기록으로 두고, 실제 동작은 아래를 따른다.
+
+| 본문 | 실제 | 근거 |
+|---|---|---|
+| §7.5 `ai.evidence` payload `{items}`, `ai.token` 뒤 발행 | **감싸지 않은 배열 `Evidence[]`**, 턴 종료 시 **`ai.token` 앞**에 발행. `targetId` = `conversationId` | R32, B1 Task 2 판정. `.claude/rules/sse-streaming.md` 표가 코드와 일치 |
+| §7.6 `RecallView.similarCases` | 유사 사고사례는 **`RegisterResponse.similarCases`**(UC2 등록 응답)에 싣는다. `RecallView`에는 없다 | R40 |
+| §6.4 라이브 호출은 모두 `LiveOrCache` 회로를 탄다 | `PublicApiCrawler.checkLatest`는 회로를 거치지 않는다. 제출 스택은 KOSHA 키를 넘기지 않아 호출 자체가 없다 | B1 Task 3 판정 |
+| §6.4 크롤러가 새 건을 키가 있으면 즉시 임베딩 | 구현하지 않았다. 관리자 `POST /api/admin/index/rebuild`가 같은 일을 하며, 무대에서는 크롤하지 않으므로 영향 없음 | R57 |
+| 절단선 ⑤ GUIDE 문맥 보강(contextual enrichment) | 약 1.85만 GUIDE child는 보강 없이 원문으로 임베딩됐다(사실상 ⑤ 절단). 프리즈 뒤 선택 개선 | R45 |
+| (최종 리뷰) 법령 원문 링크 = 법제처 상세 링크 | 사람용 조문 페이지 `https://www.law.go.kr/법령/{법령명}/제N조[의M]`. DRF 링크는 OC 자격증명을 담아 쓰지 않는다. V11이 기존 볼륨을 정리한다 | 최종 리뷰 F1 |
+| §6.5 프리페치 = 제조업 사례 상위 200건 + 축별 지침 30건 | **시연 설비의 위험요인 축으로 도구와 같은 검색을 먼저 돌려** 그 결과의 사진·PDF를 받고, 남는 상한(사진 200·PDF 30)을 제조업 사례로 채운다(사진 있는 사례는 업종이 비어 있어 실제로는 축 검색분이 전부다). 응답에 `demoPhotos`/`demoPdfs` | 최종 리뷰 F6, R61 |
+| §6.6 `POST /api/admin/index/rebuild?kind=…` | 완료(DONE)된 kind는 **`force=true` 없이는 no-op**(기존 보고서 반환). 키 없는 데모 모드에서는 **아무것도 지우지 않고 `SKIPPED`** | 최종 리뷰 F5 |
+| §6.6 `GET /api/admin/index/export` → `./data/export/` | **`POST`**, `dir`는 작업 디렉터리 아래로 제한(기본 `backend/src/main/resources/seed`) | 최종 리뷰 F17 |
+| §8.1 인용 칩 — 브리핑의 유사 사례 번호 | 브리핑 본문도 `[#n]` 형식으로 쓴다(맨 `#n`은 칩이 되지 않는다). 데모 모드 답변에서도 칩 클릭이 동작 | H-6c (cd12eff) |

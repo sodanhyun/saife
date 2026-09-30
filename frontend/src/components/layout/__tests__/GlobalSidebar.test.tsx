@@ -1,7 +1,10 @@
 // 데스크톱 경계선 토글이 키보드로 접근 가능한 네이티브 button인지 확인한다.
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
+
+// 사이드바 하단 SystemStatusLine이 마운트 시 조회한다 — 실제 네트워크 호출 금지.
+vi.mock("@/api/systemApi", () => ({ systemApi: { status: vi.fn().mockResolvedValue(null) } }));
 
 import GlobalSidebar from "@/components/layout/GlobalSidebar";
 import { useUiStore } from "@/stores/uiStore";

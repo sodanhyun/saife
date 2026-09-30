@@ -14,6 +14,9 @@ public interface HazardRepository extends JpaRepository<Hazard, Long> {
 
     List<Hazard> findByProcessIdOrderByCreatedAtDesc(Long processId);
 
+    /** 사업장 전체 위험요인 — "오늘 할 일"이 조치·설비를 site 단위로 훑을 때 쓴다 */
+    List<Hazard> findBySiteId(Long siteId);
+
     /**
      * 채택률 지표 — <b>게이트를 통과한 축만 센다.</b>
      *

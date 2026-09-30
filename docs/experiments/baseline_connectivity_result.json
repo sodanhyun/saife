@@ -1,0 +1,203 @@
+{
+  "measured_at": "2026-09-29T08:32:30.185845+00:00",
+  "base_commit": "c26861b",
+  "base_url": "http://localhost:5174",
+  "measured_at_note": "post-A3 검색 계층(리랭크·RRF)이 있으나 UI/에이전트 루프에 미연결된 시점. 연결성 지표(B1~B5)는 A1~A3 변경의 영향을 받지 않는다.",
+  "B1_기억_도달_클릭_수": {
+    "정의": "앱 진입(/)부터 '이동식 사다리 A에 미이행 조치가 있다'가 화면 문자열로 나타날 때까지 최소 화면 이동 수",
+    "값": 1,
+    "근거": [
+      "frontend/src/components/layout/menu.ts:18 LANDING_PATH=/work-plan",
+      "frontend/src/App.tsx:32 '/'→LANDING_PATH 리다이렉트",
+      "frontend/src/components/layout/menu.ts:11-16 MENU 4번째 항목 /timeline",
+      "frontend/src/pages/Timeline/hooks/useTimeline.ts:9-10 selectedId ?? equipment.data[0]?.id",
+      "backend/.../EquipmentRepository.java:21 findBySiteIdOrderByIdAsc",
+      "backend/.../V2__seed_virtual_site.sql:28 equipment id=1 = 이동식 사다리 A",
+      "frontend/src/pages/Timeline/components/TimelineSummary.tsx:17 '미이행 조치' KpiCell"
+    ],
+    "실측_확인": {
+      "endpoint": "/api/dashboard/equipment/1/timeline",
+      "http_status": 200,
+      "unfinishedActionCount": 1
+    },
+    "설명": "사이드바 '설비 타임라인' 클릭 1회 → useTimeline 기본 선택(id=1, 이동식 사다리 A) → TimelineSummary가 드롭다운 조작 없이 '미이행 조치' 수치를 보여준다. (연결성 프롬프트 Phase 0가 가정한 '드롭다운 변경 포함 2 이상'과 다르다 — 코드 근거로 재산정)"
+  },
+  "B3_첫화면_정보량": {
+    "정의": "/(=/work-plan) 최초 렌더에서 설비 이름·등급·미이행이 하나라도 보이는가",
+    "값": "아니오",
+    "근거": [
+      "frontend/src/pages/WorkPlan/WorkPlanPage.tsx:29-50 — 최초 렌더 구성 요소는 빈 ChatThread, (조건부)SlotPrompt, Composer, 빈 WorkPlanTable뿐. 설비명·등급·미이행 텍스트가 대화 시작 전에는 어디에도 없다."
+    ]
+  },
+  "demo_mode": true,
+  "b2_status": "OK",
+  "B2_회상_보장률": {
+    "정의": "POST /api/agent/chat에 데모 모드 첫 턴을 10회 보내 (a) 첫 assistant 토큰 묶음에 '미이행' 또는 '최근 평가' 포함 비율, (b) 구조화된 ai.recall 이벤트 발행 수",
+    "첫턴_문자열_포함률": "0/10",
+    "ai_recall_이벤트": "0/10",
+    "설명": "실측 결과 0/10 — 놀랍게도 텍스트 포함률도 0이다. 원인: 연결성 프롬프트가 지정한 첫 턴 문구('공장동 후면 차양부 천장 페인트 작업')는 설비명을 포함하지 않는다. EquipmentMatcher는 위치 태그로 공정('표면처리 라인')까지는 찾지만, 그 공정에 설비가 2건(이동식 사다리 A / 도장 부스 1호) 있어 설비명 단서 없이는 Jaro-Winkler 점수가 SUGGEST_THRESHOLD(0.72) 미만으로 떨어져 'unmatched'로 떨어진다 — 즉 회상은커녕 설비 매칭 자체가 실패한다(도구 결과: '등록되지 않은 설비입니다'). 설비명을 포함한 문구('…이동식 사다리에서 천장 페인트 작업')로 별도 확인한 결과 매칭은 성공하고 '미이행 조치'·'최근 평가 등급' 문구가 정상적으로 나타난다 — 데모 파이프라인 자체는 정상이며, 문제는 프롬프트가 지정한 문구가 이 매칭기의 약점을 그대로 드러낸다는 점이다. 구조화 이벤트(ai.recall)는 프롬프트 문구와 무관하게 코드에 아예 존재하지 않는다(grep 결과 0건) — 모델 문장과 무관하게 뜨는 회상 카드가 아직 없다는 뜻."
+  },
+  "B9_근거_첨부_턴수": {
+    "정의": "데모 모드 첫 턴 10회 중 ai.evidence 이벤트 발행 수",
+    "값": "0/10",
+    "설명": "ai.evidence 이벤트 타입이 백엔드 어디에도 없다(grep 0건, backend/src/main/java/io/saife 전체). A1~A3 근거 검색 계층은 이 커밋에 존재하지만 SSE·에이전트 루프에 아직 연결되지 않았다."
+  },
+  "B10_응답내_URL_유효율": {
+    "정의": "ai.token 텍스트에서 http(s) URL을 뽑아 HEAD 200 비율",
+    "값": "n/a",
+    "세부": "ai.token 텍스트에서 http(s) URL이 한 건도 발견되지 않았다 (0/10회)"
+  },
+  "_raw_per_call": [
+    {
+      "idx": 1,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 2,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 3,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 4,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 5,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 6,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 7,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 8,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 9,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    },
+    {
+      "idx": 10,
+      "substr_hit": false,
+      "ai_recall_events": 0,
+      "ai_evidence_events": 0,
+      "urls_found": [],
+      "error": null,
+      "token_text_preview": "**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. 도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n등록되지 않은 설비입니다. (unmatched)\n작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.\n공정/장소: 표면처리 라인 (도장)\n\n\n어느 장소·설비에서 하는 작업인지 알려주세요. (예: 공장동 후면 차양부 이동식 사다리)"
+    }
+  ],
+  "B4_시드_이야기_완결_설비수": {
+    "정의": "GET /api/dashboard/equipment/{1..6}/timeline에서 incidentCount>0인 설비 수",
+    "값": 1,
+    "세부": [
+      {
+        "equipmentId": 1,
+        "http_status": 200,
+        "incidentCount": 0
+      },
+      {
+        "equipmentId": 2,
+        "http_status": 200,
+        "incidentCount": 0
+      },
+      {
+        "equipmentId": 3,
+        "http_status": 200,
+        "incidentCount": 0
+      },
+      {
+        "equipmentId": 4,
+        "http_status": 200,
+        "incidentCount": 0
+      },
+      {
+        "equipmentId": 5,
+        "http_status": 200,
+        "incidentCount": 0
+      },
+      {
+        "equipmentId": 6,
+        "http_status": 200,
+        "incidentCount": 1
+      }
+    ]
+  },
+  "B5_홈_인박스_존재여부": {
+    "정의": "/api/dashboard/today, /api/dashboard/equipment/cards 호출 결과 (프롬프트는 404를 가정하지만 실측값을 그대로 기록한다)",
+    "값": [
+      {
+        "endpoint": "/api/dashboard/today",
+        "http_status": 200,
+        "body": "{\"asOf\":\"2026-09-29\",\"items\":[{\"kind\":\"OVERDUE_ACTION\",\"emphasis\":\"CRITICAL\",\"title\":\"기한 초과 조치 — 차양부 천장에 안전대 부착설비(앵커) 설치 (31일 경과)\",\"detail\":\"기한 2026-08-29\",\"equipmentId\":1,\"equipmentName\":\"이동식 사다리 A\",\"dueDate\":\"2026-08-29\",\"daysRemaining\":-31,\"linkType\":\"EQUIPMENT\",\"refId\":1},{\"kind\":\"DUE_ACTION\",\"emphasis\":\"WARNING\",\"title\":\"조치 기한 D-7 — 고소작업대 안전난간 보수 후 월 1회 점검(재발 방지)\",\"detail\":\"기한 2026-10-06\",\"equipmentId\":6,\"equipmentName\":\"고소작업대\",\"dueDate\":\"2026-10-06\",\"daysRemaining\":7,\"linkType\":\"EQUIPMENT\""
+      },
+      {
+        "endpoint": "/api/dashboard/equipment/cards",
+        "http_status": 200,
+        "body": "[{\"id\":1,\"name\":\"이동식 사다리 A\",\"locationTag\":\"공장동 후면 차양부\",\"processName\":\"표면처리 라인\",\"currentRiskLevel\":\"HIGH\",\"currentRiskAxis\":\"FALL\",\"lastAssessedOn\":\"2026-08-29\",\"unfinishedActionCount\":1,\"overdueActionCount\":1,\"upcomingWorkPlanCount\":0,\"incidentCount\":0,\"lastEventOn\":\"2026-08-29\",\"emphasis\":\"CRITICAL\",\"headline\":\"기한이 지난 미이행 조치가 1건 있습니다. 사고 전에 닫아야 하는 항목입니다.\"},{\"id\":5,\"name\":\"전동 지게차 1호\",\"locationTag\":\"창고동 1층\",\"processName\":\"자재 창고\",\"currentRiskLevel\":\"MEDIUM\",\"currentRiskAxis\":\"STRUCK\",\"lastAssessed"
+      }
+    ],
+    "설명": "두 엔드포인트 모두 404가 아니라 HTTP 500(errorType=INTERNAL)을 반환했다. GlobalExceptionHandler.java의 @ExceptionHandler(Exception.class) 캐치올이 Spring의 미매핑 경로 예외까지 500으로 감싸는 것으로 보인다(엔드포인트 미구현은 맞지만 상태코드는 404가 아니라 500 — Phase 1에서 신규 엔드포인트를 추가하면 자연히 사라질 값이므로 백엔드를 고치지 않고 실측값 그대로 기록한다)."
+  },
+  "B11_유사사례_사진비율": {
+    "정의": "searchCases 결과 텍스트에서 '[사진]' 표기 비율",
+    "값": "0",
+    "근거": [
+      "backend/src/main/java/io/saife/ai/tools/HazardAnalysisTools.java:127-134 searchCases()가 만드는 문자열은 keyword/contents + business만 포함한다",
+      "'[사진]' 문자열 리터럴이 backend 전체에 존재하지 않는다 (grep 0건)",
+      "backend/src/main/java/io/saife/ai/tools/ToolCallTracker.java:81-89 ai.tool.done payload에는 toolName/callOrder/success/durationMs만 있고 결과 본문(result)은 클라이언트로 나가지 않는다 — 런타임 재현 불가, 코드 근거로 대체"
+    ]
+  }
+}

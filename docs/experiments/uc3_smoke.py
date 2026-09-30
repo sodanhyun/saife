@@ -8,15 +8,18 @@ UC3 시연 경로 스모크 테스트.
   3. 필수 항목이 비면 되묻는가
   4. 답을 주면 재호출하고 브리핑까지 가는가
 
-실행: python uc3_smoke.py
+실행:
+  python uc3_smoke.py
+  SAIFE_BASE_URL=http://localhost:8081 python uc3_smoke.py
 """
 import json
+import os
 import sys
 import urllib.request
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-BASE = "http://localhost:8080/api/agent/chat"
+BASE = os.environ.get("SAIFE_BASE_URL", "http://localhost:8080") + "/api/agent/chat"
 
 
 def turn(message, conversation_id=None, slot_key=None):

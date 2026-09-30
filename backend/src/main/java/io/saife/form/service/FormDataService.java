@@ -1,7 +1,11 @@
 package io.saife.form.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.saife.core.domain.*;
 import io.saife.core.repository.*;
+import io.saife.evidence.Evidence;
+import io.saife.evidence.domain.WorkPlanEvidence;
+import io.saife.evidence.repository.WorkPlanEvidenceRepository;
 import io.saife.form.dto.FormViews;
 import io.saife.incident.domain.Incident;
 import io.saife.incident.repository.IncidentRepository;
@@ -21,6 +25,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -72,6 +77,8 @@ public class FormDataService {
     private final WorkPlanRepository workPlanRepository;
     private final WorkPlanSlotRepository workPlanSlotRepository;
     private final WorkPlanWorkerRepository workPlanWorkerRepository;
+    private final WorkPlanEvidenceRepository workPlanEvidenceRepository;
+    private final ObjectMapper objectMapper;
     private final EquipmentHistoryRecaller recaller;
 
     // ---------- 위험성평가표 ----------
@@ -150,7 +157,8 @@ public class FormDataService {
 
         EquipmentHistoryRecaller.Recall recall = recaller.recall(
                 incident.getEquipmentId(), incident.getAccidentType(),
-                incident.getOccurredAt(), incident.getCreatedAt());
+                incident.getOccurredAt(), incident.getCreatedAt(),
+                EquipmentHistoryRecaller.Purpose.POST_INCIDENT);
 
         List<String> recallLines = new ArrayList<>();
         recallLines.add(recall.headline());
@@ -222,6 +230,12 @@ public class FormDataService {
                         s.isConflicted()))
                 .toList();
 
+        List<FormViews.ReferenceRow> references = workPlanEvidenceRepository
+                .findByWorkPlanIdOrderByEvidenceNo(workPlanId).stream()
+                .map(this::toReferenceRow)
+                .filter(Objects::nonNull)
+                .toList();
+
         return new FormViews.WorkPlanForm(
                 site == null ? "-" : site.getName(),
                 equipmentName(plan.getEquipmentId()),
@@ -234,10 +248,27 @@ public class FormDataService {
                 nvl(plan.getApprovedBy(), "-"),
                 format(plan.getApprovedAt()),
                 nvl(plan.getApprovalNote(), "-"),
+                plan.getWarningNote(),
                 workers, slots,
                 nvl(plan.getBriefing(), "(브리핑 미생성)"),
                 format(plan.getBriefingAckAt()),
-                TBM_NOTICE, AI_NOTICE);
+                TBM_NOTICE, AI_NOTICE, references);
+    }
+
+    /**
+     * 근거 원장 스냅샷 한 행 → 서식 "참고 자료" 줄.
+     *
+     * <p>payload 디코딩 실패는 그 한 건만 건너뛴다 — 근거 카드 하나가 깨졌다고
+     * 법정 서식 전체 렌더링이 막히면 안 된다.
+     */
+    private FormViews.ReferenceRow toReferenceRow(WorkPlanEvidence row) {
+        try {
+            Evidence e = objectMapper.readValue(row.getPayload(), Evidence.class);
+            return new FormViews.ReferenceRow(e.no(), e.title(), e.sourceUrl(), format(e.fetchedAt()));
+        } catch (Exception ex) {
+            log.warn("[FORM] 근거 복원 실패 workPlanId={} no={}: {}", row.getWorkPlanId(), row.getEvidenceNo(), ex.getMessage());
+            return null;
+        }
     }
 
     // ---------- 라벨 ----------

@@ -1,5 +1,6 @@
 package io.saife.workplan.dto;
 
+import io.saife.evidence.Evidence;
 import io.saife.workplan.domain.WorkPlanStatus;
 
 import java.math.BigDecimal;
@@ -24,7 +25,11 @@ public final class WorkPlanDtos {
                            boolean briefingAcknowledged,
                            OffsetDateTime briefingAckAt) {}
 
-    /** @param slots 되묻기로 채운 값들. 대장값과 다르면 {@code conflicted}가 참이다 */
+    /**
+     * @param slots       되묻기로 채운 값들. 대장값과 다르면 {@code conflicted}가 참이다
+     * @param evidence    createWorkPlan 시점에 대화 원장에 쌓여 있던 근거 카드(번호순). "참고 자료" 그리드가 읽는다
+     * @param warningNote 사고 연쇄(UC2)가 붙인 경고(R48). 경고가 없으면 null
+     */
     public record Detail(Long id,
                          Long siteId,
                          Long equipmentId,
@@ -43,7 +48,9 @@ public final class WorkPlanDtos {
                          String approvedBy,
                          OffsetDateTime approvedAt,
                          List<Slot> slots,
-                         List<Worker> workers) {}
+                         List<Worker> workers,
+                         List<Evidence> evidence,
+                         String warningNote) {}
 
     /**
      * @param ledgerValue   설비 대장이 알고 있던 값

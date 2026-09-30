@@ -2,10 +2,10 @@ package io.saife.incident.service;
 
 import io.saife.ai.config.GeminiSafetySettings;
 import io.saife.common.config.DemoModeConfig;
-import io.saife.core.domain.AccidentType;
+import io.saife.evidence.Evidence;
+import io.saife.evidence.EvidenceKind;
+import io.saife.evidence.ledger.CitationSanitizer;
 import io.saife.incident.domain.Incident;
-import io.saife.publicapi.domain.PublicCase;
-import io.saife.publicapi.repository.PublicCaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -13,6 +13,8 @@ import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 산업재해조사표의 <b>재해발생 원인</b>과 <b>재발방지 계획</b> 초안을 쓴다.
@@ -32,10 +34,7 @@ import java.util.List;
 @Slf4j
 public class IncidentReportDrafter {
 
-    private static final int SIMILAR_CASE_LIMIT = 3;
-
     private final ChatClient.Builder chatClientBuilder;
-    private final PublicCaseRepository publicCaseRepository;
     private final DemoModeConfig demoModeConfig;
 
     /** @param aiGenerated 모델이 실제로 썼는지. false면 폴백 문안이다 */
@@ -44,19 +43,27 @@ public class IncidentReportDrafter {
     /**
      * 조사표 문안 초안을 만든다. 어떤 이유로든 실패하면 폴백 문안을 돌려준다.
      *
+     * <p>{@code evidence}는 이번 사고 등록 응답에 실린 근거(유사 사례 3 + 사고 후 조문 2,
+     * {@code #n} 번호가 이미 붙어 있다) — 프롬프트에 카드로 나열하고, 모델 출력은
+     * {@link CitationSanitizer}로 후처리해 <b>이 목록에 없는 번호</b>는 지운다(환각 인용 차단).
+     * 빈 리스트여도 안전하게 동작한다 — 인용할 게 없으면 그냥 인용이 없는 문안이 된다.
+     *
      * @param incident 등록된 사고
      * @param recall   소환된 설비 이력 — 문안의 근거가 된다
+     * @param evidence 번호가 매겨진 근거 목록(유사 사례 + 사고 후 조문)
      */
-    public Draft draft(Incident incident, EquipmentHistoryRecaller.Recall recall) {
+    public Draft draft(Incident incident, EquipmentHistoryRecaller.Recall recall, List<Evidence> evidence) {
+        Set<Integer> knownNos = evidence.stream().map(Evidence::no).collect(Collectors.toSet());
+
         if (demoModeConfig.isDemoMode()) {
             log.info("[UC2] 데모 모드 — 조사표 문안은 폴백을 쓴다");
-            return fallback(incident, recall);
+            return sanitize(fallback(incident, recall), knownNos);
         }
         try {
             String text = chatClientBuilder.build()
                     .prompt()
                     .system(SYSTEM)
-                    .user(buildUserPrompt(incident, recall))
+                    .user(buildUserPrompt(incident, recall, evidence))
                     .options(GoogleGenAiChatOptions.builder()
                             .safetySettings(GeminiSafetySettings.SAFETY_SETTINGS_OFF)
                             .build())
@@ -66,15 +73,21 @@ public class IncidentReportDrafter {
             Draft parsed = parse(text);
             if (parsed == null) {
                 log.warn("[UC2] 조사표 문안 파싱 실패 — 폴백 사용");
-                return fallback(incident, recall);
+                return sanitize(fallback(incident, recall), knownNos);
             }
-            return parsed;
+            return sanitize(parsed, knownNos);
 
         } catch (Exception e) {
             // 모델이 죽어도 사고 등록과 법정 기한은 살아야 한다
             log.warn("[UC2] 조사표 문안 생성 실패 — 폴백 사용: {}", e.toString());
-            return fallback(incident, recall);
+            return sanitize(fallback(incident, recall), knownNos);
         }
+    }
+
+    /** 모델이 목록에 없는 번호를 인용했으면 지운다. 폴백 문안도 예외 없이 거친다(항상 안전한 경로 하나) */
+    private Draft sanitize(Draft d, Set<Integer> knownNos) {
+        return new Draft(CitationSanitizer.sanitize(d.cause(), knownNos),
+                CitationSanitizer.sanitize(d.prevention(), knownNos), d.aiGenerated());
     }
 
     private static final String SYSTEM = """
@@ -86,6 +99,7 @@ public class IncidentReportDrafter {
             - 재발방지 계획에는 이미 등록돼 있던 미이행 조치가 있으면 그것을 첫 항목으로 쓰십시오.
               새 대책을 나열하기 전에 하기로 했던 것부터 다루는 것이 조사표의 신뢰를 만듭니다.
             - 한국어 공문 문체로 쓰십시오.
+            - 재발방지 대책 문장 끝에 근거 번호를 [#n]으로 붙이세요. 목록에 없는 번호는 쓰지 마세요.
 
             출력 형식을 정확히 지키십시오. 다른 말을 덧붙이지 마십시오.
 
@@ -98,7 +112,7 @@ public class IncidentReportDrafter {
             3. (대책)
             """;
 
-    private String buildUserPrompt(Incident incident, EquipmentHistoryRecaller.Recall recall) {
+    private String buildUserPrompt(Incident incident, EquipmentHistoryRecaller.Recall recall, List<Evidence> evidence) {
         StringBuilder sb = new StringBuilder();
 
         sb.append("[사고 개요]\n");
@@ -155,33 +169,28 @@ public class IncidentReportDrafter {
                     .append("에 위험 브리핑을 확인했습니다.\n");
         }
 
-        List<PublicCase> cases = similarCases(incident.getAccidentType());
-        if (!cases.isEmpty()) {
-            sb.append("\n[공공 데이터의 유사 재해사례]\n");
-            for (PublicCase c : cases) {
-                sb.append("- ").append(nvl(c.getKeyword(), c.getContents())).append('\n');
-            }
-        }
+        appendEvidenceSection(sb, evidence);
 
         sb.append("\n위 근거만 사용해 [원인]과 [재발방지]를 작성하십시오.");
         return sb.toString();
     }
 
-    private List<PublicCase> similarCases(AccidentType axis) {
-        if (axis == null) {
-            return List.of();
+    /**
+     * 근거 목록을 {@code #n} 카드로 나열한다. {@code IncidentEvidenceCollector}가 이미
+     * 번호를 매겨 넘긴다 — 유사 사례(사진 우선) 3건 + 사고 후 조문 2건.
+     */
+    private void appendEvidenceSection(StringBuilder sb, List<Evidence> evidence) {
+        if (evidence.isEmpty()) {
+            return;
         }
-        try {
-            // 제조업 사례를 먼저 찾고, 없으면 업종 무관으로 넘어간다
-            List<PublicCase> manufacturing = publicCaseRepository.search(axis, "제조업");
-            List<PublicCase> pool = manufacturing.isEmpty()
-                    ? publicCaseRepository.search(axis, null) : manufacturing;
-            return pool.stream()
-                    .limit(SIMILAR_CASE_LIMIT)
-                    .toList();
-        } catch (Exception e) {
-            log.debug("[UC2] 유사사례 조회 실패: {}", e.toString());
-            return List.of();
+        sb.append("\n[근거 목록 — 인용은 [#n] 형식으로]\n");
+        for (Evidence e : evidence) {
+            String label = e.kind().isCase() ? "사례" : e.kind() == EvidenceKind.LAW ? "조문" : e.kind().name();
+            sb.append('#').append(e.no()).append(" [").append(label).append("] ").append(e.title());
+            if (e.snippet() != null && !e.snippet().isBlank()) {
+                sb.append(" (").append(e.snippet()).append(')');
+            }
+            sb.append('\n');
         }
     }
 

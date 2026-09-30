@@ -1,4 +1,5 @@
 import type { AccidentType, RiskLevel } from "@/types/domain";
+import type { PriorHazard, PriorIncident, PriorWorkPlan, UnfinishedAction } from "@/types/incident";
 
 /** 백엔드 TimelineDtos와 1:1 */
 
@@ -60,4 +61,82 @@ export interface EquipmentTimeline {
   equipment: EquipmentHead;
   summary: TimelineSummary;
   events: TimelineEvent[];
+}
+
+/**
+ * 설비 홈 카드 — 설비 하나의 현재 상태를 한 장으로. `unfinishedActionCount`·
+ * `overdueActionCount`·`incidentCount`·`currentRiskLevel`은 같은 설비의
+ * `EquipmentTimeline.summary`와 항상 같다(백엔드가 같은 계산을 재사용해서 낸다).
+ * @property emphasis 카드 테두리·배지 톤. 백엔드가 정한다 — 화면마다 다르게 판단하면 안 된다
+ * @property headline 카드 한 줄. TimelineSummary.headline과 같은 생성기를 쓴다
+ */
+export interface EquipmentCard {
+  id: number;
+  name: string;
+  locationTag: string | null;
+  processName: string | null;
+  currentRiskLevel: RiskLevel | null;
+  currentRiskAxis: AccidentType | null;
+  lastAssessedOn: string | null;
+  unfinishedActionCount: number;
+  overdueActionCount: number;
+  upcomingWorkPlanCount: number;
+  incidentCount: number;
+  lastEventOn: string | null;
+  emphasis: Emphasis;
+  headline: string;
+}
+
+/**
+ * 설비 회상 뷰 — 백엔드 `TimelineDtos.RecallView`와 1:1. `IncidentDtos.RecallView`가
+ * 같은 구조를 재사용하므로(백엔드가 delegate) `types/incident.ts`의 `RecallView`와
+ * 필드가 겹친다 — Prior* 타입은 그쪽 정의를 그대로 가져와 중복 선언하지 않는다.
+ * @property knownSlots 이 설비에 대해 시스템이 이미 아는 항목의 사람 말
+ *   (["장소","설비","공정/작업유형","최근 평가 등급","미이행 조치"] 중 값이 있는 것만)
+ */
+export interface RecallView {
+  equipmentId: number | null;
+  equipmentName: string;
+  locationTag: string | null;
+  headline: string;
+  predicted: boolean;
+  warnedAt: string | null;
+  priorHazards: PriorHazard[];
+  unfinishedActions: UnfinishedAction[];
+  priorWorkPlans: PriorWorkPlan[];
+  priorIncidents: PriorIncident[];
+  knownSlots: string[];
+}
+
+/** 오늘 할 일 인박스 — 백엔드 `TodayView`/`TodayItem`(dashboard.service.TodayService)와 1:1. */
+export type TodayKind =
+  | "OVERDUE_ACTION"
+  | "DUE_ACTION"
+  | "RISKY_WORK_PLAN"
+  | "PENDING_APPROVAL"
+  | "REPORT_DUE"
+  | "PATROL_DUE"
+  | "PERIODIC_DUE";
+
+/** 클릭 시 이동 대상 종류. 화면 쪽 라우팅 표는 `TodayInbox.tsx`의 `resolveTodayLink`가 정한다. */
+export type TodayLinkType = "EQUIPMENT" | "WORK_PLAN" | "INCIDENT" | "ASSESSMENT";
+
+export interface TodayItem {
+  kind: TodayKind;
+  emphasis: Emphasis;
+  title: string;
+  detail: string;
+  equipmentId: number | null;
+  equipmentName: string | null;
+  dueDate: string | null;
+  daysRemaining: number | null;
+  linkType: TodayLinkType;
+  refId: number | null;
+}
+
+export interface TodayView {
+  asOf: string;
+  items: TodayItem[];
+  criticalCount: number;
+  warningCount: number;
 }

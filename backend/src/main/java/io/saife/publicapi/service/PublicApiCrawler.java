@@ -186,6 +186,41 @@ public class PublicApiCrawler {
         return checkpointRepository.findAll();
     }
 
+    /** 최신 등재 건수 확인용 응답 — 카드 메타 "공단 기준" 표시에 쓴다 */
+    public record LatestInfo(int totalCount, OffsetDateTime checkedAt) {}
+
+    /**
+     * 공단에 최신 등재 건수만 확인한다(1페이지 1건). 도구 결과 텍스트에
+     * "공단 최신 등재 N건 확인"으로 붙는다.
+     *
+     * <p>키가 없거나 실패하면 {@code Optional.empty()}다 — 무대에서 절대
+     * 예외를 던지지 않고, 5초 타임아웃으로 도구를 막지 않는다.
+     */
+    public Optional<LatestInfo> checkLatest(String datasetName) {
+        Dataset dataset = DATASETS.stream()
+                .filter(d -> d.dataset().equalsIgnoreCase(datasetName))
+                .findFirst()
+                .orElse(null);
+        String key = dataset == null ? null : keyFor(dataset.dataset());
+        if (dataset == null || key == null || key.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            String url = "%s%s?serviceKey=%s&callApiId=%s&numOfRows=1&pageNo=1&type=json".formatted(
+                    baseUrl, dataset.path(), URLEncoder.encode(key, StandardCharsets.UTF_8), dataset.callApiId());
+            HttpResponse<String> res = http.send(
+                    HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() != 200) {
+                return Optional.empty();
+            }
+            return Optional.of(new LatestInfo(MAPPER.readTree(res.body()).path("body").path("totalCount").asInt(0),
+                    OffsetDateTime.now()));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
     // ---------- 수집 ----------
 
     private JsonNode fetch(Dataset dataset, String key, int page) throws Exception {
@@ -289,8 +324,11 @@ public class PublicApiCrawler {
             return 0;
         }
 
+        String rawContents = text(item, "contents");
         String keyword = text(item, "keyword");
-        String contents = CaseTextCleaner.clean(text(item, "contents"));
+        String contents = CaseTextCleaner.clean(rawContents);
+        String imageUrl = "FATALITY".equals(source) ? CaseTextCleaner.imageUrlOf(rawContents) : null;
+        String sourceUrl = "DISASTER".equals(source) ? CaseTextCleaner.DISASTER_LIST_URL : null;
         AccidentType axis = classifier.classify(keyword, contents);
 
         publicCaseRepository.save(PublicCase.builder()
@@ -302,6 +340,8 @@ public class PublicApiCrawler {
                 .accidentType(axis)
                 .region(truncate(CaseTextCleaner.regionOf(keyword), 50))
                 .occurredOn(CaseTextCleaner.occurredOn(keyword))
+                .imageUrl(imageUrl)
+                .sourceUrl(sourceUrl)
                 .fetchedAt(OffsetDateTime.now())
                 .build());
         return 1;

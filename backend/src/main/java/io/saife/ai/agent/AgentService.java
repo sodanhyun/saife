@@ -13,7 +13,12 @@ import io.saife.ai.tools.ToolCallContext;
 import io.saife.ai.tools.ToolRegistry;
 import io.saife.common.config.DemoModeConfig;
 import io.saife.common.service.SseService;
+import io.saife.core.domain.Equipment;
+import io.saife.core.repository.EquipmentRepository;
 import io.saife.core.service.RiskRuleEngine;
+import io.saife.evidence.Evidence;
+import io.saife.evidence.ledger.CitationSanitizer;
+import io.saife.evidence.ledger.EvidenceLedger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -69,6 +74,10 @@ public class AgentService {
     private final DemoModeConfig demoModeConfig;
     private final DemoConversationScript demoConversationScript;
     private final ObjectMapper objectMapper;
+    /** [시작 설비] 프롬프트 힌트용 — 진입 컨텍스트(?equipmentId=)의 설비명을 조회한다 */
+    private final EquipmentRepository equipmentRepository;
+    /** 대화별 근거 원장 — 턴 종료 시 ai.evidence 발행, [#n] 후처리, transcript()의 turn_no별 근거 조회에 쓴다 */
+    private final EvidenceLedger evidenceLedger;
 
     private static final String SYSTEM_PROMPT_TEMPLATE = """
             당신은 소규모 제조 사업장의 안전관리를 돕는 AI 에이전트입니다.
@@ -84,13 +93,19 @@ public class AgentService {
 
             [진행 순서]
             1. findLocationEquipment로 장소·설비와 기존 이력을 확인합니다.
-            2. 확인된 이력 중 경고할 것이 있으면 먼저 말합니다.
+            2. 설비가 확인되면 답변의 첫 문장은 반드시 그 설비의 최근 평가 등급과 미이행 조치를
+               요약하는 문장이어야 합니다. 그다음에 부족한 항목을 하나만 물어보세요.
             3. extractWorkPlan으로 작업계획서 항목을 구조화합니다.
             4. analyzeHazards / searchCases / getMsds로 근거를 모읍니다.
             5. createWorkPlan으로 제출하고 브리핑을 전달합니다.
 
             도구가 status=INCOMPLETE를 돌려주면 등록되지 않은 것입니다.
             missing 항목을 한 번에 하나씩 물어보고, 답을 받으면 이전 값과 함께 도구를 다시 호출하세요.
+
+            [근거 인용]
+            - 사고사례·지침·법 조문·MSDS를 언급할 때는 도구가 준 근거 번호를 문장 끝에 [#n] 형식으로 붙이세요.
+            - 번호가 없는 출처를 지어내지 마세요. URL, 파일명, 사진을 직접 쓰지 마세요.
+            - searchCases에는 작업 설명을 query로 넘기세요 (예: "사다리 위 천장 도장 작업").
 
             [오늘 날짜] %s (%s)
             작업자가 "내일", "모레", "이번 주 금요일"처럼 말하면 이 날짜를 기준으로 계산하세요.
@@ -101,17 +116,34 @@ public class AgentService {
             """;
 
     /**
-     * 오늘 날짜를 넣은 시스템 프롬프트.
+     * 오늘 날짜를 넣은 시스템 프롬프트. {@code entryEquipmentId}가 있으면 끝에
+     * [시작 설비] 힌트를 덧붙인다(연결성 2-1).
      *
      * <p><b>날짜를 안 넣으면 모델이 "내일"을 해석하지 못한다.</b> 실제로 작업자가
      * "내일 ~할 건데요"라고 말했는데 모델이 작업 일자를 되물었고, 예시로 과거
      * 날짜(2026-05-15)를 들었다 (2026-09-21 QA 실측). 시스템이 아는 것을
      * 되묻는 건 이 제품이 하지 않기로 한 일이다.
+     *
+     * <p>패키지 접근 제한자로 둔다(private 아님) — 테스트가 프롬프트 텍스트를 직접 검증한다.
      */
-    private String systemPrompt() {
+    String systemPrompt(Long entryEquipmentId) {
         LocalDate today = LocalDate.now();
-        return SYSTEM_PROMPT_TEMPLATE.formatted(
+        String base = SYSTEM_PROMPT_TEMPLATE.formatted(
                 today, today.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.KOREAN));
+        if (entryEquipmentId == null) {
+            return base;
+        }
+        // 진입 컨텍스트(?equipmentId=)로 들어온 대화 — 자유 텍스트 매칭에 기대지 말고
+        // 이 설비부터 확인하라고 직접 알려준다. findLocationEquipment의 단축 경로
+        // (AgentContextKeys.EQUIPMENT_ID)와 쌍을 이룬다.
+        String equipmentName = equipmentRepository.findById(entryEquipmentId)
+                .map(Equipment::getName)
+                .orElse(null);
+        if (equipmentName == null) {
+            return base;
+        }
+        return base + "\n[시작 설비] id=%d %s — 이 설비로 findLocationEquipment를 먼저 확인하세요\n"
+                .formatted(entryEquipmentId, equipmentName);
     }
 
     /**
@@ -121,25 +153,37 @@ public class AgentService {
      * 되묻기 답변도 이 경로로 들어온다 — 별도 재개 API가 필요 없다.
      */
     public void chat(String conversationId, String sessionId, Long siteId, String userMessage) {
+        chat(conversationId, sessionId, siteId, userMessage, null);
+    }
+
+    /**
+     * @param equipmentId 진입 컨텍스트(작업 신고 화면의 {@code ?equipmentId=}). 프론트가
+     *                    새 대화의 첫 턴에만 싣는다(연결성 2-1)
+     */
+    public void chat(String conversationId, String sessionId, Long siteId, String userMessage, Long equipmentId) {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseGet(() -> conversationRepository.save(Conversation.builder()
                         .id(conversationId)
                         .siteId(siteId)
                         .build()));
 
-        List<Message> messages = loadHistory(conversationId);
+        List<Message> messages = loadHistory(conversationId, equipmentId);
         messages.add(new UserMessage(userMessage));
 
-        runTurn(conversation, sessionId, siteId, messages);
+        runTurn(conversation, sessionId, siteId, messages, equipmentId);
     }
 
-    private void runTurn(Conversation conversation, String sessionId, Long siteId, List<Message> messages) {
+    private void runTurn(Conversation conversation, String sessionId, Long siteId, List<Message> messages,
+                         Long equipmentId) {
         String conversationId = conversation.getId();
 
         Map<String, Object> toolContext = new HashMap<>();
         toolContext.put(AgentContextKeys.CONVERSATION_ID, conversationId);
         toolContext.put(AgentContextKeys.SESSION_ID, sessionId);
         toolContext.put(AgentContextKeys.SITE_ID, siteId);
+        if (equipmentId != null) {
+            toolContext.put(AgentContextKeys.EQUIPMENT_ID, equipmentId);
+        }
 
         try {
             // 데모 모드에서는 모델을 부르지 않는다.
@@ -174,19 +218,21 @@ public class AgentService {
             emitSlotHintIfAny(sessionId, conversationId);
 
             persistToolCalls(conversationId);
-
-            messages.add(assistant);
+            // H1: 이번 턴이 assistant 메시지 몇 번째인지 먼저 계산한다(근거 유무와 무관하게
+            // 매 턴 1씩 증가 — transcript()가 읽는 것과 같은 정의). messages는 아직 이번 턴의
+            // assistant 응답을 담기 전이므로, 지금 센 assistant 개수 + 1이 이번 턴 번호다.
+            int turnNo = assistantTurnIndexOfMessages(messages) + 1;
+            // 턴 마무리: [#n] 후처리 → ai.evidence(신규분) → ai.token(전문) → 원장 턴 경계
+            String finalText = finisher().finish(sessionId, conversationId, text, turnNo);
+            messages.add(new AssistantMessage(finalText));
             saveHistory(conversationId, messages);
-
-            if (!text.isBlank()) {
-                emitToken(sessionId, conversationId, text);
-            }
             emit(sessionId, "ai.done", conversationId, null, Map.of("finished", true));
 
         } catch (Exception e) {
             log.error("[AGENT] 턴 실패 conversationId={}", conversationId, e);
             persistToolCalls(conversationId);
             emitError(sessionId, conversationId, sanitize(e));
+            discardLedgerAfterError(conversationId);
 
         } finally {
             // 반드시 닫는다. 안 닫으면 클라이언트가 emitter 타임아웃(5분)까지 기다린다.
@@ -236,7 +282,50 @@ public class AgentService {
     // 중단/재개 상태가 아니라 평범한 채팅 메모리다.
 
     /** 화면 복원용 대화 기록 한 줄 */
-    public record TranscriptLine(String role, String text) {}
+    public record TranscriptLine(String role, String text, List<Evidence> evidence) {}
+
+    /**
+     * H1 수정 — 메시지 타입 목록에서 assistant 메시지가 몇 번째인지(1부터) 센다.
+     *
+     * <p>{@code EvidenceLedger.endTurn()}에 넘기는 turnNo와 {@code transcript()}가 매기는
+     * "k번째 assistant 줄" 번호가 절대 어긋나지 않도록, 두 계산 모두 이 메서드 하나로 한다.
+     * 근거 유무와 무관하게 assistant 메시지가 나올 때마다 1씩 증가한다 — 근거가 있었던
+     * 턴만 세던 예전 {@code EvidenceLedger.endTurn()}의 "maxTurnNo+1" 방식이 근거 없는 턴
+     * 뒤에 근거 카드가 엉뚱한 줄에 붙는 버그의 원인이었다(2026-09-29 evidence_smoke.py 실측,
+     * task-5-report.md).
+     *
+     * <p><b>fix round 1 (ruling R52):</b> 이 메서드는 텍스트 내용을 전혀 보지 않는다 —
+     * 리스트에 들어있는 "assistant" 타입 개수만 센다. 호출하는 쪽(여기 {@code transcript()}와
+     * {@code runTurn}/{@code runDemoTurn})이 **똑같은 필터링 기준으로 만든 리스트**를 넘겨야만
+     * 두 turnNo가 일치한다 — 텍스트가 빈 assistant 응답(정상 상태, {@code TurnFinisher}가
+     * ai.token은 생략해도 {@code endTurn}은 그대로 부른다)을 한쪽만 걸러내면 그 순간부터
+     * 어긋난다. 리뷰에서 정확히 이 어긋남이 발견됐다(빈 턴이 turn 2에 오면 turn 3의 근거가
+     * 엉뚱한 줄에 붙거나 유실됨) — {@code transcript()}는 이제 빈 assistant 줄도 건너뛰지
+     * 않고 그대로 리스트에 넣는다.
+     *
+     * @return 주어진 목록 안의 "assistant" 타입 개수
+     */
+    static int assistantTurnIndex(List<String> messageTypes) {
+        return (int) messageTypes.stream().filter("assistant"::equals).count();
+    }
+
+    /**
+     * {@link Message} 목록 버전 — 라이브·데모 턴(runTurn/runDemoTurn)이 쓴다.
+     *
+     * <p>제네릭 소거 때문에 {@code assistantTurnIndex(List<String>)}와 이름을 겹쳐 쓸 수
+     * 없어(같은 소거 시그니처 {@code (List)}) 이름을 분리했다.
+     *
+     * <p><b>fix round 1 (ruling R52)</b>: 같은 메서드에 위임한다는 것만으로는 두 turnNo가
+     * 일치한다고 보장되지 않는다 — {@code assistantTurnIndex}는 넘겨받은 리스트를 그대로
+     * 셀 뿐이라, 호출자가 리스트를 만들 때 쓰는 필터링 기준이 다르면 그 순간 어긋난다.
+     * 실제로 이 메서드는 {@code messages}(빈 텍스트 assistant 메시지도 {@code loadHistory}가
+     * 그대로 복원해 넣어둔다)의 타입을 텍스트 내용과 무관하게 그대로 센다. {@code transcript()}도
+     * 텍스트가 빈 assistant 줄을 건너뛰지 않고 똑같이 세야만(고쳤다 — 아래 참고) 두 turnNo가
+     * 계속 일치한다. 한쪽만 필터를 바꾸면 다시 어긋난다.
+     */
+    private static int assistantTurnIndexOfMessages(List<Message> messages) {
+        return assistantTurnIndex(messages.stream().map(m -> m.getMessageType().getValue()).toList());
+    }
 
     /**
      * 저장된 대화를 화면용으로 돌려준다.
@@ -247,13 +336,32 @@ public class AgentService {
      *
      * <p>그래서 프론트가 대화 ID를 보관하고 기동 시 여기로 기록을 복원한다.
      * 시스템 프롬프트와 도구 메시지는 화면에 내보내지 않는다.
+     *
+     * <p>assistant 줄마다 그 턴에 제시된 근거를 붙인다. {@code conversation_evidence}는
+     * {@code turnNo}를 들고 있지만 저장된 메시지 배열({@code conversation_state.messagesJson})은
+     * 턴 번호를 들고 있지 않으므로, <b>k번째 assistant 줄 = turnNo k</b>로 순번을 맞춰
+     * 대응시킨다(정상 흐름에서는 매 턴이 정확히 하나의 assistant 메시지를 남기므로 일치한다).
+     * user 줄은 빈 리스트다.
      */
     @Transactional(readOnly = true)
     public List<TranscriptLine> transcript(String conversationId) {
         List<TranscriptLine> out = new ArrayList<>();
+        // fix round 1 (M1): payload 디코딩·turn_no 묶기는 EvidenceLedger.allGroupedByTurn으로 옮겼다
+        // (ensureLoaded와 디코딩 로직이 중복이었다) — 여기서는 그 결과를 순번으로 매핑만 한다.
+        Map<Integer, List<Evidence>> evidenceByTurn = evidenceLedger.allGroupedByTurn(conversationId);
         conversationStateRepository.findById(conversationId).ifPresent(state -> {
             try {
                 List<?> rows = objectMapper.readValue(state.getMessagesJson(), List.class);
+                // fix round 1 (ruling R52): endTurn()에 넘기는 turnNo와 같은 정의
+                // (assistantTurnIndex)로 "k번째 assistant 줄"을 센다 — typesSoFar는 user/assistant
+                // 타입인 줄을 텍스트 내용과 무관하게 전부 누적한다. runTurn/runDemoTurn의
+                // assistantTurnIndexOfMessages(messages)도 텍스트를 보지 않고 타입만 센다
+                // (loadHistory가 빈 텍스트 assistant 메시지도 그대로 복원해 messages에 넣는다) —
+                // 여기서 빈 텍스트 줄을 건너뛰면 그 순간부터 두 turnNo가 어긋난다. 빈 assistant
+                // 응답은 정상 상태다(TurnFinisher가 ai.token은 생략해도 endTurn은 그대로 부른다).
+                // 그래서 빈 assistant 줄도 카드가 없는 "evidence-only bubble"용으로 그대로
+                // 내보낸다(프론트가 렌더링한다) — user/assistant가 아닌 타입만 걸러낸다.
+                List<String> typesSoFar = new ArrayList<>();
                 for (Object row : rows) {
                     if (!(row instanceof Map<?, ?> m)) {
                         continue;
@@ -264,10 +372,23 @@ public class AgentService {
                     }
                     Object rawText = m.get("text");
                     String text = rawText != null ? rawText.toString() : "";
-                    if (!text.isBlank()) {
-                        out.add(new TranscriptLine(type, text));
+                    typesSoFar.add(type);
+                    List<Evidence> evidence = List.of();
+                    if ("assistant".equals(type)) {
+                        int turnNo = assistantTurnIndex(typesSoFar);
+                        evidence = evidenceByTurn.getOrDefault(turnNo, List.of());
                     }
+                    out.add(new TranscriptLine(type, text, evidence));
                 }
+                // fix round 1 (F2): 원장에 저장된 turn_no가 실제 assistant 줄 수보다 많으면
+                // (메시지 배열과 원장이 어긋난 비정상 상태) 조용히 버리지 않고 경고만 남긴다 —
+                // 대응할 줄이 없으니 예외를 던지지는 않는다.
+                int finalAssistantTurn = assistantTurnIndex(typesSoFar);
+                evidenceByTurn.keySet().stream()
+                        .filter(turnNo -> turnNo > finalAssistantTurn)
+                        .forEach(turnNo -> log.warn(
+                                "[AGENT] turn_no={}의 근거가 assistant 줄 수({})를 넘어 대응할 줄이 없다 conversationId={}",
+                                turnNo, finalAssistantTurn, conversationId));
             } catch (Exception e) {
                 log.warn("[AGENT] 기록 복원 실패 conversationId={}", conversationId);
             }
@@ -291,16 +412,19 @@ public class AgentService {
                     conversationId, siteId, lastUserText(messages), new ToolContext(toolContext));
 
             persistToolCalls(conversationId);
-            messages.add(new AssistantMessage(answer));
+            // H1: 라이브 경로(runTurn)와 완전히 같은 계산 — assistantTurnIndex(messages)+1
+            int turnNo = assistantTurnIndexOfMessages(messages) + 1;
+            // 라이브와 같은 순서 — [#n] 후처리 → ai.evidence(신규분) → ai.token(전문) → 원장 턴 경계
+            String finalText = finisher().finish(sessionId, conversationId, answer, turnNo);
+            messages.add(new AssistantMessage(finalText));
             saveHistory(conversationId, messages);
-
-            emitToken(sessionId, conversationId, answer);
             emit(sessionId, "ai.done", conversationId, null, Map.of("finished", true));
 
         } catch (Exception e) {
             log.error("[AGENT] 데모 턴 실패 conversationId={}", conversationId, e);
             persistToolCalls(conversationId);
             emitError(sessionId, conversationId, sanitize(e));
+            discardLedgerAfterError(conversationId);
         } finally {
             closeStream(sessionId);
         }
@@ -316,9 +440,20 @@ public class AgentService {
     }
 
 
-    private List<Message> loadHistory(String conversationId) {
+    private List<Message> loadHistory(String conversationId, Long entryEquipmentId) {
         List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(systemPrompt()));
+        // 이전 턴에 이미 제시한 근거 목록을 시스템 프롬프트 끝에 덧붙인다 — 모델이 같은 근거를
+        // 다른 번호로 다시 만들어내지 않고, 이미 아는 번호를 재사용하도록 유도한다.
+        // fix round 1 (F1): 원장 조회가 실패해도 대화 자체가 죽으면 안 된다 — 요약 없이 진행한다.
+        String summary = "";
+        try {
+            summary = evidenceLedger.summaryLine(conversationId);
+        } catch (Exception e) {
+            log.warn("[EVIDENCE] 원장 처리 실패 cid={}: {}", conversationId, e.toString());
+        }
+        String system = summary.isEmpty() ? systemPrompt(entryEquipmentId)
+                : systemPrompt(entryEquipmentId) + "\n[이미 제시한 근거] " + summary;
+        messages.add(new SystemMessage(system));
 
         conversationStateRepository.findById(conversationId).ifPresent(state -> {
             try {
@@ -376,8 +511,31 @@ public class AgentService {
                 .build();
     }
 
-    private void emitToken(String sessionId, String conversationId, String text) {
-        emit(sessionId, "ai.token", conversationId, null, text);
+    /** 매 턴 새로 만든다 — Lombok @RequiredArgsConstructor라 생성자에서 조립할 수 없다 */
+    private TurnFinisher finisher() {
+        return new TurnFinisher(sseService, evidenceLedger);
+    }
+
+    /**
+     * 최종 리뷰 F8 — 실패한 턴이 원장에 등록한 근거가 다음 턴의 {@code ai.evidence}로 새지 않게 한다.
+     *
+     * <p>실패 경로는 {@link TurnFinisher}를 거치지 않으므로 {@code endTurn}이 불리지 않고, 원장의
+     * {@code newInTurn}이 비워지지 않은 채 다음 턴까지 남았다. 여기서 대화의 메모리 상태를 통째로
+     * 버린다({@code discard}) — 원장은 DB({@code conversation_evidence})의 캐시일 뿐이라 다음 접근에서
+     * 이미 확정된 턴의 근거와 번호만 다시 읽어 온다. 실패한 턴의 근거는 화면에 나간 적이 없으므로
+     * (에러 경로는 {@code ai.evidence}를 내지 않는다) 번호가 재사용돼도 사용자에게 어긋나 보이지 않는다.
+     *
+     * <p>서버에는 "새 대화"(대화 리셋) 엔드포인트가 없다 — 프론트가 대화 ID를 버리고 새로 시작할 뿐이다.
+     * 되묻기 타임아웃(ABANDONED)도 현재 마킹 경로가 없다. 그래서 ruling R37의 "대화 종료/포기 경로"
+     * 중 실제로 존재하는 종결 지점인 {@code ai.error} 발행 직후에서만 버린다. 이 시점에는 모델 호출이
+     * 이미 예외로 끝나 이 턴의 도구 호출이 더 돌지 않는다(R37: 턴 진행 중에는 절대 버리지 않는다).
+     */
+    private void discardLedgerAfterError(String conversationId) {
+        try {
+            evidenceLedger.discard(conversationId);
+        } catch (Exception ex) {
+            log.warn("[LEDGER] 실패 턴 뒤 원장 정리 실패 cid={}: {}", conversationId, ex.getMessage());
+        }
     }
 
     private void emitError(String sessionId, String conversationId, String message) {
@@ -414,5 +572,85 @@ public class AgentService {
             return e.getClass().getSimpleName();
         }
         return msg.length() > 200 ? msg.substring(0, 200) + "…" : msg;
+    }
+
+    /**
+     * 턴 마무리: 인용 후처리 → ai.evidence(신규분) → ai.token(전문) → 원장 턴 경계. 라이브·데모 공통.
+     *
+     * <p>테스트 가능하도록 SSE·원장만 의존하는 정적 중첩 클래스로 뺐다. {@code discard()}는
+     * 절대 여기서 부르지 않는다 — 정상 턴 종료는 원장을 지우는 경로가 아니다(ruling R37).
+     * discard는 되묻기 중단·타임아웃·에러 종결 같은 별도 경로의 몫이다.
+     *
+     * <p><b>ai.evidence의 payload는 감싸지 않은 배열이다</b>({@code Evidence[]}) — 프론트
+     * {@code types/sse.ts}의 {@code EvidencePayload}·{@code useAgentStream} 구현이 이 계약을
+     * 기준으로 이미 만들어졌다({@code {items: [...]}}로 감싸지 않는다).
+     *
+     * <p><b>fix round 1 (F1):</b> 원장(ledger)의 세 호출 각각을 독립적으로 try/catch한다 —
+     * 모델이 애써 만든 좋은 답변을 근거 원장의 DB 예외 하나가 통째로 삼켜서는 안 된다.
+     * {@code knownNumbers} 실패 → 인용 후처리를 건너뛰고 원문을 그대로 스트리밍한다(빈
+     * known 집합으로 sanitize하면 모든 인용이 지워지므로 그게 더 나쁘다). {@code newInTurn}
+     * 실패 → {@code ai.evidence}만 생략한다. {@code endTurn} 실패 → 조용히 넘어간다(다음 턴
+     * {@code ensureLoaded}가 DB 재조회로 복구한다). 세 경우 모두 텍스트는 항상 스트리밍되고
+     * 호출부의 {@code ai.done}은 항상 발행된다 — 이 메서드가 예외를 밖으로 던지지 않는다.
+     *
+     * <p><b>fix round 2 (H1):</b> {@code finish()}의 {@code turnNo} 인자는 호출부
+     * ({@code runTurn}/{@code runDemoTurn})가 {@code assistantTurnIndex(messages)+1}로
+     * 계산해 넘긴다. {@code EvidenceLedger.endTurn()}이 더 이상 스스로 turnNo를 계산하지
+     * 않으므로, 근거 없는 턴도 이 값이 1씩 증가해 {@code transcript()}의 "k번째 assistant
+     * 줄"과 항상 같은 값을 가리킨다.
+     */
+    static final class TurnFinisher {
+        private final SseService sse;
+        private final EvidenceLedger ledger;
+
+        TurnFinisher(SseService sse, EvidenceLedger ledger) {
+            this.sse = sse;
+            this.ledger = ledger;
+        }
+
+        String finish(String sessionId, String conversationId, String rawText, int turnNo) {
+            String text;
+            try {
+                text = CitationSanitizer.sanitize(rawText, ledger.knownNumbers(conversationId));
+            } catch (Exception e) {
+                log.warn("[EVIDENCE] 원장 처리 실패 cid={}: {}", conversationId, e.toString());
+                // 빈 known 집합으로 sanitize하면 모든 인용이 지워진다 — 그러느니 후처리를
+                // 건너뛰고 원문을 그대로 내보낸다(환각 인용이 섞여 있을 수 있으나, 답변
+                // 자체를 삼키는 것보다 낫다).
+                text = rawText != null ? rawText : "";
+            }
+
+            List<Evidence> fresh = List.of();
+            try {
+                fresh = ledger.newInTurn(conversationId);
+            } catch (Exception e) {
+                log.warn("[EVIDENCE] 원장 처리 실패 cid={}: {}", conversationId, e.toString());
+            }
+            if (!fresh.isEmpty()) {
+                send(sessionId, "ai.evidence", conversationId, conversationId, fresh);
+            }
+
+            if (!text.isBlank()) {
+                send(sessionId, "ai.token", conversationId, null, text);
+            }
+
+            try {
+                ledger.endTurn(conversationId, turnNo);
+            } catch (Exception e) {
+                log.warn("[EVIDENCE] 원장 처리 실패 cid={}: {}", conversationId, e.toString());
+            }
+            return text;
+        }
+
+        private void send(String sessionId, String type, String cid, String target, Object payload) {
+            if (sessionId == null) {
+                return;
+            }
+            try {
+                sse.send(sessionId, SseService.SseEvent.of(type, cid, target, payload));
+            } catch (Exception e) {
+                log.warn("SSE 발행 실패 type={}: {}", type, e.getMessage());
+            }
+        }
     }
 }

@@ -9,6 +9,8 @@ import MobileHeader from "@/components/layout/MobileHeader";
 import PageSkeleton from "@/components/ui/PageSkeleton";
 import ToastContainer from "@/components/ui/ToastContainer";
 
+const EquipmentHomePage = lazy(() => import("@/pages/EquipmentHome"));
+const EquipmentDetailPage = lazy(() => import("@/pages/Equipment"));
 const WorkPlanPage = lazy(() => import("@/pages/WorkPlan"));
 const VisionPage = lazy(() => import("@/pages/Vision"));
 const IncidentPage = lazy(() => import("@/pages/Incident"));
@@ -29,7 +31,8 @@ export default function App() {
           <RouteErrorBoundary resetKey={location.pathname}>
             <Suspense fallback={<PageSkeleton />}>
               <Routes>
-                <Route path="/" element={<Navigate to={LANDING_PATH} replace />} />
+                <Route path="/" element={<EquipmentHomePage />} />
+                <Route path="/equipment/:equipmentId" element={<EquipmentDetailPage />} />
                 <Route path="/work-plan" element={<WorkPlanPage />} />
                 <Route path="/vision" element={<VisionPage />} />
                 <Route path="/incident" element={<IncidentPage />} />

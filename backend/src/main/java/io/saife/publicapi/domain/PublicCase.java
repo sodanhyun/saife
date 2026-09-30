@@ -57,6 +57,14 @@ public class PublicCase {
     @Column(name = "occurred_on")
     private LocalDate occurredOn;
 
+    /** 1040 원문의 첫 사고 사진 URL. 크롤러가 태그를 지우기 전에 뽑아 둔다 */
+    @Column(name = "image_url", columnDefinition = "text")
+    private String imageUrl;
+
+    /** 원문 페이지. 1060은 포털 목록, 1040은 딥링크가 없어 NULL */
+    @Column(name = "source_url", columnDefinition = "text")
+    private String sourceUrl;
+
     @Column(name = "fetched_at", nullable = false)
     private OffsetDateTime fetchedAt;
 

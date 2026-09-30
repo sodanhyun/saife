@@ -1171,7 +1171,7 @@ class LawArticleParserTest {
     @Test
     void 항단위로_나누고_장_제목은_건너뛴다() throws Exception {
         String json = Files.readString(Path.of("src/test/resources/fixtures/law-article-36.json"), StandardCharsets.UTF_8);
-        List<LawArticle> out = LawArticleParser.parse("001766", "산업안전보건법", json, "/DRF/lawService.do?OC=x&target=law&MST=283449&type=HTML");
+        List<LawArticle> out = LawArticleParser.parse("001766", "산업안전보건법", json, "/DRF/lawService.do?OC=<oc>&target=law&MST=283449&type=HTML");
         // 36조 ①② + 38조의2 (조문내용) = 3행. 37 '전문'은 제외
         assertThat(out).hasSize(3);
         LawArticle p1 = out.get(0);

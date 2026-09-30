@@ -53,6 +53,10 @@ public class MsdsCache {
     @Column(name = "item_detail", columnDefinition = "text")
     private String itemDetail;
 
+    /** GHS 그림문자 코드. 'GHS02,GHS07,GHS08' — 02 항목 응답에서 추출 */
+    @Column(length = 200)
+    private String pictograms;
+
     @Column(name = "fetched_at", nullable = false)
     private OffsetDateTime fetchedAt;
 

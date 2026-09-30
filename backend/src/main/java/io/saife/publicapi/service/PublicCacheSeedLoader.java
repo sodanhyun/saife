@@ -3,6 +3,7 @@ package io.saife.publicapi.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.saife.core.domain.AccidentType;
+import io.saife.evidence.index.EvidenceSeedLoader;
 import io.saife.publicapi.domain.KoshaGuide;
 import io.saife.publicapi.domain.PublicCase;
 import io.saife.publicapi.repository.KoshaGuideRepository;
@@ -51,11 +52,15 @@ public class PublicCacheSeedLoader implements ApplicationRunner {
 
     private final PublicCaseRepository publicCaseRepository;
     private final KoshaGuideRepository koshaGuideRepository;
+    private final EvidenceSeedLoader evidenceSeedLoader;
 
     @Override
     public void run(ApplicationArguments args) {
         loadCases();
         loadGuides();
+        // law_article·msds_cache·evidence_chunk는 public_case·kosha_guide 뒤에 온다 —
+        // 근거 청크가 refId를 그 두 테이블에서 조회하므로 먼저 채워져 있어야 한다
+        evidenceSeedLoader.load();
     }
 
     private void loadCases() {
@@ -86,6 +91,8 @@ public class PublicCacheSeedLoader implements ApplicationRunner {
                         .accidentType(axis(text(n, "accidentType")))
                         .region(text(n, "region"))
                         .occurredOn(date(text(n, "occurredOn")))
+                        .imageUrl(text(n, "imageUrl"))
+                        .sourceUrl(text(n, "sourceUrl"))
                         .fetchedAt(OffsetDateTime.now())
                         .build());
 

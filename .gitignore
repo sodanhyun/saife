@@ -39,3 +39,12 @@ npm-debug.log*
 # ── 에이전트 작업물 ──
 .gstack/
 .superpowers/
+
+# ── 워크트리·근거 계층 캐시 ──
+.claude/worktrees/
+**/data/media/
+**/data/export/
+
+# ── Python (docs/experiments 스모크 스크립트) ──
+__pycache__/
+*.pyc

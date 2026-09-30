@@ -1,5 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 
+import CitationChip from "@/components/evidence/CitationChip";
+
 /**
  * 모델 출력 렌더러.
  *
@@ -14,8 +16,16 @@ import { Fragment, type ReactNode } from "react";
  *
  * <p>지원하는 것은 모델이 실제로 쓰는 것만이다: 굵게, 불릿, 구분선, 제목, 인용.
  * 표나 링크는 나오지 않았고, 나오면 그때 추가한다.
+ *
+ * <p>인용 <code>[#n]</code>도 인라인에서 함께 처리한다. <code>knownNos</code>에 있는
+ * 번호만 클릭 가능한 {@link CitationChip}이 되고, 없는 번호(모델 환각 등)는 평문으로
+ * 남는다 — 근거 원장에 없는 카드로 스크롤을 시도하지 않기 위해서다.
+ *
+ * <p><code>scope</code>는 그대로 {@link CitationChip}에 넘어가 어느 근거 그리드의
+ * id·reveal 이벤트를 찾을지 정한다(F18) — 같은 페이지에 번호 공간이 다른 그리드가
+ * 여럿 있을 수 있어서다.
  */
-export default function AgentMessage({ text }: { text: string }) {
+export default function AgentMessage({ text, knownNos, scope }: { text: string; knownNos?: Set<number>; scope: string }) {
   if (!text) return null;
 
   const blocks: ReactNode[] = [];
@@ -26,7 +36,7 @@ export default function AgentMessage({ text }: { text: string }) {
     blocks.push(
       <ul key={key} className="my-1 list-disc space-y-0.5 pl-5">
         {bullets.map((b, i) => (
-          <li key={i}>{renderInline(b)}</li>
+          <li key={i}>{renderInline(b, knownNos, scope)}</li>
         ))}
       </ul>,
     );
@@ -50,7 +60,7 @@ export default function AgentMessage({ text }: { text: string }) {
     if (quote) {
       blocks.push(
         <p key={key} className="border-l-2 border-slate-300 pl-2 text-slate-700">
-          {renderInline(quote[1])}
+          {renderInline(quote[1], knownNos, scope)}
         </p>,
       );
       return;
@@ -67,7 +77,7 @@ export default function AgentMessage({ text }: { text: string }) {
     if (heading) {
       blocks.push(
         <p key={key} className="mt-3 font-semibold">
-          {renderInline(heading[2])}
+          {renderInline(heading[2], knownNos, scope)}
         </p>,
       );
       return;
@@ -80,7 +90,7 @@ export default function AgentMessage({ text }: { text: string }) {
 
     blocks.push(
       <p key={key} className="my-0.5">
-        {renderInline(line)}
+        {renderInline(line, knownNos, scope)}
       </p>,
     );
   });
@@ -90,14 +100,25 @@ export default function AgentMessage({ text }: { text: string }) {
   return <div className="leading-relaxed">{blocks}</div>;
 }
 
-/** 인라인 굵게(**x**, __x__)만 처리한다. 나머지는 글자 그대로 둔다 */
-function renderInline(text: string): ReactNode {
+/** 인라인 굵게(**x**, __x__)와 인용([#n])을 처리한다. 나머지는 글자 그대로 둔다 */
+function renderInline(text: string, knownNos: Set<number> | undefined, scope: string): ReactNode {
   const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__)/g);
   return parts.map((part, i) => {
     const bold = part.match(/^(?:\*\*([^*]+)\*\*|__([^_]+)__)$/);
     if (bold) {
       return <strong key={i}>{bold[1] ?? bold[2]}</strong>;
     }
-    return <Fragment key={i}>{part}</Fragment>;
+    return <Fragment key={i}>{renderCitations(part, i, knownNos, scope)}</Fragment>;
+  });
+}
+
+/** 평문 조각을 [#n] 기준으로 다시 쪼개 인용 칩을 끼운다. 나머지 텍스트는 그대로 보존한다 */
+function renderCitations(part: string, key: number, knownNos: Set<number> | undefined, scope: string): ReactNode {
+  const pieces = part.split(/(\[#\d{1,4}\])/g);
+  return pieces.map((p, i) => {
+    const m = p.match(/^\[#(\d{1,4})\]$/);
+    if (!m) return <Fragment key={`${key}-${i}`}>{p}</Fragment>;
+    const no = Number(m[1]);
+    return <CitationChip key={`${key}-${i}`} no={no} known={!!knownNos?.has(no)} scope={scope} />;
   });
 }

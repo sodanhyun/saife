@@ -1,8 +1,13 @@
 package io.saife.ai.tools;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.saife.ai.agent.AgentContextKeys;
 import io.saife.common.service.SseService;
 import io.saife.core.service.RiskRuleEngine;
+import io.saife.evidence.Evidence;
+import io.saife.evidence.domain.WorkPlanEvidence;
+import io.saife.evidence.ledger.EvidenceLedger;
+import io.saife.evidence.repository.WorkPlanEvidenceRepository;
 import io.saife.workplan.domain.WorkPlan;
 import io.saife.workplan.domain.WorkPlanSlot;
 import io.saife.workplan.domain.WorkPlanStatus;
@@ -55,6 +60,9 @@ public class WorkPlanTools {
     private final WorkPlanSlotRepository workPlanSlotRepository;
     private final BriefingComposer briefingComposer;
     private final SseService sseService;
+    private final EvidenceLedger evidenceLedger;
+    private final WorkPlanEvidenceRepository workPlanEvidenceRepository;
+    private final ObjectMapper objectMapper;
 
     @Tool(description = """
             <tool-description>
@@ -192,6 +200,21 @@ public class WorkPlanTools {
             plan.attachBriefing(briefing);
             plan.submit();
             workPlanRepository.save(plan);
+
+            // 이 턴까지 원장에 쌓인 근거를 계획서에 붙인다 — 브리핑 "참고 자료"와 법정 서식 하단 출처 목록이 이걸 읽는다.
+            // 대화 ID가 없으면(테스트·수동 호출) 원장 자체가 없으므로 건너뛴다 — EvidenceLedger는
+            // ConcurrentHashMap 기반이라 null 키를 그대로 넘기면 NPE가 난다.
+            String cid = AgentContextKeys.conversationId(toolContext);
+            if (cid != null && !cid.isBlank()) {
+                for (Evidence e : evidenceLedger.all(cid)) {
+                    try {
+                        workPlanEvidenceRepository.save(WorkPlanEvidence.builder().workPlanId(plan.getId()).evidenceNo(e.no())
+                                .payload(objectMapper.writeValueAsString(e)).build());
+                    } catch (Exception ex) {
+                        log.warn("[WORKPLAN] 근거 저장 실패 no={}: {}", e.no(), ex.getMessage());
+                    }
+                }
+            }
 
             return ToolResult.of("""
                     작업계획서 제출 완료 [id=%d] — 관리부 승인 큐에 등록되었습니다.

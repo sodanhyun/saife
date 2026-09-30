@@ -7,8 +7,11 @@ import io.saife.dashboard.dto.TimelineDtos.Emphasis;
 import io.saife.dashboard.dto.TimelineDtos.EventType;
 import io.saife.dashboard.dto.TimelineDtos.TimelineEvent;
 import io.saife.incident.domain.Incident;
+import io.saife.incident.domain.ReportStatus;
 import io.saife.incident.repository.IncidentRepository;
+import io.saife.incident.service.EquipmentHistoryRecaller;
 import io.saife.workplan.domain.WorkPlan;
+import io.saife.workplan.domain.WorkPlanStatus;
 import io.saife.workplan.repository.WorkPlanRepository;
 import io.saife.common.error.ApiExceptions.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
 /**
@@ -59,6 +64,117 @@ public class EquipmentTimelineService {
     private final ActionRepository actionRepository;
     private final WorkPlanRepository workPlanRepository;
     private final IncidentRepository incidentRepository;
+    private final EquipmentHistoryRecaller equipmentHistoryRecaller;
+
+    /** 진행 중(=아직 안 끝난) 작업계획서 상태. "예정 작업" 카운트에 쓴다 */
+    private static final Set<WorkPlanStatus> UPCOMING_STATUSES =
+            EnumSet.of(WorkPlanStatus.SUBMITTED, WorkPlanStatus.APPROVED, WorkPlanStatus.CONDITIONAL);
+
+    /** 제출 안 된(=아직 밀린) 조사표 상태. 카드 CRITICAL 판정에 쓴다 */
+    private static final Set<ReportStatus> UNSUBMITTED_REPORT_STATUSES =
+            EnumSet.of(ReportStatus.REQUIRED, ReportStatus.OVERDUE);
+
+    /**
+     * 설비 홈 카드 — 사업장 안의 설비 전부를 한 화면에.
+     *
+     * <p>설비별로 기존 {@link #timeline(Long)}의 {@code summary()}를 그대로 재사용한다.
+     * 홈과 상세가 같은 설비에 다른 숫자를 보이면 그 순간 심사위원이 짚는다 — 그래서
+     * 계산을 두 번 만들지 않고 <b>한 곳(summary)만 계산하고 카드는 그 결과를 읽는다.</b>
+     *
+     * <p><b>N+1 주의:</b> 설비마다 {@code timeline()}을 통째로 돌린다. 가상 사업장이
+     * 설비 6개뿐이라 지금은 허용하지만, <b>설비가 20개 이상으로 늘면</b> 설비별 반복 대신
+     * 사업장 단위로 한 번에 집계하는 쿼리로 바꿔야 한다 (지금 그대로 두면 화면 하나 열 때
+     * 쿼리가 설비 수 × 6~7회로 불어난다).
+     */
+    @Transactional(readOnly = true)
+    public List<TimelineDtos.EquipmentCard> cards(Long siteId) {
+        List<Equipment> equipments = equipmentRepository.findBySiteIdOrderByIdAsc(siteId);
+        // "오늘 할 일"과 같은 기준(KST)을 쓴다 — 자정 근처에 서버 로컬 시간대와
+        // 어긋나면 카드와 인박스가 다른 날짜를 "오늘"로 보게 된다 (C 1a minor)
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+
+        List<TimelineDtos.EquipmentCard> cards = new ArrayList<>();
+        for (Equipment equipment : equipments) {
+            TimelineDtos.EquipmentTimeline timeline = timeline(equipment.getId());
+            TimelineDtos.TimelineSummary summary = timeline.summary();
+
+            List<WorkPlan> workPlans =
+                    workPlanRepository.findByEquipmentIdOrderByWorkDateDesc(equipment.getId());
+            int upcoming = (int) workPlans.stream()
+                    .filter(p -> UPCOMING_STATUSES.contains(p.getStatus())
+                            && !p.getWorkDate().isBefore(today))
+                    .count();
+
+            List<Incident> incidents =
+                    incidentRepository.findByEquipmentIdOrderByOccurredAtDesc(equipment.getId());
+            boolean unsubmittedReport = incidents.stream()
+                    .anyMatch(i -> UNSUBMITTED_REPORT_STATUSES.contains(i.getReportStatus()));
+
+            LocalDate lastEventOn = timeline.events().isEmpty() ? null
+                    : timeline.events().get(timeline.events().size() - 1).at();
+
+            Emphasis emphasis = emphasisOf(summary, unsubmittedReport);
+
+            cards.add(new TimelineDtos.EquipmentCard(
+                    equipment.getId(), timeline.equipment().name(),
+                    timeline.equipment().locationTag(), timeline.equipment().processName(),
+                    summary.currentRiskLevel(), summary.currentRiskAxis(), summary.lastAssessedOn(),
+                    summary.unfinishedActionCount(), summary.overdueActionCount(), upcoming,
+                    summary.incidentCount(), lastEventOn, emphasis, summary.headline()));
+        }
+
+        cards.sort(Comparator
+                .comparingInt((TimelineDtos.EquipmentCard c) -> emphasisRank(c.emphasis()))
+                .thenComparing(TimelineDtos.EquipmentCard::lastEventOn,
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(TimelineDtos.EquipmentCard::id));
+
+        return cards;
+    }
+
+    /**
+     * 카드 톤 — CRITICAL: 기한 초과 조치 있음 또는 미제출 조사표 /
+     * WARNING: 미이행 조치 또는 '상' 등급 / NORMAL.
+     */
+    private Emphasis emphasisOf(TimelineDtos.TimelineSummary summary, boolean unsubmittedReport) {
+        if (summary.overdueActionCount() > 0 || unsubmittedReport) {
+            return Emphasis.CRITICAL;
+        }
+        if (summary.unfinishedActionCount() > 0 || summary.currentRiskLevel() == RiskLevel.HIGH) {
+            return Emphasis.WARNING;
+        }
+        return Emphasis.NORMAL;
+    }
+
+    private int emphasisRank(Emphasis emphasis) {
+        return switch (emphasis) {
+            case CRITICAL -> 0;
+            case WARNING -> 1;
+            case NORMAL -> 2;
+        };
+    }
+
+    /**
+     * 설비 회상 — 작업 신고(UC3) 진입 시 "묻기 전에 먼저 말한다"의 근거.
+     *
+     * <p>사고가 아직 없는 문맥이라 {@code axis=null}, {@code occurredAt=knownAsOf=now}로
+     * {@link EquipmentHistoryRecaller#recall}을 부른다. {@code Purpose.PRE_WORK}가
+     * headline 문구를 "예고" 대신 "지금 아는 것" 톤으로 바꾼다.
+     */
+    @Transactional(readOnly = true)
+    public TimelineDtos.RecallView recall(Long equipmentId) {
+        Equipment equipment = equipmentRepository.findById(equipmentId).orElseThrow(
+                () -> new NotFoundException("설비를 찾을 수 없습니다: " + equipmentId));
+        String processName = equipment.getProcessId() == null ? null
+                : processRepository.findById(equipment.getProcessId())
+                        .map(WorkProcess::getName).orElse(null);
+
+        OffsetDateTime now = OffsetDateTime.now();
+        EquipmentHistoryRecaller.Recall recall = equipmentHistoryRecaller.recall(
+                equipmentId, null, now, now, EquipmentHistoryRecaller.Purpose.PRE_WORK);
+
+        return TimelineDtos.RecallView.from(recall, processName);
+    }
 
     @Transactional(readOnly = true)
     public TimelineDtos.EquipmentTimeline timeline(Long equipmentId) {

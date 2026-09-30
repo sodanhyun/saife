@@ -36,4 +36,11 @@ public interface WorkPlanRepository extends JpaRepository<WorkPlan, Long> {
     /** 대화 ID가 없는 경로(테스트·수동 호출)를 위한 차선책 키 */
     List<WorkPlan> findBySiteIdAndWorkNameAndWorkDateAndStatusOrderByIdDesc(
             Long siteId, String workName, LocalDate workDate, WorkPlanStatus status);
+
+    /**
+     * 사고 연쇄(UC2)가 경고를 붙일 대상 — 같은 설비 · 진행 중 상태(SUBMITTED/APPROVED/CONDITIONAL)
+     * · 작업일이 사고일 이후인 작업계획서만. 사고일 이전에 끝난 작업까지 경고하면 의미가 없다.
+     */
+    List<WorkPlan> findBySiteIdAndEquipmentIdAndStatusInAndWorkDateGreaterThanEqualOrderByWorkDateAsc(
+            Long siteId, Long equipmentId, List<WorkPlanStatus> statuses, LocalDate workDate);
 }

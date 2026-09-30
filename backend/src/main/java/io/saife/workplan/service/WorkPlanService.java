@@ -1,8 +1,11 @@
 package io.saife.workplan.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.saife.core.domain.Equipment;
 import io.saife.core.repository.EquipmentRepository;
 import io.saife.core.service.RiskRuleEngine;
+import io.saife.evidence.Evidence;
+import io.saife.evidence.repository.WorkPlanEvidenceRepository;
 import io.saife.workplan.domain.WorkPlan;
 import io.saife.workplan.domain.WorkPlanStatus;
 import io.saife.workplan.dto.WorkPlanDtos;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 작업계획서 조회·승인·브리핑 확인.
@@ -34,6 +38,8 @@ public class WorkPlanService {
     private final WorkPlanSlotRepository workPlanSlotRepository;
     private final WorkPlanWorkerRepository workPlanWorkerRepository;
     private final EquipmentRepository equipmentRepository;
+    private final WorkPlanEvidenceRepository workPlanEvidenceRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public Page<WorkPlanDtos.ListItem> list(Long siteId, Pageable pageable) {
@@ -111,12 +117,28 @@ public class WorkPlanService {
                 .map(w -> new WorkPlanDtos.Worker(w.getId(), w.getName(), w.getPosition(), w.getDuty()))
                 .toList();
 
+        // createWorkPlan 시점에 원장 스냅샷으로 저장된 근거. "참고 자료" 그리드가 이걸 읽는다.
+        // payload 디코딩 실패는 그 한 건만 건너뛴다 — 근거 한 장 복원 실패로 상세 조회 전체가 깨지면 안 된다.
+        List<Evidence> evidence = workPlanEvidenceRepository.findByWorkPlanIdOrderByEvidenceNo(plan.getId())
+                .stream()
+                .map(r -> {
+                    try {
+                        return objectMapper.readValue(r.getPayload(), Evidence.class);
+                    } catch (Exception e) {
+                        log.warn("[WORKPLAN] 근거 복원 실패 workPlanId={} no={}: {}",
+                                plan.getId(), r.getEvidenceNo(), e.getMessage());
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .toList();
+
         return new WorkPlanDtos.Detail(plan.getId(), plan.getSiteId(), plan.getEquipmentId(),
                 equipmentName(plan.getEquipmentId()), plan.getConversationId(),
                 plan.getWorkName(), plan.getWorkPlace(), plan.getWorkDate(), plan.getWorkHours(),
                 plan.getMethod(), plan.getNotes(), plan.getBriefing(), plan.getBriefingAckAt(),
                 plan.getStatus(), plan.getApprovalNote(), plan.getApprovedBy(), plan.getApprovedAt(),
-                slots, workers);
+                slots, workers, evidence, plan.getWarningNote());
     }
 
     private String equipmentName(Long equipmentId) {

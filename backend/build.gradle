@@ -76,6 +76,8 @@ dependencies {
     // ── 법정 서식 PDF (HTML → 헤드리스 크롬) ──
     implementation 'com.microsoft.playwright:playwright:1.52.0'
 
+    implementation 'org.apache.pdfbox:pdfbox:3.0.5'   // KOSHA GUIDE PDF 텍스트 추출 (근거 청크)
+
     // ── 로컬 캐시 (공공 API 응답) ──
     implementation 'com.github.ben-manes.caffeine:caffeine'
 

@@ -1,3 +1,6 @@
+import type { Evidence } from "@/types/evidence";
+import type { RecallView } from "@/types/timeline";
+
 /**
  * SSE 통합 봉투 — 백엔드 SseService.SseEvent와 1:1 매핑.
  * 필드를 바꾸면 양쪽을 같이 바꾼다. 규약: .claude/rules/sse-streaming.md
@@ -18,6 +21,8 @@ export type SseEventType =
   | "ai.tool.start"
   | "ai.tool.done"
   | "ai.slot.request"
+  | "ai.recall"
+  | "ai.evidence"
   | "assess.progress"
   | "assess.done"
   | "assess.failed"
@@ -53,6 +58,15 @@ export interface AiErrorPayload {
   message: string;
   code?: string;
 }
+
+/**
+ * 회상 카드 payload — `types/timeline.ts`의 `RecallView`를 그대로 재사용한다(중복 선언 금지).
+ * `targetId` = conversationId. 도구가 설비 매칭에 성공하면 도구 레벨에서 발행한다(모델 문장과 무관).
+ */
+export type RecallPayload = RecallView;
+
+/** 턴 종료 시 이번 턴에 새로 등록된 근거(bare array). 카드는 백엔드가 만든다 */
+export type EvidencePayload = Evidence[];
 
 /** 트레이스 패널이 들고 있는 한 줄의 상태 */
 export interface ToolTraceRow {

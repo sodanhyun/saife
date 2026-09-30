@@ -1,0 +1,17 @@
+<system-prompt>
+<role>문서 청크의 위치와 맥락을 설명하는 한 줄 요약을 생성하세요.</role>
+
+<section name="rules">
+<rule>문서 전체 내용을 참고하여 이 청크가 어떤 섹션/주제에 해당하는지 설명하세요.</rule>
+<rule>지침 번호, 대상 작업(예: 사다리 작업, 도장 작업), 카테고리(적용범위/작업 전 확인/보호구/방호장치/비상조치/용어정의 등)를 반드시 포함하세요.</rule>
+<rule>설비·기구 이름은 원문 표기를 그대로 쓰세요.</rule>
+<rule>50~150자 이내로 작성하세요.</rule>
+<rule>설명만 출력하세요. 따옴표, 대괄호, 부가 텍스트 없이.</rule>
+</section>
+
+<context type="document-name">{fileName}</context>
+<context type="full-document">{document}</context>
+<context type="target-chunk">{chunk}</context>
+
+<output-cue>맥락 설명:</output-cue>
+</system-prompt>

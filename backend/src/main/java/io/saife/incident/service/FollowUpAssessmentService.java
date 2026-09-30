@@ -120,6 +120,59 @@ public class FollowUpAssessmentService {
         return new Result(assessment.getId(), regraded, newHazardId);
     }
 
+    /**
+     * 이미 만들어진 수시평가의 재평가 결과를 다시 읽는다 — {@code IncidentService.detail()} 재조회 경로용
+     * (최종 리뷰 F9). 새로 채점하지 않는다: 등급·근거는 저장된 {@code assessment_hazard} 그대로이고,
+     * "이전 등급"은 그 위험요인이 이 수시평가보다 <b>앞서</b> 받은 가장 최근 등급이다
+     * ({@link #create}가 채점 직전에 {@link #lastRiskLevel}로 읽은 값과 같은 정의). 이후에 있었던
+     * 재평가(예: 조치 완료 뒤 상시평가)는 제외한다 — 넣으면 사고 당시의 등급 변화가 아니라 현재
+     * 등급과 비교하게 된다.
+     *
+     * @return 평가가 없으면 빈 리스트
+     */
+    @Transactional(readOnly = true)
+    public Result reconstruct(Long assessmentId) {
+        if (assessmentId == null) {
+            return new Result(null, List.of(), null);
+        }
+        Assessment followUp = assessmentRepository.findById(assessmentId).orElse(null);
+        if (followUp == null) {
+            return new Result(assessmentId, List.of(), null);
+        }
+        List<Regrade> regraded = new ArrayList<>();
+        Long newHazardId = null;
+        for (AssessmentHazard ah : assessmentHazardRepository.findByAssessmentId(assessmentId)) {
+            Hazard h = hazardRepository.findById(ah.getHazardId()).orElse(null);
+            RiskLevel before = riskLevelBefore(ah.getHazardId(), followUp);
+            if (before == null && h != null && h.getSource() == HazardSource.INCIDENT && newHazardId == null) {
+                newHazardId = h.getId();
+            }
+            regraded.add(new Regrade(ah.getHazardId(), h == null ? null : h.getAccidentType(),
+                    h == null ? null : h.getMissingControl(), before, ah.getRiskLevel(), ah.getRuleTrace(),
+                    before != null && before != ah.getRiskLevel()));
+        }
+        return new Result(assessmentId, regraded, newHazardId);
+    }
+
+    /** 이 수시평가보다 앞선(평가일이 이르거나, 같은 날이면 먼저 만든) 평가에서의 가장 최근 등급 */
+    private RiskLevel riskLevelBefore(Long hazardId, Assessment followUp) {
+        for (AssessmentHazard prev : assessmentHazardRepository.findHistoryByHazardId(hazardId)) {
+            if (followUp.getId().equals(prev.getAssessmentId())) {
+                continue;
+            }
+            Assessment a = assessmentRepository.findById(prev.getAssessmentId()).orElse(null);
+            if (a == null || a.getAssessedOn() == null || followUp.getAssessedOn() == null) {
+                continue;
+            }
+            boolean earlier = a.getAssessedOn().isBefore(followUp.getAssessedOn())
+                    || (a.getAssessedOn().isEqual(followUp.getAssessedOn()) && a.getId() < followUp.getId());
+            if (earlier) {
+                return prev.getRiskLevel();   // 이력은 평가일 내림차순 — 처음 걸리는 게 가장 최근
+            }
+        }
+        return null;
+    }
+
     /** 사고와 다른 발생형태는 등급을 바꾸지 않는다. 사고가 그 축의 빈도를 말해주지 않는다 */
     private RiskRuleEngine.Decision carryForward(RiskLevel before) {
         RiskLevel level = before != null ? before : RiskLevel.MEDIUM;

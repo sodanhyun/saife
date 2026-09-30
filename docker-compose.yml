@@ -33,6 +33,12 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       SAIFE_DEMO_MODE: ${SAIFE_DEMO_MODE:-false}
       JWT_SECRET: ${JWT_SECRET:-saife-local-dev-secret-please-change-32b}
+      # 공단 사진·지침 PDF 디스크 캐시(saife.media-dir). WORKDIR=/app 기준 기본값과 같은 곳을 명시한다
+      SAIFE_MEDIA_DIR: /app/data/media
+    volumes:
+      # 무대 오프라인 폴백: 프리페치한 사진·PDF가 컨테이너 재생성(전날 up -d --build)에도 남아야 한다.
+      # 볼륨이 없으면 컨테이너 쓰기 레이어에 쌓였다가 재생성과 함께 사라진다(최종 리뷰 F6)
+      - saife-media:/app/data/media
     ports:
       - "8080:8080"
     healthcheck:
@@ -54,3 +60,4 @@ services:
 
 volumes:
   saife-pgdata:
+  saife-media:

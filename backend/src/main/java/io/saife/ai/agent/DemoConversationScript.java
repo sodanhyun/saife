@@ -3,6 +3,7 @@ package io.saife.ai.agent;
 import io.saife.ai.tools.HazardAnalysisTools;
 import io.saife.ai.tools.LocationEquipmentTools;
 import io.saife.ai.tools.WorkPlanTools;
+import io.saife.dashboard.service.EquipmentTimelineService;
 import io.saife.workplan.domain.WorkPlan;
 import io.saife.workplan.repository.WorkPlanRepository;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,8 @@ public class DemoConversationScript {
     private final WorkPlanTools workPlanTools;
     private final HazardAnalysisTools hazardAnalysisTools;
     private final WorkPlanRepository workPlanRepository;
+    /** 연결성 2-1 — 설비가 확인되면 첫 문장은 회상이어야 한다. 모델 없이도 실제 DB 조회다 */
+    private final EquipmentTimelineService equipmentTimelineService;
 
     /** 대화별로 모아둔 값. 모델 대신 여기가 슬롯을 기억한다 */
     private final Map<String, Map<String, String>> slotsByConversation = new HashMap<>();
@@ -73,14 +76,16 @@ public class DemoConversationScript {
         }
 
         collect(slots, userMessage);
-        out.append("**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. ")
-                .append("도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n");
 
-        // 1) 장소·설비 확인 — 아직 못 찾았으면 이번 발화로 찾는다
+        // 1) 장소·설비 확인 — 아직 못 찾았으면 이번 발화로 찾는다. 이번 턴에 새로
+        // 확인됐는지를 기억해 둔다 — 그 경우에만 회상 문장을 첫머리에 붙인다
+        boolean justResolvedEquipment = false;
         if (!slots.containsKey("equipmentId")) {
             String found = locationEquipmentTools.findLocationEquipment(userMessage, null, toolContext);
             Long equipmentId = extractEquipmentId(found);
             if (equipmentId == null) {
+                out.append("**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. ")
+                        .append("도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n");
                 out.append(summarize(found)).append("\n\n");
                 out.append("어느 장소·설비에서 하는 작업인지 알려주세요. ")
                         .append("(예: 공장동 후면 차양부 이동식 사다리)");
@@ -94,10 +99,20 @@ public class DemoConversationScript {
             if (place != null) {
                 slots.put("workPlace", place);
             }
-            out.append(slots.get("equipmentSummary")).append("\n\n");
-        } else {
-            out.append(slots.get("equipmentSummary")).append("\n\n");
+            justResolvedEquipment = true;
         }
+
+        // 설비가 확인되면 답변의 첫 문장은 반드시 회상 요약이어야 한다(연결성 2-1).
+        // 모델 없이 도는 데모 모드도 예외가 아니다 — 스크립트가 직접 앞머리에 붙인다.
+        // ai.recall SSE 발행은 findLocationEquipment(도구 레벨)이 이미 했다 — 여기서는
+        // 화면에 보이는 "문장"만 맞춘다.
+        if (justResolvedEquipment) {
+            out.append(recallHeadline(Long.valueOf(slots.get("equipmentId")))).append("\n\n");
+        }
+
+        out.append("**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. ")
+                .append("도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n");
+        out.append(slots.get("equipmentSummary")).append("\n\n");
 
         // 2) 작업 일자 — 없으면 묻는다. 지어내지 않는다
         if (!slots.containsKey("workDate")) {
@@ -131,7 +146,8 @@ public class DemoConversationScript {
                 slots.get("equipmentName"),
                 slots.get("productName"),
                 toolContext);
-        hazardAnalysisTools.searchCases("FALL", "제조업", toolContext);
+        // 재해 원문에는 사업장 위치가 없다 — 위치 태그(workPlace)가 아니라 설비명·작업유형으로 질의한다
+        hazardAnalysisTools.searchCases("FALL", "제조업", null, slots.get("equipmentName"), "페인트", toolContext);
         if (slots.containsKey("productName")) {
             hazardAnalysisTools.getMsds(slots.get("productName"), toolContext);
         }
@@ -154,6 +170,20 @@ public class DemoConversationScript {
     /** 대화가 끝나거나 버려지면 메모리에서 지운다 */
     public void discard(String conversationId) {
         slotsByConversation.remove(conversationId);
+    }
+
+    /**
+     * 연결성 2-1 — 설비가 확인된 첫 문장. 대시보드 회상 API와 같은 경로
+     * ({@code EquipmentTimelineService.recall})를 그대로 써서 실제 DB 조회 결과를 낸다.
+     * 실패해도 나머지 응답은 이어가야 하므로 예외를 삼키고 빈 문자열을 돌려준다.
+     */
+    private String recallHeadline(Long equipmentId) {
+        try {
+            return equipmentTimelineService.recall(equipmentId).headline();
+        } catch (Exception e) {
+            log.warn("[DEMO] 회상 헤드라인 생성 실패 equipmentId={}: {}", equipmentId, e.getMessage());
+            return "";
+        }
     }
 
     // ---------- 값 뽑기 ----------
@@ -280,9 +310,17 @@ public class DemoConversationScript {
         return m.find() ? Long.valueOf(m.group(1)) : null;
     }
 
-    /** 도구 결과에서 위치 태그를 읽는다 */
+    /**
+     * 도구 결과에서 위치 태그를 읽는다.
+     *
+     * <p>{@code findLocationEquipment}는 {@code ToolResult.of()}로 감싼 JSON을 돌려주므로 "위치: …" 뒤의
+     * 줄바꿈이 백슬래시+n 리터럴이다. 예전 정규식({@code [^,]{1,40}})은 그 리터럴을 지나쳐
+     * "공장동 후면 차양부\n공정/장소: 표면처리 라인 (도장)\n\n기존 위험"까지 삼켰고, 그 문자열이
+     * {@code work_plan.work_place}에 저장돼 브리핑·상세·법정 서식 머리줄에 {@code \n}이 그대로
+     * 찍혔다(2026-09-29 데모 워크스루 실측, 데모 모드 전용). 쉼표·실제 개행·백슬래시 앞에서 멈춘다.
+     */
     private String extractLocation(String toolResult) {
-        Matcher m = Pattern.compile("위치[: ]+([^,]{1,40})").matcher(String.valueOf(toolResult));
+        Matcher m = Pattern.compile("위치[: ]+([^,\\n\\\\]{1,40})").matcher(String.valueOf(toolResult));
         if (m.find()) {
             return m.group(1).trim();
         }
@@ -290,9 +328,16 @@ public class DemoConversationScript {
         return m.find() ? m.group(1).trim() : null;
     }
 
-    /** 도구 결과에서 설비명을 읽는다. 못 읽으면 null — 없는 이름을 만들지 않는다 */
+    /**
+     * 도구 결과에서 설비명을 읽는다. 못 읽으면 null — 없는 이름을 만들지 않는다.
+     *
+     * <p>{@code describe()}(성공 매칭)의 실제 포맷은 {@code "설비 확인됨 [id=1] 이동식 사다리 A\n위치: ..."}로
+     * 괄호가 없다 — 예전 정규식은 후보 목록 포맷({@code "- [id=1] 이름 (위치)"})만 잡을 수 있었고
+     * 이 경로는 늘 null이었다(2026-09-29 실측, H3). {@code [id=N]} 뒤 다음 개행(실제 개행 또는
+     * {@code ToolResult.of()}가 JSON 이스케이프한 {@code \n} 리터럴)이나 "위치" 앞까지를 설비명으로 본다.
+     */
     private String extractEquipmentName(String toolResult) {
-        Matcher m = Pattern.compile("설비[: ]+([^(,]{1,40}?)[ ]*\\(")
+        Matcher m = Pattern.compile("\\[id=\\d+\\]\\s*(.+?)(?=(?:\\\\n|\\n|위치|$))")
                 .matcher(String.valueOf(toolResult));
         return m.find() ? m.group(1).trim() : null;
     }

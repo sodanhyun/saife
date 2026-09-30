@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useSearchParams } from "react-router-dom";
+
 import { equipmentApi } from "@/api/equipmentApi";
 import { visionApi } from "@/api/visionApi";
 import { useApiData } from "@/hooks/useApiData";
@@ -7,11 +9,22 @@ import { useToastStore } from "@/stores/useToastStore";
 import { getServerMessage } from "@/utils/errorMessage";
 import { useVisionStream } from "@/pages/Vision/hooks/useVisionStream";
 
+/** 진입 컨텍스트 — 설비 홈·상세에서 "사진 점검" 버튼으로 들어오면 ?equipmentId=가 붙는다. */
+function initialEquipmentIdFromQuery(raw: string | null): number | undefined {
+  if (!raw) return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export function useVision() {
+  const [searchParams] = useSearchParams();
   const equipment = useApiData({ fetchFn: (s) => equipmentApi.list(s), deps: [], errorMessage: "설비 목록을 불러오지 못했습니다" });
   const rate = useApiData({ fetchFn: (s) => visionApi.adoptionRate(s), deps: [], skipFirstSkeleton: true });
   // undefined = 아직 사람이 선택하지 않음(첫 설비로 파생). null = "(설비 지정 없음)"을 직접 골랐다 — effect로 되돌리지 않는다.
-  const [selectedId, setSelectedId] = useState<number | null | undefined>(undefined);
+  // 쿼리에 equipmentId가 있으면(진입 컨텍스트) 그 값을 명시적 선택으로 시작한다.
+  const [selectedId, setSelectedId] = useState<number | null | undefined>(() =>
+    initialEquipmentIdFromQuery(searchParams.get("equipmentId")),
+  );
   const equipmentId = selectedId === undefined ? (equipment.data?.[0]?.id ?? null) : selectedId;
   const [preview, setPreview] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);

@@ -28,7 +28,15 @@ export default function VisionPage() {
           {result?.demoMode && <Callout tone="neutral">데모 모드입니다. API 키가 없어 모델 응답 대신 고정 픽스처를 표시하고 있습니다.</Callout>}
           {result && result.candidates.length === 0 && <EmptyState message="빠진 안전조치를 찾지 못했습니다" description="판정 대상 6축 중 이 사진에 해당하는 항목이 없습니다." />}
           {result?.candidates.map((c) => <CandidateCard key={c.hazardId} c={c} busy={v.busyId === c.hazardId} onDecide={(id, adopt) => void v.decide(id, adopt)} />)}
-          {result && <LinkButton href={formUrl.assessment(result.assessmentId)} external>위험성평가표 (평가 #{result.assessmentId})</LinkButton>}
+          {result && (
+            <div className="flex flex-wrap gap-2">
+              <LinkButton href={formUrl.assessment(result.assessmentId)} external>위험성평가표 (평가 #{result.assessmentId})</LinkButton>
+              {/* 돌아오기 ③ — 후보를 하나라도 채택했고(§1-6 ③: "후보 채택 후"), 진입 컨텍스트로 설비가 정해져 있을 때만. 자동 이동은 하지 않는다. */}
+              {v.equipmentId !== null && result.candidates.some((c) => c.adopted === true) && (
+                <LinkButton href={`/equipment/${v.equipmentId}`}>이 설비 타임라인에 기록됨 → 보기</LinkButton>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </PageLayout>

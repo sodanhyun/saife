@@ -9,12 +9,22 @@ vi.mock("@/api/client", () => ({
 
 import { api, fetchWithAuth } from "@/api/client";
 import { useAgentStream } from "@/pages/WorkPlan/hooks/useAgentStream";
+import type { Evidence } from "@/types/evidence";
 
 const mockFetch = vi.mocked(fetchWithAuth);
 const mockGet = vi.mocked(api.get);
 
 function envelope(type: string, seq: number, payload: unknown, correlationId = "conv-1") {
   return `event: ${type}\ndata: ${JSON.stringify({ type, correlationId, targetId: null, seq, ts: "t", payload })}\n\n`;
+}
+
+/** 근거 카드 픽스처 — no만 바꿔가며 쓴다 */
+function ev(no: number): Evidence {
+  return {
+    no, kind: "GUIDE", refId: no, refKey: `G:${no}`, title: `근거 ${no}`, snippet: "",
+    sourceUrl: null, mediaUrl: null, thumbnailUrl: null, origin: "CACHE", score: 0.5,
+    fetchedAt: "2026-09-28T00:00:00+09:00", meta: {},
+  };
 }
 
 function sseResponse(chunks: string[]): Response {
@@ -70,8 +80,8 @@ describe("useAgentStream", () => {
     const { result } = renderHook(() => useAgentStream());
     await act(async () => { await result.current.send("내일 사다리 작업"); });
     expect(result.current.turns).toEqual([
-      { role: "user", text: "내일 사다리 작업" },
-      { role: "assistant", text: "확인했습니다" },
+      { role: "user", text: "내일 사다리 작업", evidence: [] },
+      { role: "assistant", text: "확인했습니다", evidence: [] },
     ]);
     expect(result.current.trace).toEqual([
       expect.objectContaining({ toolName: "findLocationEquipment", status: "ok", durationMs: 17 }),
@@ -170,6 +180,40 @@ describe("useAgentStream", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("ai.recall은 항상 마지막 한 장만 남긴다 — 같은 설비든 다른 설비든 통째로 교체된다", async () => {
+    mockFetch.mockResolvedValue(sseResponse([
+      envelope("ai.recall", 1, { equipmentId: 1, equipmentName: "이동식 사다리 A", locationTag: "공장동", headline: "첫 회상", predicted: false, warnedAt: null, priorHazards: [], unfinishedActions: [], priorWorkPlans: [], priorIncidents: [], knownSlots: [] }),
+      envelope("ai.recall", 2, { equipmentId: 1, equipmentName: "이동식 사다리 A", locationTag: "공장동", headline: "같은 설비 최신 회상", predicted: false, warnedAt: null, priorHazards: [], unfinishedActions: [], priorWorkPlans: [], priorIncidents: [], knownSlots: [] }),
+      envelope("ai.recall", 3, { equipmentId: 2, equipmentName: "고소작업대", locationTag: "본관 옥상", headline: "다른 설비 회상", predicted: false, warnedAt: null, priorHazards: [], unfinishedActions: [], priorWorkPlans: [], priorIncidents: [], knownSlots: [] }),
+    ]));
+    const { result } = renderHook(() => useAgentStream());
+    await act(async () => { await result.current.send("공장동 후면 차양부"); });
+    expect(result.current.recall?.equipmentId).toBe(2);
+    expect(result.current.recall?.headline).toBe("다른 설비 회상");
+  });
+
+  it("reset()은 recall도 비운다", async () => {
+    mockFetch.mockResolvedValue(sseResponse([
+      envelope("ai.recall", 1, { equipmentId: 1, equipmentName: "이동식 사다리 A", locationTag: null, headline: "회상", predicted: false, warnedAt: null, priorHazards: [], unfinishedActions: [], priorWorkPlans: [], priorIncidents: [], knownSlots: [] }),
+      envelope("ai.done", 2, null),
+    ]));
+    const { result } = renderHook(() => useAgentStream());
+    await act(async () => { await result.current.send("공장동 후면 차양부"); });
+    expect(result.current.recall).not.toBeNull();
+    act(() => { result.current.reset(); });
+    expect(result.current.recall).toBeNull();
+  });
+
+  it("새 대화의 첫 턴에만 body에 equipmentId를 싣는다", async () => {
+    mockFetch.mockResolvedValue(sseResponse([envelope("ai.done", 1, null)]));
+    const { result } = renderHook(() => useAgentStream());
+    await act(async () => { await result.current.send("첫 메시지", undefined, 7); });
+    await act(async () => { await result.current.send("두 번째 메시지", undefined, 7); });
+    const bodies = mockFetch.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
+    expect(bodies[0]).toMatchObject({ equipmentId: 7 });
+    expect(bodies[1].equipmentId).toBeUndefined();
+  });
+
   it("복원 도중 reset()하면 뒤늦게 도착한 옛 대화로 turns가 채워지지 않는다", async () => {
     sessionStorage.setItem("saife.conversationId", "conv-old");
     let resolveTranscript!: (v: { data: { role: string; text: string }[] }) => void;
@@ -183,5 +227,94 @@ describe("useAgentStream", () => {
 
     await act(async () => { resolveTranscript({ data: [{ role: "user", text: "옛 질문" }] }); });
     expect(result.current.turns).toEqual([]);
+  });
+
+  it("턴별 근거 누적 — ai.evidence는 그 턴의 assistant에만 붙는다", async () => {
+    mockFetch.mockResolvedValueOnce(sseResponse([
+      envelope("ai.evidence", 1, [ev(1)]),
+      envelope("ai.token", 2, "답 1 [#1]"),
+      envelope("ai.done", 3, null),
+    ]));
+    mockFetch.mockResolvedValueOnce(sseResponse([
+      envelope("ai.evidence", 1, [ev(2)]),
+      envelope("ai.token", 2, "답 2 [#2]"),
+      envelope("ai.done", 3, null),
+    ]));
+    const { result } = renderHook(() => useAgentStream());
+    await act(async () => { await result.current.send("첫 질문"); });
+    await act(async () => { await result.current.send("둘째 질문"); });
+    const asst = result.current.turns.filter((t) => t.role === "assistant");
+    expect(asst[0].evidence.map((e) => e.no)).toEqual([1]);
+    expect(asst[1].evidence.map((e) => e.no)).toEqual([2]);
+    expect([...result.current.knownNos]).toEqual([1, 2]);
+    expect(result.current.evidenceCount.total).toBe(2);
+  });
+
+  it("복원 근거 — transcript의 evidence가 턴에 붙는다", async () => {
+    sessionStorage.setItem("saife.conversationId", "old");
+    mockGet.mockResolvedValueOnce({
+      data: [
+        { role: "user", text: "q", evidence: [] },
+        { role: "assistant", text: "a [#1]", evidence: [ev(1)] },
+      ],
+    });
+    const { result } = renderHook(() => useAgentStream());
+    await waitFor(() => expect(result.current.restoring).toBe(false));
+    expect(result.current.turns[1].evidence).toHaveLength(1);
+    expect(result.current.knownNos.has(1)).toBe(true);
+  });
+
+  // F4 — 진입 설비가 저장된 대화의 설비를 삼키지 않는다.
+  describe("F4 — 진입 설비와 저장된 대화의 설비가 다르면 새 대화로 시작한다", () => {
+    it("설비 A 대화가 저장된 상태에서 설비 B로 진입하면 복원하지 않고, 첫 요청에 B가 실린다", async () => {
+      sessionStorage.setItem("saife.conversationId", "conv-A");
+      sessionStorage.setItem("saife.conversationEquipmentId", "1");
+      mockFetch.mockResolvedValue(sseResponse([envelope("ai.done", 1, null, "conv-B")]));
+
+      const { result } = renderHook(() => useAgentStream(2));
+      // 진입 설비가 저장된 대화의 설비(1)와 다르므로(2) 복원 대상이 아니다.
+      expect(result.current.restoring).toBe(false);
+      expect(sessionStorage.getItem("saife.conversationId")).toBeNull();
+
+      await act(async () => { await result.current.send("내일 작업 신고", undefined, 2); });
+      const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+      expect(body).toMatchObject({ conversationId: null, equipmentId: 2 });
+      expect(sessionStorage.getItem("saife.conversationEquipmentId")).toBe("2");
+    });
+
+    it("저장된 대화에 설비가 없었는데(구버전 저장값) 진입 설비가 있으면 새 대화로 시작한다", async () => {
+      sessionStorage.setItem("saife.conversationId", "conv-old");
+      mockFetch.mockResolvedValue(sseResponse([envelope("ai.done", 1, null, "conv-new")]));
+
+      const { result } = renderHook(() => useAgentStream(5));
+      expect(result.current.restoring).toBe(false);
+
+      await act(async () => { await result.current.send("작업 신고", undefined, 5); });
+      const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
+      expect(body).toMatchObject({ conversationId: null, equipmentId: 5 });
+    });
+
+    it("진입 설비가 저장된 대화의 설비와 같으면 대화를 복원한다", async () => {
+      sessionStorage.setItem("saife.conversationId", "conv-A");
+      sessionStorage.setItem("saife.conversationEquipmentId", "1");
+      mockGet.mockResolvedValueOnce({ data: [{ role: "user", text: "이전 질문", evidence: [] }] });
+
+      const { result } = renderHook(() => useAgentStream(1));
+      expect(result.current.restoring).toBe(true);
+      await waitFor(() => expect(result.current.restoring).toBe(false));
+      expect(result.current.turns.map((t) => t.text)).toEqual(["이전 질문"]);
+      expect(sessionStorage.getItem("saife.conversationId")).toBe("conv-A");
+    });
+
+    it("진입 설비가 없으면(주소창 직접 진입) 저장된 대화를 그대로 복원한다", async () => {
+      sessionStorage.setItem("saife.conversationId", "conv-A");
+      sessionStorage.setItem("saife.conversationEquipmentId", "1");
+      mockGet.mockResolvedValueOnce({ data: [{ role: "user", text: "이전 질문", evidence: [] }] });
+
+      const { result } = renderHook(() => useAgentStream(null));
+      expect(result.current.restoring).toBe(true);
+      await waitFor(() => expect(result.current.restoring).toBe(false));
+      expect(result.current.turns.map((t) => t.text)).toEqual(["이전 질문"]);
+    });
   });
 });

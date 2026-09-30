@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${SAIFE_TEST_DB_PORT:5433}/saife
+    username: saife
+    password: saife
+  ai:
+    google:
+      genai:
+        api-key: ""
+        embedding:
+          api-key: ""
+saife:
+  demo-mode: true

@@ -23,6 +23,16 @@ public final class AgentContextKeys {
     /** 이 대화가 만들고 있는 작업계획서 (없으면 아직 생성 전) */
     public static final String WORK_PLAN_ID = "workPlanId";
 
+    /**
+     * 진입 컨텍스트(작업 신고 화면의 {@code ?equipmentId=})로 대화를 시작한 설비.
+     *
+     * <p>첫 턴에만 실린다({@code ChatRequest.equipmentId}). 자유 텍스트 매칭이
+     * 실패·애매할 때 {@code findLocationEquipment}가 이 설비로 단축한다 —
+     * 이미 화면에서 설비를 골라 들어온 문맥을 자유 텍스트 매칭의 한계 때문에
+     * 버리지 않기 위해서다.
+     */
+    public static final String EQUIPMENT_ID = "equipmentId";
+
     private AgentContextKeys() {}
 
     public static String conversationId(ToolContext ctx) {
@@ -43,6 +53,14 @@ public final class AgentContextKeys {
 
     public static Long workPlanId(ToolContext ctx) {
         Object v = raw(ctx, WORK_PLAN_ID);
+        if (v == null) {
+            return null;
+        }
+        return (v instanceof Number n) ? n.longValue() : Long.valueOf(v.toString());
+    }
+
+    public static Long equipmentId(ToolContext ctx) {
+        Object v = raw(ctx, EQUIPMENT_ID);
         if (v == null) {
             return null;
         }

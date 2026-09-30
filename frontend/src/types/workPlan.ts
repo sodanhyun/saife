@@ -1,3 +1,4 @@
+import type { Evidence } from "@/types/evidence";
 import type { WorkPlanStatus } from "@/types/domain";
 
 /** 백엔드 WorkPlanDtos와 1:1 */
@@ -51,4 +52,8 @@ export interface WorkPlanDetail {
   approvedAt: string | null;
   slots: WorkPlanSlot[];
   workers: WorkPlanWorker[];
+  /** 백엔드 B1 Task 4가 아직 안 내려주면 undefined — 모달은 있고 비어있지 않을 때만 그린다 */
+  evidence?: Evidence[];
+  /** 사고 연쇄(UC2)가 붙인 경고 — 백엔드 `IncidentDtos.AffectedWorkPlan`이 같은 문구를 여기 남긴다 */
+  warningNote?: string | null;
 }

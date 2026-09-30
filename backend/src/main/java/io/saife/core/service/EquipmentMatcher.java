@@ -128,6 +128,24 @@ public class EquipmentMatcher {
         return new MatchResult(null, process, List.of(), true);
     }
 
+    /**
+     * equipmentId로 직접 확정한다 — 자유 텍스트 매칭을 건너뛰는 단축 경로.
+     *
+     * <p>작업 신고 화면이 {@code ?equipmentId=}로 이미 설비를 골라 들어온 대화에서 쓴다.
+     * "공장동 후면 차양부 천장 페인트 작업"처럼 같은 공정에 설비가 둘 이상이면
+     * 자유 텍스트 유사도만으로는 못 가른다(2026-09-29 실측, Jaro-Winkler가 임계값
+     * 미만으로 떨어져 unmatched가 된다) — 이미 화면에서 확정된 설비 문맥을
+     * 매칭기의 한계 때문에 버리지 않는다.
+     *
+     * @return 설비가 존재하면 확정된 {@code MatchResult}, 없으면 {@code unmatched}
+     */
+    @Transactional(readOnly = true)
+    public MatchResult matchById(Long equipmentId) {
+        return equipmentRepository.findById(equipmentId)
+                .map(eq -> new MatchResult(eq, findProcess(eq.getProcessId()), List.of(), false))
+                .orElseGet(() -> new MatchResult(null, null, List.of(), true));
+    }
+
     /** 질의 안에 등록된 장소 태그가 들어 있는지 본다 */
     private WorkProcess resolveProcess(Long siteId, String query, String rawLocationTag) {
         if (rawLocationTag != null && !rawLocationTag.isBlank()) {

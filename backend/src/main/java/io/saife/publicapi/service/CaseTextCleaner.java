@@ -79,6 +79,28 @@ public final class CaseTextCleaner {
     private static final Pattern PLACE_GLUE =
             Pattern.compile("에서(?=[가-힣])(?!는|은|도|의|만|나|과|와|부터|까지|라도|야말로)");
 
+    /** 사진은 공단 포털 호스트에서만 받는다. 프록시가 SSRF에 쓰이지 않게 여기서부터 막는다 */
+    private static final Pattern IMG_SRC =
+            Pattern.compile("<img[^>]*\\ssrc\\s*=\\s*['\"]?(https://portal\\.kosha\\.or\\.kr/[^'\"\\s>]+)", Pattern.CASE_INSENSITIVE);
+
+    /** 국내재해사례(1060)는 게시글 딥링크가 없다. 포털 목록 페이지가 원문 링크다 */
+    public static final String DISASTER_LIST_URL =
+            "https://portal.kosha.or.kr/archive/disaster-case/accident-case";
+
+    /**
+     * 원문 HTML의 첫 사고 사진 URL.
+     *
+     * <p>1040 원문은 전 건에 {@code <img src='https://portal.kosha.or.kr/api/compn24/auth/stdtboard/getImage.do?...'>}가
+     * 있다(2026-09-28 실측 300/300). {@link #clean}이 태그를 지우기 <b>전에</b> 불러야 한다.
+     */
+    public static String imageUrlOf(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        Matcher m = IMG_SRC.matcher(raw);
+        return m.find() ? m.group(1) : null;
+    }
+
     /**
      * HTML 태그·꼬리말 제거 후 공백 정규화.
      *

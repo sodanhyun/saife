@@ -71,7 +71,10 @@ public final class FormViews {
                                List<String> recallLines,
                                String aiNotice) {}
 
-    /** 위험작업 작업계획서 */
+    /**
+     * @param references  createWorkPlan 시점에 대화 원장에서 붙은 근거 목록. "참고 자료" 절이 읽는다
+     * @param warningNote 사고 연쇄(UC2)가 붙인 경고(R48). 없으면 null — 템플릿이 이 경우 절 자체를 감춘다
+     */
     public record WorkPlanForm(String siteName,
                                String equipmentName,
                                String workName,
@@ -83,16 +86,27 @@ public final class FormViews {
                                String approvedBy,
                                String approvedAt,
                                String approvalNote,
+                               String warningNote,
                                List<WorkerRow> workers,
                                List<SlotRow> slots,
                                String briefing,
                                String briefingAckAt,
                                String tbmNotice,
-                               String aiNotice) {}
+                               String aiNotice,
+                               List<ReferenceRow> references) {}
 
     public record WorkerRow(int no, String name, String position, String duty) {}
 
     /** @param conflicted 대장 기록과 오늘 답변이 다르다. 서식에 그대로 남긴다 */
     public record SlotRow(String question, String ledgerValue, String answeredValue,
                           boolean conflicted) {}
+
+    /**
+     * "참고 자료" 목록 한 줄.
+     *
+     * @param no        원장 번호(#n)
+     * @param sourceUrl 없을 수 있다(원문 링크가 없는 근거) — 그때는 링크 없이 제목만 표시한다
+     * @param fetchedAt KST로 이미 변환된 문자열
+     */
+    public record ReferenceRow(int no, String title, String sourceUrl, String fetchedAt) {}
 }

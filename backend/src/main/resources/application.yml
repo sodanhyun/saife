@@ -14,6 +14,12 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
       connection-timeout: 30000
+      # 근거 검색(ruling R58): kind·발생형태·업종 필터는 HNSW 스캔 "뒤에" 걸린다(post-filter).
+      # pgvector 기본 ef_search=40이면 후보 40개 안에 작은 kind(CASE_FATALITY ≈ 7%, 축으로 더 좁혀짐)가
+      # 거의 안 들어와 벡터 다리가 비고 하이브리드가 키워드에만 기댄다. 200으로 올려 후보 폭을 넓힌다.
+      # (pgvector 0.8.2 확인. iterative_scan은 쓰지 않는다.) 확장이 아직 없는 첫 Flyway 연결에서도
+      # 점이 들어간 사용자 GUC라 SET 자체는 실패하지 않는다.
+      connection-init-sql: SET hnsw.ef_search = 200
 
   jpa:
     open-in-view: false
@@ -61,13 +67,13 @@ spring:
           text:
             options:
               model: gemini-embedding-2
-              dimensions: 1536
+              dimensions: 768
     vectorstore:
       pgvector:
         index-type: HNSW
         distance-type: COSINE_DISTANCE
-        dimensions: 1536
-        initialize-schema: true
+        dimensions: 768
+        initialize-schema: false
 
 # ── JWT ──
 jwt:
@@ -96,6 +102,15 @@ saife:
   demo-mode: ${SAIFE_DEMO_MODE:false}   # true면 모델 응답을 픽스처로 고정 (무대 오프라인 폴백)
   upload-dir: ${SAIFE_UPLOAD_DIR:./data/uploads}   # 현장 사진. /data/는 gitignore 대상
   accident-types: [FALL, CAUGHT, DROP, STRUCK, FIRE, PPE]
+  media-dir: ${SAIFE_MEDIA_DIR:./data/media}   # 사진·PDF 디스크 캐시. /data/는 gitignore
+  external:
+    timeout-ms: 8000
+    circuit-failures: 3
+    circuit-open-ms: 60000
+  index:
+    enrich-parallelism: ${SAIFE_INDEX_ENRICH_PARALLELISM:5}   # 지침 enrichment 병렬도. 1 이하면 순차
+    enrich-enabled: ${SAIFE_INDEX_ENRICH_ENABLED:true}        # 절단선 ⑤: false면 enrich를 안 부르고 원문 그대로 임베딩
+    guide-pdf-text: ${SAIFE_INDEX_GUIDE_PDF_TEXT:true}        # 절단선 ③: false면 지침 PDF 본문을 안 받고 표지 청크만 생성
 
 # ── Actuator (health만 노출. 모니터링 스택은 이번 범위 밖) ──
 management:

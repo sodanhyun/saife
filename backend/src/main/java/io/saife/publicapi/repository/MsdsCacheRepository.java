@@ -17,4 +17,6 @@ public interface MsdsCacheRepository extends JpaRepository<MsdsCache, Long> {
     List<MsdsCache> findByChemIdOrderBySectionCode(String chemId);
 
     List<MsdsCache> findByChemIdAndSectionCodeIn(String chemId, List<String> sectionCodes);
+
+    List<MsdsCache> findByChemId(String chemId);
 }
