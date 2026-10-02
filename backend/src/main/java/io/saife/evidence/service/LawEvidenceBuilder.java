@@ -49,7 +49,7 @@ public final class LawEvidenceBuilder {
         String snippet = text.length() > SNIPPET_CHARS ? text.substring(0, SNIPPET_CHARS) + "…" : text;
         return List.of(new Evidence(0, EvidenceKind.LAW, first.getId(),
                 first.getLawId() + ":" + c.articleNo() + ":" + c.articleSub(),
-                first.citation().replaceAll(" [①-⑳]$", "") + " — " + c.why(),
+                first.citation().replaceAll(" [①-⑳]$", "") + ": " + c.why(),
                 snippet, first.getSourceUrl(), null, null, f.origin(), 1.0, f.fetchedAt(), meta));
     }
 }

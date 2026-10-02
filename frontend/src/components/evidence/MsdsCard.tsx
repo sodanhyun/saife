@@ -1,4 +1,5 @@
 // MsdsCard.tsx — GHS 픽토그램이 글자보다 먼저 읽힌다. 아이콘은 리포 동봉 SVG(/ghs/GHSxx.svg).
+import { plainText } from "@/utils/plainText";
 import { useState } from "react";
 
 import { originLabel, originTone } from "@/components/evidence/evidenceMeta";
@@ -29,7 +30,7 @@ export default function MsdsCard({ e, scope }: { e: Evidence; scope: string }) {
         <span className="text-xs text-slate-500">MSDS</span>
         <StatusBadge tone={originTone(e)}>{originLabel(e)}</StatusBadge>
       </div>
-      <p className="mt-1 text-stage font-semibold">{e.title}</p>
+      <p className="mt-1 text-stage font-semibold">{plainText(e.title)}</p>
       {visibleCodes.length > 0 && (
         <div className="mt-2 flex gap-2">
           {visibleCodes.map((c) => (

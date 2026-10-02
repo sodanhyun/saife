@@ -2,7 +2,7 @@
 // 연결 관계는 서버가 계산한 linkedEventIds만 쓴다. 화면이 추가로 만드는 건 두 가지뿐이다:
 //  1) 등급 변화(직전 평가 등급과 비교) 2) 사고 전 같은 유형 위험을 평가한 기록(사전 경고).
 // 둘 다 같은 응답 안의 사실을 비교만 한다. 없는 연결을 만들지 않는다.
-import { plainText, monthDay } from "@/components/timeline/plainText";
+import { plainText, monthDay } from "@/utils/plainText";
 import { ACCIDENT_LABEL, RISK_LABEL, type RiskLevel } from "@/types/domain";
 import type { TimelineEvent } from "@/types/timeline";
 

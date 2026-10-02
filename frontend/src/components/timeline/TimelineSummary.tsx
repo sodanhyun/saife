@@ -2,7 +2,7 @@
 // 화면의 주인공 면이라 shadow-lift를 쓴다. 헤드라인 한 줄만 읽혀도 논지가 전달돼야 한다(프로젝터).
 import { ArrowRight } from "lucide-react";
 
-import { plainText, monthDay } from "@/components/timeline/plainText";
+import { plainText, monthDay } from "@/utils/plainText";
 import { buildStory } from "@/components/timeline/storyModel";
 import RiskGradeMark from "@/components/ui/RiskGradeMark";
 import cn from "@/lib/cn";

@@ -183,7 +183,7 @@ public class LocationEquipmentTools {
         if (history.isEmpty()) {
             return "";
         }
-        return " — 최근 평가 등급 '%s'".formatted(history.get(0).getRiskLevel().getLabel());
+        return " (최근 평가 등급 '%s')".formatted(history.get(0).getRiskLevel().getLabel());
     }
 
     private String processLine(WorkProcess p) {

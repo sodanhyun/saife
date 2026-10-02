@@ -167,7 +167,7 @@ public class MsdsLiveClient {
 
     private static String sectionName(String s) {
         return switch (s) {
-            case "02" -> "유해성·위험성"; case "05" -> "폭발·화재시 대처방법";
+            case "02" -> "유해성, 위험성"; case "05" -> "폭발, 화재 시 대처방법";
             case "07" -> "취급 및 저장방법"; case "08" -> "노출방지 및 개인보호구";
             default -> "항목 " + s;
         };

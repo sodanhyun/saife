@@ -2,7 +2,7 @@
 // 카드 전체가 설비 상세로 가는 링크이고(제목 링크를 카드 크기로 늘림), 동사 버튼은 그 위에 따로 선다.
 import { Link, useNavigate } from "react-router-dom";
 
-import { plainText } from "@/components/timeline/plainText";
+import { plainText } from "@/utils/plainText";
 import RiskGradeMark from "@/components/ui/RiskGradeMark";
 import cn from "@/lib/cn";
 import { ACCIDENT_LABEL } from "@/types/domain";

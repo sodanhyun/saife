@@ -1,7 +1,7 @@
 // TimelinePage.tsx — UC4. 이 화면이 증명하는 건 기능이 아니라 구조다. 전부 같은 설비 ID에 매달려 있다.
 import { useState } from "react";
 
-import { plainText } from "@/components/timeline/plainText";
+import { plainText } from "@/utils/plainText";
 import TimelineList from "@/components/timeline/TimelineList";
 import TimelineSummary from "@/components/timeline/TimelineSummary";
 import Callout from "@/components/ui/Callout";

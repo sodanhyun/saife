@@ -3,7 +3,7 @@
 import { AlertTriangle, Check, ClipboardList, Clock, CornerDownRight } from "lucide-react";
 
 import { formUrl } from "@/api/formUrl";
-import { plainText } from "@/components/timeline/plainText";
+import { plainText } from "@/utils/plainText";
 import { buildStory, storyLinkedIds, type StoryEvent, type StoryRelation } from "@/components/timeline/storyModel";
 import { RiskBadge, StatusBadge } from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";

@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { plainText } from "@/components/timeline/plainText";
+import { plainText } from "@/utils/plainText";
 import TimelineList from "@/components/timeline/TimelineList";
 import TimelineSummary from "@/components/timeline/TimelineSummary";
 import Button from "@/components/ui/Button";

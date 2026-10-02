@@ -30,7 +30,7 @@ public enum GateStatus {
      * 게이트 미통과. 후보는 보여주되 <b>참고용</b>으로 표시하고 채택률에서 뺀다.
      * 확정은 현장 확인 후 체크리스트로 한다.
      */
-    CHECKLIST("참고 — 현장 확인 필요");
+    CHECKLIST("참고, 현장 확인 필요");
 
     private final String label;
 

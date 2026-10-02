@@ -1,7 +1,7 @@
 // todayModel.ts — "오늘 할 일" 응답을 홈 화면 모양으로 접는다(순수 함수).
 // 서버 정렬(긴급 → 주의, 기한 순)은 그대로 두고, 같은 계획서가 두 규칙에 걸린 경우만 한 줄로 합친다.
 import { formUrl } from "@/api/formUrl";
-import { plainText } from "@/components/timeline/plainText";
+import { plainText } from "@/utils/plainText";
 import type { EquipmentCard, TodayItem, TodayKind } from "@/types/timeline";
 
 export const KIND_LABEL: Record<TodayKind, string> = {

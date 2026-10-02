@@ -223,7 +223,7 @@ public class FormDataService {
     private String reportBasis(Incident incident) {
         Integer days = incident.getLeaveDays();
         if (days == null) {
-            return "휴업일수 미입력 — 제출 의무를 판단하지 못했습니다. 확인 후 입력하십시오.";
+            return "휴업일수 미입력: 제출 의무를 판단하지 못했습니다. 확인 후 입력하십시오.";
         }
         if (days >= Incident.REPORTABLE_LEAVE_DAYS) {
             return ("휴업 %d일(3일 이상) → 산업안전보건법 시행규칙 제73조에 따라 발생일로부터 "

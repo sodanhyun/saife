@@ -70,7 +70,7 @@ public class DemoConversationScript {
 
         StringBuilder out = new StringBuilder();
         if (slots.containsKey("done")) {
-            return out.append("**데모 모드** — 이 대화의 작업계획서는 이미 제출되었습니다. ")
+            return out.append("**데모 모드**: 이 대화의 작업계획서는 이미 제출되었습니다. ")
                     .append("목록에서 확인하시거나, '새 대화'를 눌러 다른 작업을 등록하세요.")
                     .toString();
         }
@@ -84,10 +84,10 @@ public class DemoConversationScript {
             String found = locationEquipmentTools.findLocationEquipment(userMessage, null, toolContext);
             Long equipmentId = extractEquipmentId(found);
             if (equipmentId == null) {
-                out.append("**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. ")
+                out.append("**데모 모드**: API 키가 없어 문장 생성은 고정 스크립트를 씁니다. ")
                         .append("도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n");
                 out.append(summarize(found)).append("\n\n");
-                out.append("어느 장소·설비에서 하는 작업인지 알려주세요. ")
+                out.append("어느 장소, 설비에서 하는 작업인지 알려주세요. ")
                         .append("(예: 공장동 후면 차양부 이동식 사다리)");
                 return out.toString();
             }
@@ -110,7 +110,7 @@ public class DemoConversationScript {
             out.append(recallHeadline(Long.valueOf(slots.get("equipmentId")))).append("\n\n");
         }
 
-        out.append("**데모 모드** — API 키가 없어 문장 생성은 고정 스크립트를 씁니다. ")
+        out.append("**데모 모드**: API 키가 없어 문장 생성은 고정 스크립트를 씁니다. ")
                 .append("도구 호출과 데이터 조회는 실제로 실행됩니다.\n\n");
         out.append(slots.get("equipmentSummary")).append("\n\n");
 
@@ -268,7 +268,7 @@ public class DemoConversationScript {
             case "work_height" -> "작업 높이는 대략 몇 m인가요? (2m 초과 여부로 추락 위험성 등급이 갈립니다)";
             case "anchor_installed" -> "안전대 부착설비가 설치되어 있습니까? (있음/없음)";
             case "product_name" -> "사용하는 제품명이 무엇인가요? 유기용제 여부를 확인하겠습니다.";
-            case "guard_installed" -> "회전·구동부에 방호덮개가 설치되어 있습니까? (있음/없음)";
+            case "guard_installed" -> "회전부나 구동부에 방호덮개가 설치되어 있습니까? (있음/없음)";
             default -> "'%s' 값을 알려주세요.".formatted(field);
         };
     }
