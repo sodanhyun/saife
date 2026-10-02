@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <!--
-  위험작업 작업계획서 + 작업 전 브리핑(TBM 기록).
+  작업 전 안전점검표 (TBM).
 
-  브리핑 확인 시각이 이 서식의 핵심이다. 구두 TBM과 달리 확인 기록이 남고,
-  그게 상시평가 트랙의 "매 작업일 TBM" 요건을 서류로 증명한다.
+  사다리 천장 도장처럼 안전보건규칙 제38조 작업계획서 대상이 아닌 작업의 기록이다.
+  근거: 안전보건규칙 제42조, 법 제36조제4항(작업 전 안전점검회의로 근로자 공유), 고시 제13조.
+  제38조 대상 작업이면 같은 서식이 제목과 근거만 「작업계획서」로 바뀐다(값은 WorkPlanFormService).
 -->
 <html lang="ko" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{form/_layout :: layout('위험작업 작업계획서', ~{::main})}">
+      th:replace="~{form/_layout :: layout(${form.documentTitle}, ~{::main})}">
 <body>
 <main class="sheet">
-  <h1>위험작업 작업계획서</h1>
-  <p class="subtitle">산업안전보건기준에 관한 규칙 제38조 (사전조사 및 작업계획서의 작성 등)</p>
+  <h1 th:text="${form.documentTitle}">작업 전 안전점검표 (TBM)</h1>
+  <p class="subtitle" th:text="${form.documentBasis}">근거</p>
 
   <table>
     <tr>
-      <td class="label">사업장명</td>
+      <td class="label">사업장</td>
       <td th:text="${form.siteName}">-</td>
       <td class="label">작업 일자</td>
       <td th:text="${form.workDate}">-</td>
@@ -31,21 +32,96 @@
       <td class="label">대상 설비</td>
       <td th:text="${form.equipmentName}">-</td>
     </tr>
+    <tr th:if="${form.method != '-'}">
+      <td class="label">작업 방법</td>
+      <td class="pre" colspan="3" th:text="${form.method}">-</td>
+    </tr>
   </table>
 
-  <div class="section-title">작업 순서 및 방법</div>
-  <table>
-    <tr><td class="pre" th:text="${form.method}">-</td></tr>
-  </table>
-
-  <div class="section-title">작업 인원</div>
+  <div class="section-title">1. 현장 확인</div>
   <table>
     <thead>
     <tr>
-      <th style="width:36px">번호</th>
-      <th style="width:140px">성명</th>
-      <th style="width:140px">직책</th>
-      <th>담당 업무</th>
+      <th>확인 항목</th>
+      <th style="width:150px">확인 값</th>
+      <th style="width:150px">대장 기록</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="c : ${form.checks}">
+      <td th:text="${c.label}">-</td>
+      <td style="text-align:center" th:class="${c.conflicted} ? 'risk-high' : ''" th:text="${c.value}">-</td>
+      <td style="text-align:center" th:text="${c.ledgerValue}">-</td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(form.checks)}">
+      <td colspan="3" style="text-align:center; padding:12px">확인 항목 없음</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">2. 유해위험요인과 위험성</div>
+  <table>
+    <thead>
+    <tr>
+      <th style="width:96px">발생형태</th>
+      <th style="width:56px">위험성</th>
+      <th>판정 근거</th>
+      <th style="width:210px">개선대책</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="d : ${form.decisions}">
+      <td style="text-align:center" th:text="${d.label}">-</td>
+      <td style="text-align:center" th:class="${d.gradeClass}" th:text="${d.grade}">-</td>
+      <td th:text="${d.basis}">-</td>
+      <td th:text="${d.measure}">-</td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(form.decisions)}">
+      <td colspan="4" style="text-align:center; padding:12px">판정 없음</td>
+    </tr>
+    <tr th:each="p : ${form.pendingActions}">
+      <td style="text-align:center" class="label">미이행 조치</td>
+      <td class="pre" colspan="3" th:text="${p}">-</td>
+    </tr>
+    <tr th:if="${form.msdsLine != null}">
+      <td style="text-align:center" class="label">화학물질</td>
+      <td colspan="3" th:text="${form.msdsLine}">-</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">3. 작업 전 안전점검회의 (TBM)</div>
+  <table>
+    <tr>
+      <td class="label">위험 포인트</td>
+      <td>
+        <ol class="points"><li th:each="r : ${form.riskPoints}" th:text="${r}">-</li></ol>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">지킬 것</td>
+      <td>
+        <ol class="points"><li th:each="k : ${form.keepPoints}" th:text="${k}">-</li></ol>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">작업 중지</td>
+      <td th:text="${form.stopLine}">-</td>
+    </tr>
+    <tr>
+      <td class="label">TBM 실시</td>
+      <td th:text="${form.briefingAckAt}"></td>
+    </tr>
+  </table>
+
+  <div class="section-title">4. TBM 참석자</div>
+  <table>
+    <thead>
+    <tr>
+      <th style="width:40px">번호</th>
+      <th style="width:150px">성명</th>
+      <th style="width:120px">직책</th>
+      <th>서명</th>
     </tr>
     </thead>
     <tbody>
@@ -53,91 +129,59 @@
       <td style="text-align:center" th:text="${w.no}">1</td>
       <td th:text="${w.name}">-</td>
       <td th:text="${w.position}">-</td>
-      <td th:text="${w.duty}">-</td>
+      <td class="sign-cell"></td>
     </tr>
-    <tr th:if="${#lists.isEmpty(form.workers)}">
-      <td colspan="4" style="text-align:center; padding:14px">
-        작업 인원이 입력되지 않았습니다. 작업 전 성명을 기재하십시오.
-      </td>
+    <tr>
+      <td style="text-align:center" th:text="${#lists.size(form.workers) + 1}">1</td>
+      <td></td>
+      <td></td>
+      <td class="sign-cell"></td>
     </tr>
     </tbody>
   </table>
 
-  <div class="section-title">현장 확인 사항</div>
-  <table>
-    <thead>
-    <tr>
-      <th>확인 항목</th>
-      <th style="width:130px">대장 기록</th>
-      <th style="width:130px">작업자 확인</th>
-      <th style="width:70px">불일치</th>
-    </tr>
-    </thead>
-    <tbody>
-    <tr th:each="s : ${form.slots}">
-      <td th:text="${s.question}">-</td>
-      <td style="text-align:center" th:text="${s.ledgerValue}">-</td>
-      <td style="text-align:center" th:text="${s.answeredValue}">-</td>
-      <td style="text-align:center" th:class="${s.conflicted} ? 'risk-high' : ''"
-          th:text="${s.conflicted} ? '불일치' : '-'">-</td>
-    </tr>
-    <tr th:if="${#lists.isEmpty(form.slots)}">
-      <td colspan="4" style="text-align:center; padding:14px">확인 항목이 없습니다.</td>
-    </tr>
-    </tbody>
-  </table>
-
-  <div class="section-title">작업 전 위험 브리핑 (TBM)</div>
-  <table>
-    <tr><td class="pre" th:text="${form.briefing}">-</td></tr>
-    <tr>
-      <td class="label" style="width:auto; text-align:left; padding-left:8px">
-        작업자 확인 시각: <span th:text="${form.briefingAckAt}">-</span>
-      </td>
-    </tr>
-  </table>
-
-  <div class="section-title">승인</div>
+  <div class="section-title">5. 관리감독자 확인</div>
   <table>
     <tr>
       <td class="label">상태</td>
       <td th:text="${form.statusLabel}">-</td>
-      <td class="label">승인자</td>
-      <td th:text="${form.approvedBy}">-</td>
-      <td class="label">승인 시각</td>
-      <td th:text="${form.approvedAt}">-</td>
+      <td class="label">확인자</td>
+      <td th:text="${form.approvedBy}"></td>
+      <td class="label">확인 시각</td>
+      <td style="white-space:nowrap" th:text="${form.approvedAt}"></td>
     </tr>
     <tr>
-      <td class="label">승인 조건</td>
-      <td class="pre" colspan="5" th:text="${form.approvalNote}">-</td>
+      <td class="label">잠정조치</td>
+      <td class="pre" colspan="3" th:text="${form.approvalNote}">-</td>
+      <td class="label">서명</td>
+      <td class="sign-cell"></td>
     </tr>
   </table>
 
-  <div class="section-title" th:if="${form.warningNote != null}">사고 연쇄 경고</div>
+  <div class="section-title" th:if="${form.warningNote != null}">작업 보류</div>
   <table th:if="${form.warningNote != null}">
     <tr><td class="pre" th:text="${form.warningNote}">-</td></tr>
   </table>
 
   <div class="section-title" th:if="${!form.references.isEmpty()}">참고 자료</div>
-  <table th:if="${!form.references.isEmpty()}">
-    <tbody>
-    <tr th:each="r : ${form.references}">
-      <td class="pre">
-        <span th:text="'#' + ${r.no} + ' ' + ${r.title}">-</span>
-        <a th:if="${r.sourceUrl != null}" th:href="${r.sourceUrl}" th:text="${r.sourceUrl}" target="_blank" rel="noreferrer"></a>
-        <span class="muted" th:text="' (조회 ' + ${r.fetchedAt} + ')'"></span>
-      </td>
-    </tr>
-    </tbody>
-  </table>
+  <ol class="refs" th:if="${!form.references.isEmpty()}">
+    <li th:each="r : ${form.references}">
+      <span th:text="${r.title}">-</span>
+      <a th:if="${r.sourceUrl != null}" th:href="${r.sourceUrl}" th:text="${r.linkText}" target="_blank" rel="noreferrer">원문</a>
+    </li>
+  </ol>
 
-  <div class="notice" th:text="${form.tbmNotice}">TBM 안내</div>
-  <div class="notice" th:text="${form.aiNotice}">AI 활용 고지</div>
+  <p class="printed-by">SAIFE에서 출력</p>
 
-  <div class="sign">
-    작업지휘자 <span class="line"></span> (서명)
-    &nbsp;&nbsp;&nbsp; 관리감독자 <span class="line"></span> (서명)
-  </div>
+  <style>
+    ol.points { margin: 0; padding-left: 18px; }
+    ol.points li { margin: 1px 0; }
+    ol.refs { margin: 0 0 8px; padding-left: 20px; font-size: 9pt; }
+    ol.refs li { margin: 2px 0; }
+    ol.refs a { margin-left: 6px; color: #1d4ed8; text-decoration: none; }
+    td.sign-cell { height: 26px; }
+    .printed-by { margin-top: 18px; text-align: right; font-size: 8pt; color: #888; }
+  </style>
 </main>
 </body>
 </html>

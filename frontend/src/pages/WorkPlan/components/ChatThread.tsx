@@ -1,87 +1,80 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import AgentMessage from "@/components/common/AgentMessage";
 import EvidenceGrid from "@/components/evidence/EvidenceGrid";
-import cn from "@/lib/cn";
 import WorkPlanResultCard from "@/pages/WorkPlan/components/WorkPlanResultCard";
 import type { Turn } from "@/pages/WorkPlan/hooks/useAgentStream";
 
 interface Props {
   turns: Turn[];
   streaming: boolean;
-  restoring: boolean;
   knownNos?: Set<number>;
-  /** 지금 실행 중인 단계 이름. 기다리는 동안 무엇을 하는지 보인다 */
+  /** 지금 진행 중인 단계 이름. 기다리는 동안 무엇을 하는지 보인다 */
   activity?: string | null;
   onOpenDetail: (id: number) => void;
 }
 
-/** 결과 카드가 있는 턴의 모델 문장. 카드와 같은 내용이라 접어서 시작한다 */
-function Explanation({ turn, knownNos }: { turn: Turn; knownNos?: Set<number> }) {
-  const [open, setOpen] = useState(false);
-  if (!turn.text && turn.evidence.length === 0) return null;
+/** 답하는 쪽 표식. 이름 대신 작은 마크만 둔다 */
+function Avatar() {
   return (
-    <div className="mt-2">
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
-        className="text-xs font-semibold text-slate-500 hover:text-slate-800">
-        {open ? "에이전트 설명 접기" : `에이전트 설명과 근거 ${turn.evidence.length}건 보기`}
-      </button>
-      {open && (
-        <div className="mt-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
-          <AgentMessage text={turn.text} knownNos={knownNos} scope="chat" />
-          <EvidenceGrid items={turn.evidence} collapsedByDefault scope="chat" />
-        </div>
-      )}
-    </div>
+    <span aria-hidden className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-md border border-slate-200 bg-white">
+      <img src="/brand/saife-mark.svg" alt="" className="h-4 w-4" />
+    </span>
   );
 }
 
-/** 대화 스레드. 새 답변이 오면 아래로 따라간다(발표자가 이전 턴을 보고 있게 되는 것을 막는다). */
-export default function ChatThread({ turns, streaming, restoring, knownNos, activity, onOpenDetail }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [turns, activity]);
-  const waiting = streaming && turns[turns.length - 1]?.role === "user";
+/** 대화 스레드. 페이지가 함께 스크롤되므로 결과 카드가 잘리지 않는다. 새 답이 오면 그 자리로 따라간다. */
+export default function ChatThread({ turns, streaming, knownNos, activity, onOpenDetail }: Props) {
+  const endRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const last = turns[turns.length - 1];
+  const hasCard = !!last?.workPlan;
+
+  useEffect(() => {
+    // 결과 카드가 오면 카드 머리가 보이게, 그 밖에는 마지막 줄이 보이게
+    const target = hasCard ? cardRef.current : endRef.current;
+    target?.scrollIntoView?.({ behavior: "smooth", block: hasCard ? "start" : "end" });
+  }, [turns.length, hasCard, activity]);
+
+  const waiting = streaming && last?.role === "user";
   return (
-    <div ref={ref} aria-live="polite" aria-busy={streaming} aria-label="대화 내용"
-      className="min-h-[420px] flex-1 space-y-5 overflow-auto rounded-xl border border-slate-200 bg-white p-5 shadow-card lg:max-h-[calc(100vh-300px)]">
-      {turns.length === 0 && (
-        <div className="py-10 text-center">
-          <p className="text-stage font-semibold text-slate-700">{restoring ? "이전 대화를 불러오는 중입니다" : "오늘 할 작업을 평소 말투로 적어 주세요"}</p>
-          {!restoring && <p className="mt-1 text-sm text-slate-400">예: 내일 공장동 후면 차양부에서 사다리 놓고 천장 페인트 칠할 건데요</p>}
-        </div>
-      )}
+    <div aria-live="polite" aria-busy={streaming} aria-label="대화 내용" className="flex flex-col gap-5">
       {turns.map((turn, i) => turn.role === "user" ? (
         <div key={`${i}-${turn.role}`} className="flex justify-end animate-rise-in">
           <p className="max-w-[78%] rounded-xl rounded-br-sm bg-brand-ink px-4 py-2.5 text-stage text-white">{turn.text}</p>
         </div>
       ) : (
-        <div key={`${i}-${turn.role}`} className="animate-rise-in">
-          <p className="mb-1.5 text-xs font-bold tracking-wide text-brand">SAIFE 에이전트</p>
-          {turn.workPlan ? (
-            <>
-              <WorkPlanResultCard detail={turn.workPlan} evidence={turn.evidence} onOpenDetail={onOpenDetail} />
-              <Explanation turn={turn} knownNos={knownNos} />
-            </>
-          ) : (
-            <div className={cn("max-w-[92%] rounded-xl rounded-tl-sm border border-slate-200 bg-slate-50 px-4 py-3 text-stage text-slate-800")}>
-              <AgentMessage text={turn.text} knownNos={knownNos} scope="chat" />
-              <EvidenceGrid items={turn.evidence} collapsedByDefault scope="chat" />
-            </div>
-          )}
+        <div key={`${i}-${turn.role}`} className="flex gap-3 animate-rise-in">
+          <Avatar />
+          <div className="min-w-0 flex-1 space-y-3">
+            {turn.text && (
+              <div className="max-w-[92%] rounded-xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 text-stage text-slate-800 shadow-card">
+                <AgentMessage text={turn.text} knownNos={knownNos} scope="chat" />
+                {!turn.workPlan && <EvidenceGrid items={turn.evidence} collapsedByDefault scope="chat" />}
+              </div>
+            )}
+            {turn.workPlan && (
+              <div ref={i === turns.length - 1 ? cardRef : undefined} className="scroll-mt-6">
+                <WorkPlanResultCard detail={turn.workPlan} evidence={turn.evidence} onOpenDetail={onOpenDetail} />
+                <EvidenceGrid items={turn.evidence} collapsedByDefault scope="chat" className="mt-3" />
+              </div>
+            )}
+          </div>
         </div>
       ))}
       {waiting && (
-        <div className="animate-fade-in">
-          <p className="mb-1.5 text-xs font-bold tracking-wide text-brand">SAIFE 에이전트</p>
-          <div className="inline-flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="flex gap-3 animate-fade-in">
+          <Avatar />
+          <div className="inline-flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-card">
             <span aria-hidden className="relative flex h-2.5 w-2.5">
               <span className="absolute inset-0 rounded-full bg-brand animate-ping-soft" />
               <span className="relative h-2.5 w-2.5 rounded-full bg-brand" />
             </span>
-            <span className="text-stage text-slate-600">{activity ?? "요청을 이해하고 다음 단계를 고르는 중"}</span>
+            <span className="text-stage text-slate-600">{activity ?? "확인 중"}</span>
           </div>
         </div>
       )}
+      <div ref={endRef} />
     </div>
   );
 }

@@ -72,10 +72,13 @@ public class IncidentService {
     private static final String DISCLAIMER =
             "작성 보조 결과입니다. 법률 자문이 아니며 최종 확정과 제출은 담당자가 합니다.";
 
-    private static final String FOLLOW_UP_LEGAL_BASIS =
-            "산업안전보건법 제36조에 따라 재해가 발생한 작업은 재개 전 수시평가 대상입니다.";
+    /** 시행규칙 제37조제2항제3호: 산업재해가 발생한 경우 관련 작업을 시작하기 전까지 수시평가 */
+    private static final String FOLLOW_UP_LEGAL_BASIS = "시행규칙 제37조제2항제3호";
 
-    /** 경고를 붙일 대상 상태 — 진행 중인 작업계획서만 (완료·반려·초안은 대상이 아니다) */
+    /** 작업 보류 문구. 작업계획서 warningNote에 남고, 홈 "오늘 할 일"이 이 상태를 읽는다 */
+    public static final String HOLD_WARNING = "작업 보류: 수시평가 완료 전 작업 재개 금지";
+
+    /** 보류 대상 상태 — 진행 중인 작업 전 점검만 (완료·반려·초안은 대상이 아니다) */
     private static final List<WorkPlanStatus> AFFECTED_WORK_PLAN_STATUSES =
             List.of(WorkPlanStatus.SUBMITTED, WorkPlanStatus.APPROVED, WorkPlanStatus.CONDITIONAL);
 
@@ -111,7 +114,7 @@ public class IncidentService {
         List<IncidentDtos.CascadeStep> cascade = buildCascade(incident, core.recallView(), core.followUpView(),
                 core.reportDuty(), core.affectedWorkPlans(), collected.similarCases());
 
-        log.info("[UC2] 사고 {} 등록 완료 — 설비 {}, 제출 {}, 수시평가 {}, 경고 부착 {}건, 근거 {}건",
+        log.info("[UC2] 사고 {} 등록 완료, 설비 {}, 제출 {}, 수시평가 {}, 작업 보류 {}건, 근거 {}건",
                 incident.getId(), incident.getEquipmentId(), incident.getReportStatus(),
                 incident.getFollowUpAssessmentId(), core.affectedWorkPlans().size(), collected.all().size());
 
@@ -179,10 +182,9 @@ public class IncidentService {
         incident.attachFollowUpAssessment(followUp.assessmentId());
         incident = incidentRepository.save(incident);
 
-        // 사고 연쇄(2-2): 같은 설비의 진행 중 작업계획서에 경고를 붙인다.
-        // 소환(recall)·재평가(followUp)가 끝난 뒤라야 "수시평가 #N 확인" 문구가 완성된다.
-        List<IncidentDtos.AffectedWorkPlan> affectedWorkPlans =
-                attachWarnings(incident, followUp.assessmentId());
+        // 사고 연쇄(2-2): 같은 설비의 진행 중 작업 전 점검을 작업 보류(HOLD)로 바꾼다.
+        // 수시평가는 "관련 작업을 시작하기 전까지" 해야 하므로(시행규칙 제37조제2항제3호) 그 전에는 재개하지 않는다.
+        List<IncidentDtos.AffectedWorkPlan> affectedWorkPlans = holdWorkPlans(incident);
 
         TimelineDtos.RecallView recallView = TimelineDtos.RecallView.from(recall, processNameOf(incident.getEquipmentId()));
         IncidentDtos.ReportDuty reportDuty = reportDuty(incident, today);
@@ -389,20 +391,29 @@ public class IncidentService {
         Integer leaveDays = incident.getLeaveDays();
         String basis;
 
-        if (leaveDays == null) {
-            basis = "휴업일수가 입력되지 않아 제출 의무를 판단하지 못했습니다. 확인 후 입력하십시오.";
-        } else if (leaveDays >= Incident.REPORTABLE_LEAVE_DAYS) {
-            basis = ("휴업 %d일 (3일 이상) → 산업안전보건법 시행규칙 제73조에 따라 "
-                    + "발생일로부터 1개월 이내 관할 지방고용노동관서에 산업재해조사표를 제출해야 합니다.")
-                    .formatted(leaveDays);
-        } else {
-            basis = "휴업 %d일 (3일 미만) → 산업재해조사표 제출 의무는 없습니다. 사내 기록은 보존합니다."
-                    .formatted(leaveDays);
-        }
-
         return new IncidentDtos.ReportDuty(
                 incident.getReportStatus(), incident.getReportStatus().getLabel(),
-                incident.getReportDueDate(), incident.daysUntilDue(today), basis);
+                incident.getReportDueDate(), incident.daysUntilDue(today), reportBasis(incident),
+                incident.isSeriousAccidentPossible());
+    }
+
+    /**
+     * 제출 대상 판단 근거 한 줄. 서식(IncidentFormService)도 같은 문구를 쓴다.
+     * 시행규칙 제73조: 사망 또는 3일 이상 휴업이 필요한 재해, 발생일부터 1개월 이내.
+     */
+    public static String reportBasis(Incident incident) {
+        Integer leaveDays = incident.getLeaveDays();
+        if (incident.getSeverity() == io.saife.incident.domain.IncidentSeverity.FATALITY) {
+            return "사망 재해, 발생일부터 1개월 이내 제출 (시행규칙 제73조)";
+        }
+        if (leaveDays == null) {
+            return "휴업예상일수 미입력, 제출 대상 판단 보류";
+        }
+        if (leaveDays >= Incident.REPORTABLE_LEAVE_DAYS) {
+            return "휴업예상일수 %d일, 3일 이상 휴업이 필요한 재해로 발생일부터 1개월 이내 제출 (시행규칙 제73조)"
+                    .formatted(leaveDays);
+        }
+        return "휴업예상일수 %d일, 제출 대상 아님 (시행규칙 제73조, 3일 이상 휴업)".formatted(leaveDays);
     }
 
     private IncidentDtos.IncidentListItem listItem(Incident incident, LocalDate today) {
@@ -421,16 +432,15 @@ public class IncidentService {
     // ────────────────────────── 사고 연쇄 (2-2) ──────────────────────────
 
     /**
-     * 같은 설비의 진행 중 작업계획서에 경고를 붙이고 저장한다.
+     * 같은 설비의 진행 중 작업 전 점검을 작업 보류(HOLD)로 바꾸고 보류 문구를 남긴다.
      *
-     * <p><b>대상: 같은 설비 · 상태 SUBMITTED/APPROVED/CONDITIONAL · 작업일이 사고일 이후.</b>
-     * 사고일 이전에 이미 끝났거나 예정됐던 작업까지 경고하면 "이미 지난 일에 경고했다"가
-     * 되어 의미가 없다(IncidentServiceTest가 이 경계를 검증한다).
+     * <p><b>대상: 같은 설비, 상태 SUBMITTED/APPROVED/CONDITIONAL, 작업일이 사고일 이후.</b>
+     * 사고일 이전에 이미 끝났거나 예정됐던 작업까지 보류하면 의미가 없다(IncidentServiceTest가 이 경계를 검증한다).
+     * 재개는 수시평가가 끝난 뒤 사람이 한다(시행규칙 제37조제2항제3호).
      *
-     * @return 새로 붙인 경고를 담은 뷰. {@code warning}은 이번에 붙인 문구만 담는다 —
-     *         이전 사고가 남긴 경고까지 합친 전체 누적 문구는 {@code work_plan.warning_note}에 있다
+     * @return 보류한 계획서. {@code warning}은 이번에 붙인 문구만 담는다
      */
-    private List<IncidentDtos.AffectedWorkPlan> attachWarnings(Incident incident, Long followUpAssessmentId) {
+    private List<IncidentDtos.AffectedWorkPlan> holdWorkPlans(Incident incident) {
         if (incident.getEquipmentId() == null) {
             return List.of();
         }
@@ -440,20 +450,13 @@ public class IncidentService {
                         incident.getSiteId(), incident.getEquipmentId(),
                         AFFECTED_WORK_PLAN_STATUSES, incidentDate);
 
-        if (plans.isEmpty()) {
-            return List.of();
-        }
-
-        String accidentLabel = incident.getAccidentType() == null ? "" : incident.getAccidentType().getLabel();
-        String warning = "이 설비에서 %s %s 사고 발생, 작업 재개 전 수시평가 #%d 확인"
-                .formatted(incidentDate, accidentLabel, followUpAssessmentId);
-
         List<IncidentDtos.AffectedWorkPlan> out = new ArrayList<>();
         for (WorkPlan plan : plans) {
-            plan.appendWarning(warning);
+            plan.hold();
+            plan.appendWarning(HOLD_WARNING);
             workPlanRepository.save(plan);
             out.add(new IncidentDtos.AffectedWorkPlan(plan.getId(), plan.getWorkName(),
-                    plan.getWorkDate(), plan.getStatus().name(), warning));
+                    plan.getWorkDate(), plan.getStatus().name(), HOLD_WARNING));
         }
         return out;
     }
@@ -473,7 +476,7 @@ public class IncidentService {
                 .orElse(null);
     }
 
-    /** {@code detail()} 재구성 경로 — 경고를 새로 붙이지 않고 이미 저장된 것만 읽는다 */
+    /** {@code detail()} 재구성 경로: 새로 보류하지 않고, 사고일 이후 작업일의 보류 중인 계획서만 읽는다 */
     private List<IncidentDtos.AffectedWorkPlan> readAffectedWorkPlans(Incident incident) {
         if (incident.getEquipmentId() == null) {
             return List.of();
@@ -481,18 +484,18 @@ public class IncidentService {
         return workPlanRepository
                 .findBySiteIdAndEquipmentIdAndStatusInAndWorkDateGreaterThanEqualOrderByWorkDateAsc(
                         incident.getSiteId(), incident.getEquipmentId(),
-                        AFFECTED_WORK_PLAN_STATUSES, incident.getOccurredAt().toLocalDate())
+                        List.of(WorkPlanStatus.HOLD), incident.getOccurredAt().toLocalDate())
                 .stream()
-                // 최종 리뷰 F9: 사고 뒤에 새로 만든(경고가 붙지 않은) 계획서는 "경고 부착" 대상이 아니다
-                .filter(plan -> plan.getWarningNote() != null && !plan.getWarningNote().isBlank())
+                // 최종 리뷰 F9: 사고 뒤에 새로 만든(보류 문구가 없는) 계획서는 대상이 아니다
+                .filter(plan -> plan.getWarningNote() != null && plan.getWarningNote().contains(HOLD_WARNING))
                 .map(plan -> new IncidentDtos.AffectedWorkPlan(plan.getId(), plan.getWorkName(),
-                        plan.getWorkDate(), plan.getStatus().name(), plan.getWarningNote()))
+                        plan.getWorkDate(), plan.getStatus().name(), HOLD_WARNING))
                 .toList();
     }
 
     /**
      * 사고 연쇄 4단계를 백엔드가 순서대로 만든다(order 1~4). 화면마다 다르게 판단하면
-     * 시연에서 강조 색이 흔들린다 — 순서·문구·강조 규칙을 전부 여기서 고정한다.
+     * 강조 색이 흔들린다. 순서와 강조 규칙을 전부 여기서 고정한다. 문구는 사실형 명사구다.
      */
     private List<IncidentDtos.CascadeStep> buildCascade(Incident incident,
             TimelineDtos.RecallView recall, IncidentDtos.FollowUpView followUp,
@@ -506,10 +509,8 @@ public class IncidentService {
     }
 
     /**
-     * 1단계 — 이 설비의 사전 기록 소환. 예고됐던 사고면 CRITICAL, 미이행 조치만 있으면 WARNING.
-     *
-     * <p>유사 사례가 있으면 " 동종 유사 사고 N건(사진 M)."을 덧붙인다(사진이 없으면 괄호 생략) — 소환된 사실(recall)에
-     * 외부 근거(similarCases)가 붙었다는 걸 한 줄에서 바로 보여준다.
+     * 1단계: 사고 전 기록. 같은 발생형태의 위험요인이 사고 전에 있었으면 CRITICAL,
+     * 미이행 조치만 있으면 WARNING. 유사 사례가 있으면 " 유사 사례 N건."을 덧붙인다.
      */
     private IncidentDtos.CascadeStep recallStep(TimelineDtos.RecallView recall, List<Evidence> similarCases) {
         TimelineDtos.Emphasis emphasis = recall.predicted()
@@ -519,45 +520,38 @@ public class IncidentService {
                         : TimelineDtos.Emphasis.WARNING;
         String detail = recall.headline();
         if (similarCases != null && !similarCases.isEmpty()) {
-            // 사진 유무는 thumbnailUrl로 센다(R54) — mediaUrl은 원본 프록시 경로라
-            // GUIDE 같은 비사진 근거도 채워질 수 있다. 카드 목록·썸네일 렌더링과 같은 기준을 쓴다.
-            long withPhoto = similarCases.stream().filter(e -> e.thumbnailUrl() != null).count();
-            detail += withPhoto > 0
-                    ? " 동종 유사 사고 %d건(사진 %d).".formatted(similarCases.size(), withPhoto)
-                    : " 동종 유사 사고 %d건.".formatted(similarCases.size());
+            detail += " 유사 사례 %d건.".formatted(similarCases.size());
         }
-        return new IncidentDtos.CascadeStep(1, "RECALL", "이 설비의 사전 기록 소환",
+        return new IncidentDtos.CascadeStep(1, "RECALL", "사고 전 기록",
                 detail, emphasis, recall.equipmentId(), "EQUIPMENT");
     }
 
-    /** 2단계 — 수시평가 자동 생성. 등급 변화 요약을 붙인다 */
+    /** 2단계: 수시평가(작업 재개 전). 등급 변화 요약을 붙인다 */
     private IncidentDtos.CascadeStep followUpStep(IncidentDtos.FollowUpView followUp) {
-        String title = "수시평가 #%d 자동 생성".formatted(followUp.assessmentId());
-        return new IncidentDtos.CascadeStep(2, "FOLLOW_UP", title,
+        return new IncidentDtos.CascadeStep(2, "FOLLOW_UP", "수시평가",
                 regradeSummary(followUp.regraded()), TimelineDtos.Emphasis.WARNING,
                 followUp.assessmentId(), "ASSESSMENT");
     }
 
-    /** 3단계 — 산업재해조사표 기한. 3일 이내면 CRITICAL, 의무가 있으면 WARNING, 없으면 NORMAL */
+    /** 3단계: 산업재해조사표 기한. 3일 이내면 CRITICAL, 의무가 있으면 WARNING, 없으면 NORMAL */
     private IncidentDtos.CascadeStep reportStep(IncidentDtos.ReportDuty reportDuty, Long incidentId) {
         String detail;
         TimelineDtos.Emphasis emphasis;
         if (reportDuty.dueDate() != null) {
-            detail = "D-%d, 산업안전보건법 시행규칙 제73조(휴업 3일 이상 1개월 이내)"
-                    .formatted(reportDuty.daysRemaining());
+            detail = "기한 %s (발생일부터 1개월)".formatted(reportDuty.dueDate());
             emphasis = reportDuty.daysRemaining() != null && reportDuty.daysRemaining() <= 3
                     ? TimelineDtos.Emphasis.CRITICAL : TimelineDtos.Emphasis.WARNING;
         } else {
             detail = "제출 의무 없음";
             emphasis = TimelineDtos.Emphasis.NORMAL;
         }
-        return new IncidentDtos.CascadeStep(3, "REPORT", "산업재해조사표 기한",
+        return new IncidentDtos.CascadeStep(3, "REPORT", "산업재해조사표",
                 detail, emphasis, incidentId, "INCIDENT");
     }
 
-    /** 4단계 — 진행 중 작업계획서에 붙은 경고. 0건이면 "해당 없음"·NORMAL */
+    /** 4단계: 작업 보류. 0건이면 "해당 없음", NORMAL */
     private IncidentDtos.CascadeStep workPlanStep(List<IncidentDtos.AffectedWorkPlan> affectedWorkPlans) {
-        String title = "진행 중 작업계획서 %d건에 경고 부착".formatted(affectedWorkPlans.size());
+        String title = "작업 보류 %d건".formatted(affectedWorkPlans.size());
         String detail = affectedWorkPlans.isEmpty()
                 ? "해당 없음"
                 : affectedWorkPlans.stream()
@@ -570,21 +564,21 @@ public class IncidentService {
     }
 
     /**
-     * 재평가 등급 변화를 "중→상 2건, 유지 1건" 형태로 요약한다.
-     *
-     * <p>신규로 등록된 위험요인(사고 축이 이전에 없던 경우)은 이전 등급이 없으므로
-     * "신규"로 표시한다 — null을 그대로 보이면 시연 화면에 "null→상"이 찍힌다.
+     * 재평가 등급 변화를 "중에서 상 2건, 유지 1건" 형태로 요약한다.
+     * 신규 위험요인은 이전 등급이 없으므로 "신규 상 1건"이다.
      */
     private String regradeSummary(List<FollowUpAssessmentService.Regrade> regraded) {
         if (regraded.isEmpty()) {
-            return "재평가 대상 위험요인이 없습니다";
+            return "재평가 대상 위험요인 없음";
         }
         Map<String, Long> transitions = regraded.stream()
-                .filter(FollowUpAssessmentService.Regrade::changed)
+                .filter(r -> r.changed() || r.before() == null)
                 .collect(Collectors.groupingBy(
-                        r -> "%s→%s".formatted(riskLabel(r.before()), riskLabel(r.after())),
+                        r -> r.before() == null
+                                ? "신규 %s".formatted(riskLabel(r.after()))
+                                : "%s에서 %s".formatted(riskLabel(r.before()), riskLabel(r.after())),
                         LinkedHashMap::new, Collectors.counting()));
-        long unchanged = regraded.stream().filter(r -> !r.changed()).count();
+        long unchanged = regraded.stream().filter(r -> !r.changed() && r.before() != null).count();
 
         List<String> parts = new ArrayList<>();
         transitions.forEach((transition, count) -> parts.add("%s %d건".formatted(transition, count)));

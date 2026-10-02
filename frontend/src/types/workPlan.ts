@@ -1,7 +1,7 @@
 import type { Evidence } from "@/types/evidence";
 import type { AccidentType, RiskLevel, WorkPlanStatus } from "@/types/domain";
 
-/** 백엔드 WorkPlanDtos와 1:1 */
+/** 백엔드 WorkPlanDtos와 1:1. 화면 이름은 「작업 전 안전점검표 (TBM)」 */
 
 export interface WorkPlanListItem {
   id: number;
@@ -18,6 +18,10 @@ export interface WorkPlanListItem {
 /** @property conflicted 대장 기록과 오늘 답변이 다르다. 그대로 보여준다 */
 export interface WorkPlanSlot {
   slotKey: string;
+  /** 짧은 항목 이름(발판 높이 등) */
+  label: string;
+  /** 단위와 표기를 정리한 값(3.2 m, 사용, 없음). 답이 없으면 null */
+  displayValue: string | null;
   question: string;
   ledgerValue: string | null;
   answeredValue: string | null;
@@ -58,6 +62,10 @@ export interface WorkPlanDetail {
   warningNote?: string | null;
   /** 브리핑의 구조화 뷰(등급 배지 + 룰 근거). 브리핑이 없는 초안이면 null */
   briefingView?: BriefingView | null;
+  /** TBM_CHECKLIST(작업 전 안전점검표) 또는 WORK_PLAN(제38조 작업계획서) */
+  documentType: "TBM_CHECKLIST" | "WORK_PLAN";
+  /** 화면과 서식 제목 */
+  documentTitle: string;
 }
 
 /** 백엔드 WorkPlanDtos.BriefingView와 1:1. 문장 브리핑과 같은 룰 엔진 판정에서 나온다 */
@@ -65,6 +73,12 @@ export interface BriefingView {
   pendingActions: PendingActionView[];
   decisions: HazardDecision[];
   msds: MsdsSummary | null;
+  /** TBM 위험 포인트(3개 이내) */
+  riskPoints: string[];
+  /** TBM 지킬 것(3개 이내) */
+  keepPoints: string[];
+  /** 상 판정에 대책 미이행: 잠정조치를 적어야 승인할 수 있다(조건부 승인) */
+  interimRequired: boolean;
 }
 
 export interface PendingActionView {
@@ -81,10 +95,14 @@ export interface HazardDecision {
   frequency: number;
   severity: number;
   ruleTrace: string;
+  /** 상일 때 먼저 검토할 개선대책. 없으면 null */
+  recommendation: string | null;
 }
 
 export interface MsdsSummary {
   chemName: string;
   productName: string;
+  /** 제품명으로 찾지 못해 주성분을 추정했다(제품 MSDS 확인 필요) */
+  inferred: boolean;
   lines: { item: string; text: string }[];
 }

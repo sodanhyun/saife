@@ -52,7 +52,7 @@ public final class IncidentDtos {
      * @param followUp          자동 생성된 수시평가
      * @param draft             조사표 문안 초안
      * @param cascade           "한 사건이 세 곳을 차례로 바꾼다" — 백엔드가 정한 순서 4단계(2-2)
-     * @param affectedWorkPlans 이 사고로 경고가 붙은, 같은 설비의 진행 중 작업계획서
+     * @param affectedWorkPlans 이 사고로 작업 보류된, 같은 설비의 진행 중 작업 전 점검
      * @param similarCases      동종 유사 사고 사례 최대 3건(사진 우선). 검색 실패 시 빈 리스트
      * @param evidence          {@code similarCases} 3건 + 사고 후 조문 2건. {@code [#n]} 번호는 이 응답
      *                          안에서만 유일하다(대화 원장을 쓰지 않는다) — 조사표 초안의 인용이 이 번호를 쓴다
@@ -84,10 +84,11 @@ public final class IncidentDtos {
                               String refType) {}
 
     /**
-     * 사고 영향을 받는 진행 중 작업계획서 한 건 — 같은 설비, 상태
+     * 사고로 작업 보류(HOLD)된 작업 전 점검 한 건. 같은 설비, 사고 당시 상태
      * SUBMITTED/APPROVED/CONDITIONAL, 작업일이 사고일 이후인 것만 담는다(R48).
+     * 수시평가(시행규칙 제37조제2항제3호)가 끝나기 전에는 작업을 재개하지 않는다.
      *
-     * @param warning 이 사고가 새로 붙인 경고 문구. 작업계획서의 {@code warningNote}에도
+     * @param warning 이 사고가 새로 붙인 보류 문구. 작업계획서의 {@code warningNote}에도
      *                같은 문구가 줄바꿈으로 누적된다(기존 경고가 있었다면 그 뒤에)
      */
     public record AffectedWorkPlan(Long workPlanId,
@@ -112,14 +113,17 @@ public final class IncidentDtos {
     /**
      * 법정 제출 기한.
      *
-     * @param daysRemaining 남은 일수. 음수면 지났다
-     * @param basis         판단 근거. 화면에 그대로 띄운다
+     * @param daysRemaining           남은 일수. 음수면 지났다
+     * @param basis                   판단 근거. 화면에 그대로 띄운다
+     * @param seriousAccidentPossible 사망 재해라 중대재해에 해당할 수 있다. 판정이 아니라 "지체 없이
+     *                                관할 지방고용노동관서 보고" 안내를 띄우기 위한 표시다
      */
     public record ReportDuty(ReportStatus status,
                              String statusLabel,
                              LocalDate dueDate,
                              Long daysRemaining,
-                             String basis) {}
+                             String basis,
+                             boolean seriousAccidentPossible) {}
 
     /** @param kindLabel "수시" — 심사위원이 평가 종류를 바로 읽을 수 있어야 한다 */
     public record FollowUpView(Long assessmentId,

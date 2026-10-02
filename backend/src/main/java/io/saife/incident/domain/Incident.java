@@ -16,8 +16,8 @@ import java.time.temporal.ChronoUnit;
  * 위험성평가 → 작업계획서 → 사고 → 재평가가 <b>하나의 설비 ID</b> 위에서 이어진다.
  * <b>이 필드를 지우면 출품작의 논지가 증명되지 않는다.</b>
  *
- * <p>제출 기한은 {@code leaveDays >= 3} 하나로 결정한다. 중대재해 즉시보고 판정은
- * 의도적으로 구현하지 않았다 — {@link IncidentSeverity} 참조.
+ * <p>제출 기한은 사망 또는 {@code leaveDays >= 3}(휴업예상일수)으로 결정한다. 중대재해는
+ * 판정하지 않고 사망일 때 보고 안내만 띄운다({@link #isSeriousAccidentPossible()}).
  */
 @Entity
 @Table(name = "incident")
@@ -27,7 +27,7 @@ import java.time.temporal.ChronoUnit;
 @Builder
 public class Incident {
 
-    /** 산업재해조사표 제출 의무가 생기는 휴업일수 (시행규칙 제73조) */
+    /** 산업재해조사표 제출 의무가 생기는 휴업예상일수 (시행규칙 제73조, 사망 또는 3일 이상 휴업) */
     public static final int REPORTABLE_LEAVE_DAYS = 3;
 
     @Id
@@ -98,10 +98,15 @@ public class Incident {
     /**
      * 제출 의무와 기한을 결정한다.
      *
-     * <p>휴업 3일 이상이면 발생일로부터 1개월. 날짜 계산이라 구현이 거의 공짜인데,
-     * "법적 의무"를 화면으로 증명하는 건 이것뿐이다.
+     * <p>시행규칙 제73조: 사망 또는 3일 이상 휴업이 필요한 재해는 발생일부터 1개월 이내.
+     * {@code leaveDays}는 휴업예상일수다(조사표 서식 항목 그대로).
      */
     public void decideReportDuty() {
+        if (severity == IncidentSeverity.FATALITY) {
+            this.reportDueDate = occurredAt.toLocalDate().plusMonths(1);
+            this.reportStatus = ReportStatus.REQUIRED;
+            return;
+        }
         if (leaveDays == null) {
             // 모르는 것을 "의무 없음"으로 읽지 않는다.
             // 기본값이 법정 의무를 조용히 면제하는 설계는 위험하다.
@@ -116,6 +121,16 @@ public class Incident {
             this.reportDueDate = null;
             this.reportStatus = ReportStatus.NOT_REQUIRED;
         }
+    }
+
+    /**
+     * 중대재해 해당 가능성 — <b>판정이 아니라 보고 안내용 표시</b>다.
+     *
+     * <p>사망이면 중대재해(법 제2조제2호)에 해당할 수 있어 지체 없이 관할 지방고용노동관서에
+     * 보고해야 한다(법 제54조②). 동시 2명 이상 부상 등 나머지 요건은 입력 항목이 없어 보지 않는다.
+     */
+    public boolean isSeriousAccidentPossible() {
+        return severity == IncidentSeverity.FATALITY;
     }
 
     /** 기한까지 남은 일수. 음수면 지났다. 의무가 없으면 null */

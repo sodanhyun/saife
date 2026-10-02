@@ -10,7 +10,7 @@ vi.mock("@/api/workPlanApi", () => ({
   workPlanApi: { list: vi.fn() },
 }));
 vi.mock("@/api/incidentApi", () => ({
-  incidentApi: { list: vi.fn(), register: vi.fn() },
+  incidentApi: { list: vi.fn(), register: vi.fn(), detail: vi.fn() },
 }));
 // useApiData가 실패 시 토스트를 띄운다 — 이 테스트에서는 토스트 자체는 관심사가 아니다.
 // useIncident는 셀렉터로 구독하므로(useToastStore((s) => s.success)) 셀렉터를 받는 함수이면서 getState도 갖는 형태로 만든다.
@@ -88,5 +88,23 @@ describe("useIncident", () => {
 
     // "abc"를 그대로 흘려보내면 제출 시 Number("abc")=NaN이 서버로 나간다 — 반드시 기본 폼으로 떨어져야 한다.
     await waitFor(() => expect(result.current.form.equipmentId).toBe("7"));
+  });
+
+  it("open(id)은 그 사고의 상세를 불러와 결과 화면으로 연다", async () => {
+    const detail = vi.mocked(incidentApi.detail);
+    detail.mockResolvedValue({ incident: { id: 3 } } as never);
+    const scroll = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useIncident(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.open(3);
+    });
+
+    expect(detail).toHaveBeenCalledWith(3);
+    expect(result.current.response?.incident.id).toBe(3);
+    expect(result.current.opening).toBeNull();
+    scroll.mockRestore();
   });
 });

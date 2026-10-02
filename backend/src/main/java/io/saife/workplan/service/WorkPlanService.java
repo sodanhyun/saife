@@ -12,7 +12,9 @@ import io.saife.workplan.dto.WorkPlanDtos;
 import io.saife.workplan.repository.WorkPlanRepository;
 import io.saife.workplan.repository.WorkPlanSlotRepository;
 import io.saife.workplan.repository.WorkPlanWorkerRepository;
+import io.saife.common.error.ApiExceptions.InvalidRequestException;
 import io.saife.common.error.ApiExceptions.NotFoundException;
+import io.saife.workplan.domain.WorkDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,7 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 작업계획서 조회·승인·브리핑 확인.
+ * 작업 전 점검(점검표) 조회, 관리감독자 승인, TBM 실시 확인.
  *
  * <p>작성은 에이전트 도구가 한다({@code WorkPlanTools}). 여기는 그 뒤의 수명주기다.
  */
@@ -69,10 +71,10 @@ public class WorkPlanService {
 
         if (plan.getBriefing() == null || plan.getBriefing().isBlank()) {
             throw new IllegalStateException(
-                    "브리핑이 아직 생성되지 않았습니다. 작업계획서를 먼저 제출하십시오 [id=%d]".formatted(workPlanId));
+                    "TBM 내용이 아직 없습니다. 점검표를 먼저 제출하십시오 [id=%d]".formatted(workPlanId));
         }
         if (plan.getBriefingAckAt() != null) {
-            log.debug("[UC3] 이미 확인된 브리핑 workPlanId={} at={}", workPlanId, plan.getBriefingAckAt());
+            log.debug("[UC3] 이미 확인된 TBM workPlanId={} at={}", workPlanId, plan.getBriefingAckAt());
             return toDetail(plan);
         }
 
@@ -82,7 +84,13 @@ public class WorkPlanService {
         return toDetail(plan);
     }
 
-    /** 관리부 승인. 조건을 달면 CONDITIONAL이 된다 */
+    /**
+     * 관리감독자 승인. 조건(잠정조치)을 달면 CONDITIONAL이 된다.
+     *
+     * <p>판정에 상이 있고 대책이 아직 이행되지 않았으면 잠정조치 없이는 승인하지 않는다
+     * (고시 제12조④: 감소대책 이행이 늦어지면 잠정조치를 정해 작업한다). 화면도 같은 값
+     * ({@code briefingView.interimRequired})으로 입력란과 "조건부 승인" 버튼을 그린다.
+     */
     @Transactional
     public WorkPlanDtos.Detail approve(Long workPlanId, String approver, String condition) {
         WorkPlan plan = load(workPlanId);
@@ -91,8 +99,12 @@ public class WorkPlanService {
             throw new IllegalStateException(
                     "승인 대기 상태가 아닙니다 [id=%d, 상태=%s]".formatted(workPlanId, plan.getStatus()));
         }
+        if ((condition == null || condition.isBlank()) && briefingViewBuilder.compute(plan).interimRequired()) {
+            throw new InvalidRequestException("상 판정의 감소대책이 이행되지 않았습니다. 잠정조치를 입력해야 승인할 수 있습니다.");
+        }
 
-        plan.approve(approver == null || approver.isBlank() ? "관리부" : approver, condition);
+        plan.approve(approver == null || approver.isBlank() ? "관리감독자" : approver.trim(),
+                condition == null || condition.isBlank() ? null : condition.trim());
         workPlanRepository.save(plan);
         log.info("[UC3] 작업계획서 {} {} 승인", workPlanId, plan.getStatus());
         return toDetail(plan);
@@ -104,14 +116,22 @@ public class WorkPlanService {
     }
 
     private WorkPlanDtos.Detail toDetail(WorkPlan plan) {
-        Map<String, String> questions = RiskRuleEngine.SlotKeys.questions();
+        String equipmentName = equipmentName(plan.getEquipmentId());
+        String kind = RiskRuleEngine.equipmentKind(equipmentName, plan.getWorkName());
+        Map<String, String> labels = RiskRuleEngine.SlotKeys.labels();
 
+        // 되묻는 순서(발판 높이, 디딤대, 넘어짐 방지, 제품명)대로 보인다
+        List<String> order = new java.util.ArrayList<>(labels.keySet());
         List<WorkPlanDtos.Slot> slots = workPlanSlotRepository.findByWorkPlanId(plan.getId())
                 .stream()
+                .sorted(java.util.Comparator.comparingInt(s -> order.indexOf(s.getSlotKey()) < 0 ? 99 : order.indexOf(s.getSlotKey())))
                 .map(s -> new WorkPlanDtos.Slot(s.getSlotKey(),
-                        questions.getOrDefault(s.getSlotKey(), s.getSlotKey()),
+                        labels.getOrDefault(s.getSlotKey(), s.getSlotKey()),
+                        RiskRuleEngine.SlotKeys.displayValue(s.getSlotKey(), s.getAnsweredValue()),
+                        RiskRuleEngine.SlotKeys.question(s.getSlotKey(), kind),
                         s.getLedgerValue(), s.getAnsweredValue(), s.isConflicted(), s.getAnsweredAt()))
                 .toList();
+        WorkDocument document = WorkDocument.of(plan.getWorkName(), equipmentName);
 
         List<WorkPlanDtos.Worker> workers = workPlanWorkerRepository.findByWorkPlanId(plan.getId())
                 .stream()
@@ -135,11 +155,12 @@ public class WorkPlanService {
                 .toList();
 
         return new WorkPlanDtos.Detail(plan.getId(), plan.getSiteId(), plan.getEquipmentId(),
-                equipmentName(plan.getEquipmentId()), plan.getConversationId(),
+                equipmentName, plan.getConversationId(),
                 plan.getWorkName(), plan.getWorkPlace(), plan.getWorkDate(), plan.getWorkHours(),
                 plan.getMethod(), plan.getNotes(), plan.getBriefing(), plan.getBriefingAckAt(),
                 plan.getStatus(), plan.getApprovalNote(), plan.getApprovedBy(), plan.getApprovedAt(),
-                slots, workers, evidence, plan.getWarningNote(), briefingViewBuilder.build(plan));
+                slots, workers, evidence, plan.getWarningNote(), briefingViewBuilder.build(plan),
+                document.type(), document.title());
     }
 
     private String equipmentName(Long equipmentId) {

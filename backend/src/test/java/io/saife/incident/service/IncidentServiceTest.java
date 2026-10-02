@@ -86,7 +86,7 @@ class IncidentServiceTest {
     }
 
     @Test
-    @DisplayName("warning_note — 기존 경고가 있으면 줄바꿈으로 이어붙이고, approvalNote는 건드리지 않는다")
+    @DisplayName("작업 보류 — 상태를 HOLD로 바꾸고 보류 문구를 기존 경고 뒤에 줄바꿈으로 잇는다. approvalNote는 건드리지 않는다")
     void warningNoteAppendsWithNewlineAndDoesNotTouchApprovalNote() {
         OffsetDateTime occurredAt = OffsetDateTime.now();
         LocalDate incidentDate = occurredAt.toLocalDate();
@@ -100,10 +100,12 @@ class IncidentServiceTest {
                 incidentService.register(SITE_ID, request(4L, occurredAt, 5, AccidentType.CAUGHT));
 
         IncidentDtos.AffectedWorkPlan affected = response.affectedWorkPlans().get(0);
-        assertThat(affected.warning()).contains("이 설비에서").contains("협착").contains("확인");
+        assertThat(affected.warning()).isEqualTo(IncidentService.HOLD_WARNING);
+        assertThat(affected.status()).isEqualTo("HOLD");
         assertThat(affected.warning()).as("응답의 warning은 새로 붙인 문구만 담는다").doesNotContain(existing);
 
         WorkPlan reloaded = workPlanRepository.findById(plan.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).as("진행 중 작업 전 점검은 작업 보류로 바뀐다").isEqualTo(WorkPlanStatus.HOLD);
         assertThat(reloaded.getWarningNote()).isEqualTo(existing + "\n" + affected.warning());
         assertThat(reloaded.getApprovalNote()).as("승인 메모는 그대로 유지된다").isEqualTo("조건부 승인 메모");
     }
@@ -136,12 +138,13 @@ class IncidentServiceTest {
         // " 동종 유사 사고 N건(사진 M)."이 뒤에 덧붙는다 — 검색 결과 유무에 관계없이 통과해야 한다.
         assertThat(recallStep.detail()).startsWith(response.recall().headline());
         if (!response.similarCases().isEmpty()) {
-            assertThat(recallStep.detail()).contains("동종 유사 사고 " + response.similarCases().size() + "건");
+            assertThat(recallStep.detail()).contains("유사 사례 " + response.similarCases().size() + "건");
         }
 
         IncidentDtos.CascadeStep followUpStep = cascade.get(1);
         assertThat(followUpStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.WARNING);
-        assertThat(followUpStep.title()).contains("#" + response.followUp().assessmentId());
+        assertThat(followUpStep.title()).isEqualTo("수시평가");
+        assertThat(followUpStep.refId()).isEqualTo(response.followUp().assessmentId());
         assertThat(followUpStep.refType()).isEqualTo("ASSESSMENT");
 
         // occurredAt이 지금이라 제출 기한(발생일+1개월)이 아직 한참 남았다 → WARNING(의무는 있음, 3일 이내 아님)
@@ -149,11 +152,16 @@ class IncidentServiceTest {
         assertThat(reportStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.WARNING);
         assertThat(reportStep.refType()).isEqualTo("INCIDENT");
 
-        // 이 테스트에서 설비 1에 진행 중 작업계획서를 만들지 않았으므로 0건 → NORMAL
+        // 공유 DB에 설비 1의 진행 중 작업 전 점검이 있을 수 있다(시연 중 생성). 보류 건수와 강조가 일치하는지만 본다
         IncidentDtos.CascadeStep workPlanStep = cascade.get(3);
-        assertThat(workPlanStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.NORMAL);
-        assertThat(workPlanStep.detail()).isEqualTo("해당 없음");
-        assertThat(workPlanStep.refId()).isNull();
+        if (response.affectedWorkPlans().isEmpty()) {
+            assertThat(workPlanStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.NORMAL);
+            assertThat(workPlanStep.detail()).isEqualTo("해당 없음");
+            assertThat(workPlanStep.refId()).isNull();
+        } else {
+            assertThat(workPlanStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.WARNING);
+            assertThat(workPlanStep.title()).isEqualTo("작업 보류 %d건".formatted(response.affectedWorkPlans().size()));
+        }
     }
 
     @Test
@@ -197,7 +205,7 @@ class IncidentServiceTest {
         assertThat(response.reportDuty().daysRemaining()).isLessThanOrEqualTo(3L);
         IncidentDtos.CascadeStep reportStep = response.cascade().get(2);
         assertThat(reportStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.CRITICAL);
-        assertThat(reportStep.detail()).startsWith("D-");
+        assertThat(reportStep.detail()).startsWith("기한 ").doesNotContain("D-");
     }
 
     @Test
@@ -227,7 +235,7 @@ class IncidentServiceTest {
 
         IncidentDtos.CascadeStep workPlanStep = response.cascade().get(3);
         assertThat(workPlanStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.WARNING);
-        assertThat(workPlanStep.title()).contains("1건");
+        assertThat(workPlanStep.title()).isEqualTo("작업 보류 1건");
         assertThat(workPlanStep.refId()).isEqualTo(plan.getId());
         assertThat(workPlanStep.refType()).isEqualTo("WORK_PLAN");
         assertThat(workPlanStep.detail()).contains("테스트 작업");
@@ -252,7 +260,7 @@ class IncidentServiceTest {
         IncidentDtos.CascadeStep regStep = registered.cascade().get(1);
         IncidentDtos.CascadeStep reStep = reloaded.cascade().get(1);
         assertThat(reStep.kind()).isEqualTo("FOLLOW_UP");
-        assertThat(reStep.detail()).isNotEqualTo("재평가 대상 위험요인이 없습니다")
+        assertThat(reStep.detail()).isNotEqualTo("재평가 대상 위험요인 없음")
                 .isEqualTo(regStep.detail());
         assertThat(reloaded.followUp().regraded()).hasSameSizeAs(registered.followUp().regraded());
         assertThat(reloaded.followUp().regraded()).extracting(FollowUpAssessmentService.Regrade::after)
@@ -261,5 +269,62 @@ class IncidentServiceTest {
 
         assertThat(reloaded.affectedWorkPlans()).extracting(IncidentDtos.AffectedWorkPlan::workPlanId)
                 .contains(warned.getId()).doesNotContain(later.getId());
+    }
+
+    // ────────────────────────── 법정 기준 (시행규칙 제73조, 제37조제2항제3호) ──────────────────────────
+
+    @Test
+    @DisplayName("사망 재해는 휴업예상일수가 없어도 제출 대상이고 중대재해 안내 표시가 붙는다")
+    void fatalityIsReportableAndFlagsSeriousAccident() {
+        OffsetDateTime occurredAt = OffsetDateTime.now();
+        IncidentDtos.RegisterRequest req = new IncidentDtos.RegisterRequest(4L, null, null, occurredAt,
+                null, IncidentSeverity.FATALITY, null, AccidentType.STRUCK, "테스트용 사고 서술");
+
+        IncidentDtos.RegisterResponse response = incidentService.register(SITE_ID, req);
+
+        assertThat(response.reportDuty().dueDate()).isEqualTo(occurredAt.toLocalDate().plusMonths(1));
+        assertThat(response.reportDuty().seriousAccidentPossible()).isTrue();
+        assertThat(response.reportDuty().basis()).contains("사망");
+    }
+
+    @Test
+    @DisplayName("휴업 재해는 중대재해 안내를 붙이지 않고, 근거 문구에 화살표를 쓰지 않는다")
+    void lostTimeIsNotFlaggedAndBasisIsPlain() {
+        IncidentDtos.RegisterResponse response =
+                incidentService.register(SITE_ID, request(4L, OffsetDateTime.now(), 5, AccidentType.STRUCK));
+
+        assertThat(response.reportDuty().seriousAccidentPossible()).isFalse();
+        assertThat(response.reportDuty().basis()).contains("휴업예상일수 5일").doesNotContain("→");
+        assertThat(response.followUp().legalBasis()).isEqualTo("시행규칙 제37조제2항제3호");
+    }
+
+    @Test
+    @DisplayName("수시평가 등급 근거는 평문이다(화살표, 따옴표 등급, 빈도 숫자 없음)")
+    void followUpTraceIsPlain() {
+        IncidentDtos.RegisterResponse response =
+                incidentService.register(SITE_ID, request(1L, OffsetDateTime.now(), 5, AccidentType.FALL));
+
+        assertThat(response.followUp().regraded()).isNotEmpty();
+        for (FollowUpAssessmentService.Regrade g : response.followUp().regraded()) {
+            assertThat(g.ruleTrace()).doesNotContain("→").doesNotContain("'").doesNotContain("빈도");
+        }
+        FollowUpAssessmentService.Regrade fall = response.followUp().regraded().stream()
+                .filter(g -> g.accidentType() == AccidentType.FALL).findFirst().orElseThrow();
+        assertThat(fall.ruleTrace()).contains("떨어짐 사고 발생").contains("휴업예상 5일");
+    }
+
+    @Test
+    @DisplayName("사고 전 평가는 같은 날 앞서 보고된 다른 사고의 수시평가가 아니라 사고 이전 평가다")
+    void priorAssessmentIgnoresSameDayIncidentFollowUp() {
+        OffsetDateTime occurredAt = OffsetDateTime.now();
+        IncidentDtos.RegisterResponse first =
+                incidentService.register(SITE_ID, request(1L, occurredAt.minusMinutes(30), 5, AccidentType.FALL));
+        IncidentDtos.RegisterResponse second =
+                incidentService.register(SITE_ID, request(1L, occurredAt, 5, AccidentType.FALL));
+
+        LocalDate firstPrior = first.recall().priorHazards().get(0).lastAssessedOn();
+        LocalDate secondPrior = second.recall().priorHazards().get(0).lastAssessedOn();
+        assertThat(secondPrior).as("두 번째 사고도 첫 사고와 같은 사고 전 평가를 본다").isEqualTo(firstPrior);
+        assertThat(secondPrior).isBefore(occurredAt.toLocalDate());
     }
 }

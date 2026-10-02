@@ -20,13 +20,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * UC1 — 사진 업로드 → 빠진 안전조치 탐지.
+ * 순회점검 — 점검 정보와 현장 사진으로 위험요인을 기록한다.
  *
  * <p>업로드 응답은 SSE 스트림이다. 판독이 3~10초 걸려(2026-09-20 실측) 동기 응답으로
  * 두면 화면이 그 시간 동안 죽은 것처럼 보인다.
@@ -53,11 +54,13 @@ public class VisionController {
 
     @PostMapping(value = "/analyze", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter analyze(@RequestParam("image") MultipartFile image,
-                              @RequestParam(value = "equipmentId", required = false) Long equipmentId)
+                              @RequestParam(value = "equipmentId", required = false) Long equipmentId,
+                              @RequestParam(value = "inspector", required = false) String inspector,
+                              @RequestParam(value = "participants", required = false) List<String> participants)
             throws IOException {
 
         if (image == null || image.isEmpty()) {
-            throw new InvalidRequestException("이미지가 비어 있습니다. 사진을 선택해 주세요.");
+            throw new InvalidRequestException("사진이 비어 있습니다. 사진을 다시 선택하십시오.");
         }
 
         byte[] bytes = image.getBytes();
@@ -67,7 +70,7 @@ public class VisionController {
         // 그때는 이미 SSE를 열고 평가 레코드까지 만든 뒤다
         if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
             throw new InvalidRequestException(
-                    "이미지 파일만 올릴 수 있습니다 (받은 형식: %s)".formatted(contentType));
+                    "사진 파일만 올릴 수 있습니다 (받은 형식: %s)".formatted(contentType));
         }
         String photoPath = store(bytes, image.getOriginalFilename());
 
@@ -75,7 +78,7 @@ public class VisionController {
                 : equipmentRepository.findById(equipmentId).map(Equipment::getProcessId).orElse(null);
 
         // 비동기 디스패치 "전에" 판독 중 상태를 커밋한다 (sse-streaming.md)
-        Long assessmentId = visionAssessmentService.markAnalyzing(DEMO_SITE_ID);
+        Long assessmentId = visionAssessmentService.markAnalyzing(DEMO_SITE_ID, inspector, participants);
 
         String correlationId = UUID.randomUUID().toString().replace("-", "");
         SseService.SseSession session =
@@ -98,7 +101,30 @@ public class VisionController {
         return ResponseEntity.ok(visionAssessmentService.result(assessmentId));
     }
 
-    /** 후보 채택 — 사람이 하는 일이다 */
+    /** 최근 순회점검 목록 */
+    @GetMapping("/recent")
+    public ResponseEntity<List<VisionAssessmentService.RecentInspection>> recent() {
+        return ResponseEntity.ok(visionAssessmentService.recent(DEMO_SITE_ID));
+    }
+
+    /** 점검 정보(점검자, 참여 근로자) 갱신 */
+    @PutMapping("/assessment/{assessmentId}/inspection")
+    public ResponseEntity<VisionAssessmentService.InspectionView> updateInspection(
+            @PathVariable Long assessmentId,
+            @RequestBody VisionAssessmentService.InspectionRequest request) {
+        return ResponseEntity.ok(visionAssessmentService.updateInspection(assessmentId, request));
+    }
+
+    /** 허용 가능 여부. 사람이 정한다 */
+    @PutMapping("/assessment/{assessmentId}/hazard/{hazardId}/acceptable")
+    public ResponseEntity<VisionAssessmentService.AcceptableView> setAcceptable(
+            @PathVariable Long assessmentId, @PathVariable Long hazardId,
+            @RequestBody Map<String, Boolean> body) {
+        boolean acceptable = body != null && Boolean.TRUE.equals(body.get("acceptable"));
+        return ResponseEntity.ok(visionAssessmentService.setAcceptable(assessmentId, hazardId, acceptable));
+    }
+
+    /** 위험요인 반영. 사람이 하는 일이다 */
     @PostMapping("/hazard/{hazardId}/adopt")
     public ResponseEntity<VisionAssessmentService.Candidate> adopt(@PathVariable Long hazardId) {
         return ResponseEntity.ok(visionAssessmentService.decideCandidate(hazardId, true));
@@ -119,7 +145,7 @@ public class VisionController {
         return ResponseEntity.ok(actionService.createForHazard(hazardId, request));
     }
 
-    /** 후보 채택률 — 성과 지표. 정확도가 아니다 */
+    /** 반영 비율. 화면 지표가 아니라 검증 기록용이다 */
     @GetMapping("/adoption-rate")
     public ResponseEntity<Map<String, Object>> adoptionRate() {
         return ResponseEntity.ok(visionAssessmentService.adoptionRate(DEMO_SITE_ID));

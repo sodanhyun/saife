@@ -26,9 +26,9 @@ function initialEquipmentIdFromQuery(raw: string | null): string | null {
 export function useIncident() {
   const [searchParams] = useSearchParams();
   const equipment = useApiData({ fetchFn: (s) => equipmentApi.list(s), deps: [], errorMessage: "설비 목록을 불러오지 못했습니다" });
-  const plans = useApiData({ fetchFn: (s) => workPlanApi.list(0, 20, s).then((p) => p.content), deps: [], errorMessage: "작업계획서 목록을 불러오지 못했습니다" });
+  const plans = useApiData({ fetchFn: (s) => workPlanApi.list(0, 20, s).then((p) => p.content), deps: [], errorMessage: "작업 목록을 불러오지 못했습니다" });
   const incidents = useApiData({ fetchFn: (s) => incidentApi.list(0, 20, s).then((p) => p.content), deps: [], skipFirstSkeleton: true, errorMessage: "사고 목록을 불러오지 못했습니다" });
-  // 진입 컨텍스트 — 설비 홈·상세에서 "사고 신고"로 들어오면 ?equipmentId=가 붙는다.
+  // 진입 컨텍스트 — 설비 홈·상세에서 "사고 보고"로 들어오면 ?equipmentId=가 붙는다.
   // 명시적으로 골랐다고 취급해(effectiveForm의 "null이면 기본 설비" 파생을 건너뛰게) 그 값이 유지된다.
   const [form, setForm] = useState<IncidentFormState>(() => {
     const entryEquipmentId = initialEquipmentIdFromQuery(searchParams.get("equipmentId"));
@@ -36,9 +36,11 @@ export function useIncident() {
   });
   const [response, setResponse] = useState<IncidentRegisterResponse | null>(null);
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 셀렉터로 구독 — 스토어 전체를 구독하면 토스트가 뜰 때마다 이 훅(=페이지)이 다시 렌더된다
   const toastSuccess = useToastStore((s) => s.success);
+  const toastError = useToastStore((s) => s.error);
 
   // 첫 설비를 기본 선택 — 렌더 중 파생(effect+setState로 동기화하지 않는다).
   // equipmentId===null은 "아직 고르지 않음"이고, ""는 사용자가 명시적으로 고른 "(설비 미상)"이라
@@ -51,12 +53,25 @@ export function useIncident() {
     setError(null);
     try {
       setResponse(await incidentApi.register(toRegisterRequest(effectiveForm)));
-      toastSuccess("사고를 등록했습니다");
+      toastSuccess("사고를 보고했습니다");
       incidents.refetch();
     } catch (e) {
-      setError(getServerMessage(e) ?? "사고를 등록하지 못했습니다");
+      setError(getServerMessage(e) ?? "사고를 보고하지 못했습니다");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** 이력 표에서 행을 누르면 그 사고의 결과 화면을 다시 연다 */
+  const open = async (id: number) => {
+    setOpening(id);
+    try {
+      setResponse(await incidentApi.detail(id));
+      window.scrollTo({ top: 0 });
+    } catch (e) {
+      toastError(getServerMessage(e) ?? "사고를 불러오지 못했습니다");
+    } finally {
+      setOpening(null);
     }
   };
 
@@ -70,6 +85,8 @@ export function useIncident() {
 
   return {
     reset,
+    open,
+    opening,
     equipment: equipment.data ?? [],
     plans: plans.data ?? [],
     incidents: incidents.data ?? [],

@@ -1,4 +1,3 @@
-import { LayoutGrid } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { COLLAPSED_BY_DEFAULT, MENU_GROUPS, resolveSidebarCollapsed } from "@/components/layout/menu";

@@ -47,9 +47,21 @@ class AgentServiceTest {
 
         assertThat(prompt).contains("[진행 순서]");
         assertThat(prompt).contains(
-                "설비가 확인되면 답변의 첫 문장은 반드시 그 설비의 최근 평가 등급과 미이행 조치를");
-        assertThat(prompt).contains("요약하는 문장이어야 합니다");
-        assertThat(prompt).contains("그다음에 부족한 항목을 하나만 물어보세요");
+                "설비가 확인되면 첫 문장은 그 설비의 지난 지적 사항과 미이행 조치를 한 문장으로 요약합니다");
+        assertThat(prompt).contains("비어 있는 값은 한 번에 하나씩 묻습니다");
+    }
+
+    @Test
+    void 문서는_작업_전_안전점검표이고_등급을_말로_단정하지_않는다() {
+        String prompt = service.systemPrompt(null);
+
+        assertThat(prompt).contains("작업 전 안전점검표(TBM)");
+        assertThat(prompt).contains("작업계획서\"라고 부르지 마세요");
+        assertThat(prompt).contains("등급을 단정하거나");
+        assertThat(prompt).contains("사다리 발판 높이가 바닥에서 몇 m입니까?");
+        assertThat(prompt).contains("맨 위 발판이나 그 바로 아래 칸에 올라섭니까?");
+        assertThat(prompt).contains("사다리 넘어짐 방지(아웃트리거, 고정, 잡아주는 사람)가 있습니까?");
+        assertThat(prompt).contains("룰 엔진, 모델");
     }
 
     @Test

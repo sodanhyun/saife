@@ -2,5 +2,7 @@
 export const formUrl = {
   assessment: (id: number) => `/form/assessment/${id}`,
   incident: (id: number) => `/form/incident/${id}`,
+  /** 재발방지 검토서(사내, 비제출) */
+  incidentReview: (id: number) => `/form/incident/${id}/review`,
   workPlan: (id: number) => `/form/work-plan/${id}`,
 };

@@ -16,6 +16,9 @@ import io.saife.workplan.repository.WorkPlanRepository;
 import io.saife.workplan.repository.WorkPlanSlotRepository;
 import io.saife.workplan.repository.WorkPlanWorkerRepository;
 import io.saife.core.repository.EquipmentRepository;
+import io.saife.core.domain.Equipment;
+import io.saife.workplan.domain.WorkDocument;
+import java.time.format.DateTimeFormatter;
 import io.saife.workplan.service.BriefingComposer;
 import io.saife.workplan.service.WorkPlanService;
 import org.springframework.beans.factory.ObjectProvider;
@@ -72,12 +75,13 @@ public class WorkPlanTools {
 
     @Tool(description = """
             <tool-description>
-            <purpose>작업자의 발화에서 작업계획서 항목을 구조화해 등록합니다. 장소·설비를 확인한 뒤 호출하세요.</purpose>
+            <purpose>작업자의 발화에서 작업 전 안전점검표 항목(작업명, 장소, 일자, 작업자, 현장 확인 값)을 정리해 등록합니다. 장소와 설비를 확인한 뒤 호출하세요.</purpose>
             <returns>등록 결과를 반환합니다. 필수 항목이 비어 있으면 status=INCOMPLETE와 missing 목록(무엇이 필요한지·왜 필요한지·어떻게 확인하는지)을 반환합니다.</returns>
             <prerequisites>findLocationEquipment로 장소·설비를 먼저 확인하세요.</prerequisites>
             <usage-guide>
             - status=INCOMPLETE가 오면 등록이 되지 않은 것입니다. 값을 지어내지 마세요.
-            - missing에 있는 항목을 작업자에게 한 번에 하나씩 질문하세요.
+            - missing에 있는 항목을 작업자에게 한 번에 하나씩 질문하세요. 질문은 missing의 expected 앞부분 문구를 그대로 쓰세요.
+            - 이동식 사다리 작업이면 workHeight, topStep, tipGuard를 채웁니다. anchorInstalled는 사다리 작업에 쓰지 않습니다.
             - 작업자 답변을 받은 뒤 이 도구를 다시 호출하세요. 이전에 채운 값은 그대로 다시 넣으세요.
             - 작업자가 모른다고 하거나 빨리 진행하자고 해도 필수 항목을 임의로 채우지 마세요.
               missing의 how_to_find를 안내하고 기다리세요.
@@ -94,9 +98,12 @@ public class WorkPlanTools {
             @ToolParam(description = "작업 순서 및 방법", required = false) String method,
             @ToolParam(description = "작업 인원. '성명/직책' 형식을 쉼표로 구분", required = false) String workers,
             @ToolParam(description = "설비 ID. findLocationEquipment에서 확인된 경우", required = false) Long equipmentId,
-            @ToolParam(description = "작업 높이(m). 2m 초과 여부로 추락 위험성 등급이 갈립니다. 추정하지 마세요", required = false) String workHeight,
-            @ToolParam(description = "안전대 부착설비 설치 여부. 대장에 기록이 있어도 오늘 현장 상태를 확인하세요", required = false) String anchorInstalled,
-            @ToolParam(description = "사용 제품명. 유기용제 여부에 따라 화재, 중독 위험과 보호구가 달라집니다. 추정하지 마세요", required = false) String productName,
+            @ToolParam(description = "바닥에서 발판(작업면)까지 높이(m). 작업자의 답을 그대로 넣으세요. 추정하지 마세요", required = false) String workHeight,
+            @ToolParam(description = "이동식 사다리: 최상부 발판이나 그 바로 아래 디딤대에 올라서는지. 작업자의 답을 그대로 넣으세요", required = false) String topStep,
+            @ToolParam(description = "이동식 사다리: 넘어짐 방지(아웃트리거, 고정, 잡아주는 사람)가 있는지. 작업자의 답을 그대로 넣으세요", required = false) String tipGuard,
+            @ToolParam(description = "고소작업대: 작업대 안전난간이 빠짐없이 설치되어 있는지", required = false) String platformGuardrail,
+            @ToolParam(description = "사다리, 고소작업대가 아닌 고소작업에서 안전대 부착설비가 있는지. 사다리 작업에는 쓰지 않습니다", required = false) String anchorInstalled,
+            @ToolParam(description = "사용 제품명(라벨 표기). 유기용제 여부로 화재, 중독 위험과 보호구가 달라집니다. 추정하지 마세요", required = false) String productName,
             ToolContext toolContext) {
 
         Long siteId = AgentContextKeys.siteId(toolContext);
@@ -125,32 +132,39 @@ public class WorkPlanTools {
 
             // 이번 호출로 들어온 슬롯 값을 먼저 반영한다 (재호출 시 이전 값 유지)
             persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.WORK_HEIGHT, workHeight);
+            persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.TOP_STEP, topStep);
+            persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.TIP_GUARD, tipGuard);
+            persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.PLATFORM_GUARDRAIL, platformGuardrail);
             persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED, anchorInstalled);
             persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.PRODUCT_NAME, productName);
 
-            List<String> missing = missingRequiredSlots(plan.getId(), workName);
+            String kind = kindOf(plan);
+            List<String> missing = missingRequiredSlots(plan.getId(), plan.getWorkName(), kind);
             if (!missing.isEmpty()) {
                 // 구조화된 불완전 결과. 모델이 이걸 받아 되묻고 재호출한다.
-                // 흐름은 모델이 쥔다 — 루프는 UI 힌트만 발행한다.
-                ToolCallTracker.summarize("초안 #" + plan.getId() + " 저장, 필수 항목 " + missing.size() + "개 비어 있음");
+                // 흐름은 모델이 쥔다. 루프는 UI 힌트만 발행한다.
+                ToolCallTracker.summarize("확인 필요 " + missing.size() + "건");
                 return ToolResult.of(IncompleteResult.of(
-                        "필수 항목이 비어 있어 작업계획서가 등록되지 않았습니다. (초안 id=%d)"
+                        "현장 확인 값이 비어 있어 점검표를 등록하지 않았습니다. (초안 id=%d)"
                                 .formatted(plan.getId()),
-                        missing.stream().map(this::describeMissing).toList(),
+                        missing.stream().map(k -> describeMissing(k, kind)).toList(),
                         "extractWorkPlan"));
             }
 
-            ToolCallTracker.summarize("초안 #" + plan.getId() + " 필수 항목 모두 채움");
-            return ToolResult.of("작업계획서 항목 구조화 완료 [id=%d]. 필수 항목이 모두 채워졌습니다."
+            int workerCount = workPlanWorkerRepository.findByWorkPlanId(plan.getId()).size();
+            ToolCallTracker.summarize(plan.getWorkName() + ", "
+                    + plan.getWorkDate().format(DateTimeFormatter.ofPattern("MM-dd"))
+                    + (workerCount > 0 ? ", 작업자 " + workerCount + "명" : ""));
+            return ToolResult.of("점검표 항목 정리 완료 [id=%d]. 필수 항목이 모두 채워졌습니다."
                     .formatted(plan.getId()));
         });
     }
 
     @Tool(description = """
             <tool-description>
-            <purpose>확정된 작업계획서를 저장하고 위험 브리핑을 생성한 뒤 관리부 승인 큐에 올립니다. 대화의 마지막 도구입니다.</purpose>
-            <returns>생성된 브리핑 내용과 승인 요청 결과를 반환합니다.</returns>
-            <prerequisites>extractWorkPlan이 "필수 항목이 모두 채워졌습니다"를 반환한 뒤에 호출하세요. analyzeHazards·searchCases·getMsds로 근거를 모아두면 브리핑이 풍부해집니다.</prerequisites>
+            <purpose>정리된 작업 전 안전점검표를 저장하고 TBM 내용(위험 포인트, 지킬 것)을 만든 뒤 관리감독자 승인 대기에 올립니다. 대화의 마지막 도구입니다.</purpose>
+            <returns>TBM 내용과 승인 요청 결과를 반환합니다. 위험성 등급은 시스템 판정 기준으로 이미 정해져 있습니다.</returns>
+            <prerequisites>extractWorkPlan이 "필수 항목이 모두 채워졌습니다"를 반환한 뒤에 호출하세요. analyzeHazards, searchCases, getMsds로 근거를 먼저 모으세요.</prerequisites>
             <usage-guide>
             - 필수 항목이 비어 있으면 이 도구는 status=INCOMPLETE를 반환하고 제출하지 않습니다.
             - 그때는 missing 항목을 작업자에게 물어본 뒤 extractWorkPlan을 먼저 다시 호출하세요.
@@ -160,7 +174,7 @@ public class WorkPlanTools {
             """)
     @Transactional
     public String createWorkPlan(
-            @ToolParam(description = "작업계획서 ID (extractWorkPlan이 반환한 값)") Long workPlanId,
+            @ToolParam(description = "점검표 ID (extractWorkPlan이 반환한 값)") Long workPlanId,
             ToolContext toolContext) {
 
         return ToolCallTracker.execute("createWorkPlan",
@@ -168,12 +182,12 @@ public class WorkPlanTools {
                 sseService, toolContext, () -> {
 
             if (workPlanId == null) {
-                return ToolResult.of("작업계획서 ID가 없습니다. extractWorkPlan을 먼저 호출하세요.");
+                return ToolResult.of("점검표 ID가 없습니다. extractWorkPlan을 먼저 호출하세요.");
             }
 
             WorkPlan plan = workPlanRepository.findById(workPlanId).orElse(null);
             if (plan == null) {
-                return ToolResult.of("작업계획서를 찾을 수 없습니다 [id=%d].".formatted(workPlanId));
+                return ToolResult.of("점검표를 찾을 수 없습니다 [id=%d].".formatted(workPlanId));
             }
 
             // 필수 슬롯이 비어 있으면 제출하지 않는다.
@@ -183,12 +197,13 @@ public class WorkPlanTools {
             //   1) 등급을 결정하는 값(작업높이)이 없는 계획서가 승인 큐에 올라간다
             //   2) 초안이 SUBMITTED로 바뀌어 다음 extractWorkPlan이 새 초안을 만든다 → 계획서가 쪼개진다
             // 거절이 곧 방어다.
-            List<String> missing = missingRequiredSlots(plan.getId(), plan.getWorkName());
+            String kind = kindOf(plan);
+            List<String> missing = missingRequiredSlots(plan.getId(), plan.getWorkName(), kind);
             if (!missing.isEmpty()) {
                 return ToolResult.of(IncompleteResult.of(
-                        "필수 항목이 비어 있어 제출하지 않았습니다. 초안(id=%d)은 그대로 있습니다."
+                        "현장 확인 값이 비어 있어 제출하지 않았습니다. 초안(id=%d)은 그대로 있습니다."
                                 .formatted(plan.getId()),
-                        missing.stream().map(this::describeMissing).toList(),
+                        missing.stream().map(k -> describeMissing(k, kind)).toList(),
                         "extractWorkPlan"));
             }
 
@@ -197,12 +212,12 @@ public class WorkPlanTools {
             // 그때 submit()을 또 호출하면 <b>승인된 계획서가 조용히 SUBMITTED로 되돌아간다.</b>
             if (plan.getStatus() != WorkPlanStatus.DRAFT) {
                 return ToolResult.of("""
-                        작업계획서는 이미 처리되었습니다 [id=%d, 상태=%s]. 중복 제출하지 않았습니다.
+                        점검표는 이미 제출되었습니다 [id=%d, 상태=%s]. 중복 제출하지 않았습니다.
 
-                        [작업 전 브리핑]
+                        [TBM]
                         %s
                         """.formatted(plan.getId(), plan.getStatus(),
-                        plan.getBriefing() == null ? "(브리핑 없음)" : plan.getBriefing()));
+                        plan.getBriefing() == null ? "(없음)" : plan.getBriefing()));
             }
 
             String briefing = briefingComposer.compose(plan);
@@ -225,12 +240,13 @@ public class WorkPlanTools {
                 }
             }
 
-            ToolCallTracker.summarize("계획서 #" + plan.getId() + " 제출, 브리핑 생성, 승인 대기");
+            ToolCallTracker.summarize(WorkDocument.of(plan.getWorkName(), equipmentName(plan)).shortTitle() + " 작성, 승인 대기");
             emitWorkPlanCard(plan.getId(), toolContext);
             return ToolResult.of("""
-                    작업계획서 제출 완료 [id=%d] — 관리부 승인 큐에 등록되었습니다.
+                    점검표 제출 완료 [id=%d]. 관리감독자 승인 대기에 올렸습니다.
+                    결과 카드가 화면에 표시됩니다. 등급과 근거를 다시 나열하지 말고 한두 문장으로만 안내하세요.
 
-                    [작업 전 브리핑]
+                    [TBM]
                     %s
                     """.formatted(plan.getId(), briefing));
         });
@@ -266,13 +282,24 @@ public class WorkPlanTools {
         }
     }
 
+    /** 계획서 설비의 종류(사다리, 고소작업대). 판정 기준과 되묻는 항목이 갈린다 */
+    private String kindOf(WorkPlan plan) {
+        return RiskRuleEngine.equipmentKind(equipmentName(plan), plan.getWorkName());
+    }
+
+    private String equipmentName(WorkPlan plan) {
+        if (plan.getEquipmentId() == null) return null;
+        return equipmentRepository.findById(plan.getEquipmentId()).map(Equipment::getName).orElse(null);
+    }
+
     /**
      * 아직 답을 못 받은 필수 슬롯.
      *
-     * <p>작업 유형별로 다르다. 도장·고소작업이면 높이와 제품명이 필수다.
+     * <p>작업과 설비 종류마다 다르다. 이동식 사다리면 발판 높이, 최상부 디딤대, 넘어짐 방지(제42조④),
+     * 도장이면 제품명이 필수다.
      */
-    private List<String> missingRequiredSlots(Long workPlanId, String workName) {
-        List<String> required = requiredSlotsFor(workName);
+    private List<String> missingRequiredSlots(Long workPlanId, String workName, String kind) {
+        List<String> required = requiredSlotsFor(workName, kind);
         List<String> missing = new ArrayList<>();
         for (String key : required) {
             boolean answered = workPlanSlotRepository
@@ -286,21 +313,27 @@ public class WorkPlanTools {
         return missing;
     }
 
-    /** 작업 유형 → 필수 슬롯 매핑 */
-    private List<String> requiredSlotsFor(String workName) {
+    /** 작업 유형과 설비 종류에 따른 필수 슬롯. 순서가 곧 되묻는 순서다 */
+    static List<String> requiredSlotsFor(String workName, String kind) {
         String w = workName == null ? "" : workName;
         List<String> slots = new ArrayList<>();
 
-        // 고소작업 신호: 사다리·비계·고소작업대·천장·지붕
-        if (w.matches(".*(사다리|비계|고소|천장|지붕|옥상|단부).*")) {
+        if (RiskRuleEngine.KIND_LADDER.equals(kind)) {
+            slots.add(RiskRuleEngine.SlotKeys.WORK_HEIGHT);
+            slots.add(RiskRuleEngine.SlotKeys.TOP_STEP);
+            slots.add(RiskRuleEngine.SlotKeys.TIP_GUARD);
+        } else if (RiskRuleEngine.KIND_AERIAL_PLATFORM.equals(kind)) {
+            slots.add(RiskRuleEngine.SlotKeys.WORK_HEIGHT);
+            slots.add(RiskRuleEngine.SlotKeys.PLATFORM_GUARDRAIL);
+        } else if (w.matches(".*(비계|고소|천장|지붕|옥상|단부).*")) {
             slots.add(RiskRuleEngine.SlotKeys.WORK_HEIGHT);
             slots.add(RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED);
         }
-        // 화학물질 신호: 도장·페인트·용제·세척
+        // 화학물질 신호: 도장, 페인트, 용제, 세척
         if (w.matches(".*(페인트|도장|용제|시너|세척|코팅).*")) {
             slots.add(RiskRuleEngine.SlotKeys.PRODUCT_NAME);
         }
-        // 회전·구동부 신호
+        // 회전, 구동부 신호
         if (w.matches(".*(정비|점검|청소|교체).*") && w.matches(".*(설비|기계|컨베이어|롤러).*")) {
             slots.add(RiskRuleEngine.SlotKeys.GUARD_INSTALLED);
         }
@@ -311,32 +344,46 @@ public class WorkPlanTools {
         return slots;
     }
 
-    /** 빠진 항목의 복구 정보. how_to_find가 "그걸 어떻게 확인해요?"에 답한다 */
-    private IncompleteResult.MissingField describeMissing(String key) {
+    /** 빠진 항목의 복구 정보. expected 앞부분이 그대로 묻는 문구이고, how_to_find가 "그걸 어떻게 확인해요?"에 답한다 */
+    private IncompleteResult.MissingField describeMissing(String key, String kind) {
+        String question = RiskRuleEngine.SlotKeys.question(key, kind);
         return switch (key) {
             case RiskRuleEngine.SlotKeys.WORK_HEIGHT -> new IncompleteResult.MissingField(
-                    key, "작업 높이(m). 숫자 또는 '약 3m' 형태",
-                    "2m 초과 여부로 추락 위험성 등급과 안전대 부착설비 요구가 달라집니다",
-                    "바닥에서 작업면까지 줄자로 재거나, 사용하는 사다리의 단수, 제원표로 확인할 수 있습니다",
+                    key, question + " (숫자, 예: 3.2)",
+                    "2m 이상이면 안전모와 안전대가 필요하고, 이동식 사다리는 3.5m를 넘으면 쓸 수 없습니다",
+                    "바닥에서 올라설 발판까지 줄자로 재거나 사다리 제원표로 확인합니다",
                     "3.2");
+            case RiskRuleEngine.SlotKeys.TOP_STEP -> new IncompleteResult.MissingField(
+                    key, question + " (예/아니요)",
+                    "최상부 발판과 그 하단 디딤대에서는 작업할 수 없습니다(제42조④)",
+                    "천장까지 손이 닿으려면 몇 번째 칸에 서야 하는지 작업자에게 확인합니다",
+                    "맨 위 바로 아래 칸까지 올라갑니다");
+            case RiskRuleEngine.SlotKeys.TIP_GUARD -> new IncompleteResult.MissingField(
+                    key, question + " (있음/없음)",
+                    "아웃트리거, 고정, 잡아주는 사람 중 하나도 없으면 사용할 수 없습니다(제42조④)",
+                    "사다리 다리의 아웃트리거, 상단 고정 여부, 옆에서 잡아줄 사람이 있는지 확인합니다",
+                    "없음");
+            case RiskRuleEngine.SlotKeys.PLATFORM_GUARDRAIL -> new IncompleteResult.MissingField(
+                    key, question + " (있음/없음)",
+                    "작업대 안전난간이 빠져 있으면 떨어짐 위험이 큽니다(제186조)",
+                    "작업대 네 면의 난간이 모두 설치되어 있는지 눈으로 확인합니다",
+                    "있음");
             case RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED -> new IncompleteResult.MissingField(
-                    key, "설치 여부 (있음/없음)",
-                    "안전대를 걸 구조물이 없으면 2m 초과 작업에서 위험성이 '상'으로 올라갑니다",
-                    "작업 위치 주변에 안전대를 체결할 앵커, 구명줄이 실제로 있는지 눈으로 확인하세요",
+                    key, question + " (있음/없음)",
+                    "2m 이상 작업에서 안전대를 걸 곳이 없으면 위험합니다(제44조)",
+                    "작업 위치 주변에 안전대를 체결할 앵커, 구명줄이 있는지 확인합니다",
                     "없음");
             case RiskRuleEngine.SlotKeys.PRODUCT_NAME -> new IncompleteResult.MissingField(
-                    key, "제품명",
-                    "유기용제 여부에 따라 화재, 중독 위험과 착용할 보호구가 달라집니다",
-                    "제품 용기 라벨이나 물질안전보건자료(MSDS)에 적혀 있습니다",
-                    "○○ 유성페인트");
+                    key, question,
+                    "유기용제 여부에 따라 화재, 중독 위험과 보호구가 달라집니다",
+                    "페인트 통 라벨이나 물질안전보건자료(MSDS)에 적혀 있습니다",
+                    "노루 유성페인트");
             case RiskRuleEngine.SlotKeys.GUARD_INSTALLED -> new IncompleteResult.MissingField(
-                    key, "방호덮개 설치 여부 (있음/없음)",
-                    "회전, 구동부에 덮개가 없으면 협착 위험성이 '상'으로 올라갑니다",
-                    "설비의 회전부, 구동부에 덮개나 인터록이 실제로 있는지 확인하세요",
+                    key, question + " (있음/없음)",
+                    "회전, 구동부에 덮개가 없으면 끼임 위험이 큽니다(제87조)",
+                    "설비의 회전부, 구동부에 덮개가 실제로 있는지 확인합니다",
                     "있음");
-            default -> new IncompleteResult.MissingField(
-                    key, RiskRuleEngine.SlotKeys.questions().getOrDefault(key, key),
-                    null, null, null);
+            default -> new IncompleteResult.MissingField(key, question, null, null, null);
         };
     }
 

@@ -34,6 +34,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class IncidentReportDrafter {
 
+    private static final java.time.ZoneId KST = java.time.ZoneId.of("Asia/Seoul");
+    private static final java.time.format.DateTimeFormatter TS =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
     private final ChatClient.Builder chatClientBuilder;
     private final DemoModeConfig demoModeConfig;
 
@@ -93,33 +97,46 @@ public class IncidentReportDrafter {
                 CitationSanitizer.sanitize(d.prevention(), knownNos), d.aiGenerated());
     }
 
+    /**
+     * 산업재해조사표(별지 제30호서식) "재해 발생 원인"과 "재발방지 계획"의 초안.
+     *
+     * <p>조사표는 관할 관서에 <b>제출하는 문서</b>다. 원인은 확인된 사실(작업, 설비, 상태, 행동)로만 쓰고
+     * 사업주의 법 위반이나 과실을 스스로 단정하는 문장을 넣지 않는다. 사전 지적 사항의 미이행 경위는
+     * 사내 「재발방지 검토서」가 다룬다. 재발방지는 "무엇을 (담당 누가, 기한 언제까지)" 한 줄 형식이다.
+     */
     private static final String SYSTEM = """
-            당신은 산업재해조사표 작성을 돕는 보조자입니다. 법률 자문을 하지 않습니다.
+            당신은 산업재해조사표(산업안전보건법 시행규칙 별지 제30호서식) 작성을 돕는 보조자입니다. 법률 자문을 하지 않습니다.
 
-            아래 규칙을 지키십시오.
-            - 주어진 근거에 없는 사실을 만들지 마십시오. 특히 날짜·수치·설비명·인명을 지어내지 마십시오.
-            - 근거가 부족하면 "확인 필요"라고 쓰십시오. 추측을 단정형으로 쓰지 마십시오.
-            - 재발방지 계획에는 이미 등록돼 있던 미이행 조치가 있으면 그것을 첫 항목으로 쓰십시오.
-              새 대책을 나열하기 전에 하기로 했던 것부터 다루는 것이 조사표의 신뢰를 만듭니다.
-            - 한국어 공문 문체로 쓰십시오. 가운뎃점(·)과 대시(—, –)는 쓰지 말고 쉼표나 괄호를 쓰십시오.
-            - 재발방지 대책 문장 끝에 근거 번호를 [#n]으로 붙이세요. 목록에 없는 번호는 쓰지 마세요.
+            규칙
+            - 주어진 자료에 없는 사실을 만들지 마십시오. 날짜, 수치, 설비명, 인명을 지어내지 마십시오.
+            - [원인]은 확인된 사실만 짧은 평서문으로 씁니다: 어떤 작업 중, 어떤 설비에서, 어떤 상태와 행동이 있었고, 어떻게 다쳤는지.
+              재해발생 당시 상황을 그대로 반복하지 말고, 자료에서 확인되는 불안전한 상태(예: 작업발판 없이 이동식 사다리 사용)와
+              불안전한 행동(예: 최상부 바로 아래 디딤대에 올라섬)을 사실로 짚으십시오.
+              "위반", "과실", "소홀", "방치", "미이행으로 인해" 같은 책임을 단정하는 말은 쓰지 마십시오.
+              확인되지 않은 것은 "(확인 필요)"로 남기십시오.
+            - [재발방지]는 3개 이내, 한 줄에 하나, 반드시 이 형식입니다: 번호. 무엇을 (담당 누가, 기한 언제까지)
+              담당은 자료에 있는 담당자를 그대로 쓰고, 없으면 "안전관리자" 또는 "관리감독자"로 씁니다.
+              기한은 "작업 재개 전" 또는 YYYY-MM-DD 날짜로 씁니다.
+              감소대책 우선순위(제거, 공학적 대책, 관리적 대책, 보호구)를 따르고, 자료의 미이행 감소대책이 있으면 첫 줄에 둡니다.
+              조사표 제출, 수시평가 실시 같은 행정 절차는 재발방지 대책이 아니므로 쓰지 마십시오.
+            - 재발방지 줄 끝에만 근거 번호를 [#n]으로 붙일 수 있습니다. 목록에 없는 번호는 쓰지 마십시오. [원인]에는 붙이지 마십시오.
+            - 가운뎃점(·), 대시(—, –), 화살표(→)를 쓰지 마십시오. 쉼표와 괄호를 쓰십시오.
 
-            출력 형식을 정확히 지키십시오. 다른 말을 덧붙이지 마십시오.
+            출력 형식(다른 말을 덧붙이지 마십시오)
 
             [원인]
-            (재해발생 원인. 3~5문장)
+            (2~4문장)
 
             [재발방지]
-            1. (대책)
-            2. (대책)
-            3. (대책)
+            1. (무엇을) (담당 누가, 기한 언제까지)
+            2. ...
             """;
 
     private String buildUserPrompt(Incident incident, EquipmentHistoryRecaller.Recall recall, List<Evidence> evidence) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("[사고 개요]\n");
-        sb.append("- 발생일시: ").append(incident.getOccurredAt()).append('\n');
+        sb.append("[재해 발생 개요]\n");
+        sb.append("- 발생일시: ").append(incident.getOccurredAt().atZoneSameInstant(KST).format(TS)).append('\n');
         sb.append("- 설비: ").append(recall.equipmentName());
         if (recall.locationTag() != null) {
             sb.append(" (").append(recall.locationTag()).append(')');
@@ -128,20 +145,23 @@ public class IncidentReportDrafter {
         if (incident.getAccidentType() != null) {
             sb.append("- 발생형태: ").append(incident.getAccidentType().getLabel()).append('\n');
         }
-        if (incident.getLeaveDays() != null) {
-            sb.append("- 휴업일수: ").append(incident.getLeaveDays()).append("일\n");
+        if (incident.getSeverity() != null) {
+            sb.append("- 재해 정도: ").append(incident.getSeverity().getLabel()).append('\n');
         }
-        sb.append("- 재해 경위: ").append(nvl(incident.getDescription(), "(미입력)")).append('\n');
+        if (incident.getLeaveDays() != null) {
+            sb.append("- 휴업예상일수: ").append(incident.getLeaveDays()).append("일\n");
+        }
+        sb.append("- 재해발생 당시 상황: ").append(nvl(incident.getDescription(), "(미입력)")).append('\n');
 
-        sb.append("\n[이 설비에 사고 전부터 기록돼 있던 위험요인]\n");
+        sb.append("\n[이 설비의 사고 전 위험성평가]\n");
         if (recall.priorHazards().isEmpty()) {
             sb.append("- 없음\n");
         } else {
             for (EquipmentHistoryRecaller.PriorHazard h : recall.priorHazards()) {
-                sb.append("- [").append(h.accidentType() == null ? "?" : h.accidentType().getLabel())
-                        .append("] ").append(nvl(h.missingControl(), h.description()));
+                sb.append("- ").append(h.accidentType() == null ? "발생형태 미상" : h.accidentType().getLabel())
+                        .append(": ").append(nvl(h.missingControl(), h.description()));
                 if (h.lastRiskLevel() != null) {
-                    sb.append(" — 최근 평가 등급 ").append(h.lastRiskLevel());
+                    sb.append(", 등급 ").append(h.lastRiskLevel().getLabel());
                 }
                 if (h.lastAssessedOn() != null) {
                     sb.append(" (").append(h.lastAssessedOn()).append(')');
@@ -150,31 +170,22 @@ public class IncidentReportDrafter {
             }
         }
 
-        sb.append("\n[미이행 상태였던 감소대책]\n");
+        sb.append("\n[사고 시점 미이행 감소대책]\n");
         if (recall.unfinishedActions().isEmpty()) {
             sb.append("- 없음\n");
         } else {
             for (EquipmentHistoryRecaller.UnfinishedAction a : recall.unfinishedActions()) {
                 sb.append("- ").append(a.content());
-                if (a.dueDate() != null) {
-                    sb.append(" (기한 ").append(a.dueDate());
-                    if (a.overdueDays() != null && a.overdueDays() > 0) {
-                        sb.append(", 사고 시점에 ").append(a.overdueDays()).append("일 경과");
-                    }
-                    sb.append(')');
+                if (a.owner() != null && !a.owner().isBlank()) {
+                    sb.append(" (담당 ").append(a.owner()).append(')');
                 }
                 sb.append('\n');
             }
         }
 
-        if (recall.warnedAt() != null) {
-            sb.append("\n[작업 전 브리핑] 작업자가 ").append(recall.warnedAt())
-                    .append("에 위험 브리핑을 확인했습니다.\n");
-        }
-
         appendEvidenceSection(sb, evidence);
 
-        sb.append("\n위 근거만 사용해 [원인]과 [재발방지]를 작성하십시오.");
+        sb.append("\n위 자료만 사용해 [원인]과 [재발방지]를 작성하십시오.");
         return sb.toString();
     }
 
@@ -186,7 +197,7 @@ public class IncidentReportDrafter {
         if (evidence.isEmpty()) {
             return;
         }
-        sb.append("\n[근거 목록 — 인용은 [#n] 형식으로]\n");
+        sb.append("\n[근거 목록, 인용은 [#n] 형식]\n");
         for (Evidence e : evidence) {
             String label = e.kind().isCase() ? "사례" : e.kind() == EvidenceKind.LAW ? "조문" : e.kind().name();
             sb.append('#').append(e.no()).append(" [").append(label).append("] ").append(e.title());
@@ -216,34 +227,33 @@ public class IncidentReportDrafter {
     }
 
     /**
-     * 모델 없이 쓰는 문안.
-     *
-     * <p>문장이 투박해도 <b>틀린 내용은 없다</b> — 소환된 사실만 나열한다.
-     * 화면에는 "AI 생성 아님"이 표시되어 심사위원이 구분할 수 있다.
+     * 모델 없이 쓰는 문안. 소환된 사실만 옮긴다. 책임을 단정하는 문장을 쓰지 않는다.
      */
     private Draft fallback(Incident incident, EquipmentHistoryRecaller.Recall recall) {
         StringBuilder cause = new StringBuilder();
-        cause.append(nvl(incident.getDescription(), "재해 경위 확인 필요")).append('\n');
-        if (recall.predicted()) {
-            cause.append("동일 발생형태의 위험요인이 사고 전부터 등록돼 있었습니다. ");
+        cause.append(nvl(incident.getDescription(), "재해발생 당시 상황 (확인 필요)"));
+        if (!cause.toString().endsWith(".")) {
+            cause.append('.');
         }
-        if (!recall.unfinishedActions().isEmpty()) {
-            cause.append("사고 시점에 미이행 상태였던 감소대책이 ")
-                    .append(recall.unfinishedActions().size()).append("건 있었습니다. ");
-        }
-        cause.append("구체적 원인은 현장 조사로 확인이 필요합니다.");
+        recall.priorHazards().stream()
+                .filter(EquipmentHistoryRecaller.PriorHazard::sameAxisAsIncident)
+                .map(EquipmentHistoryRecaller.PriorHazard::missingControl)
+                .filter(m -> m != null && !m.isBlank())
+                .findFirst()
+                .ifPresent(m -> cause.append(" 사고 당시 ").append(m).append(" 상태 (현장 확인 필요)."));
 
         StringBuilder prevention = new StringBuilder();
         int n = 1;
         for (EquipmentHistoryRecaller.UnfinishedAction a : recall.unfinishedActions()) {
-            prevention.append(n++).append(". 미이행 조치 이행: ").append(a.content());
-            if (a.dueDate() != null) {
-                prevention.append(" (당초 기한 ").append(a.dueDate()).append(')');
+            if (n > 2) {
+                break;
             }
-            prevention.append('\n');
+            prevention.append(n++).append(". ").append(a.content())
+                    .append(" (담당 ").append(nvl(a.owner(), "안전관리자")).append(", 기한 작업 재개 전)\n");
         }
-        prevention.append(n++).append(". 재해 발생 작업의 수시평가를 완료한 뒤 작업을 재개합니다.\n");
-        prevention.append(n).append(". 동일 설비를 사용하는 작업의 작업계획서를 재검토합니다.");
+        prevention.append(n++).append(". 수시평가 완료 후 작업 재개 (담당 안전관리자, 기한 작업 재개 전)\n");
+        prevention.append(n).append(". 같은 설비 사용 작업의 작업 전 안전점검표 재검토 (담당 관리감독자, 기한 ")
+                .append(incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate().plusDays(7)).append(')');
 
         return new Draft(cause.toString(), prevention.toString(), false);
     }

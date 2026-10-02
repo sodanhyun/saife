@@ -31,7 +31,8 @@ class ActionServiceTest {
     private final ActionRepository actions = mock(ActionRepository.class);
     private final HazardRepository hazards = mock(HazardRepository.class);
     private final AssessmentHazardRepository links = mock(AssessmentHazardRepository.class);
-    private final ActionService service = new ActionService(actions, hazards, links);
+    private final InspectionRecordStore records = mock(InspectionRecordStore.class);
+    private final ActionService service = new ActionService(actions, hazards, links, records);
 
     private Hazard hazard(Boolean adopted) {
         return Hazard.builder().id(11L).siteId(1L).equipmentId(1L)
@@ -46,7 +47,7 @@ class ActionServiceTest {
 
     private ActionDtos.CreateActionRequest request(Long assessmentId) {
         return new ActionDtos.CreateActionRequest(assessmentId, "  안전대 지급, 착용 지도  ", "관리부",
-                LocalDate.of(2026, 10, 16), "C-31-2017");
+                LocalDate.of(2026, 10, 16), "C-31-2017", ControlPriority.PPE);
     }
 
     @Test
@@ -57,6 +58,7 @@ class ActionServiceTest {
         when(actions.save(any(Action.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ActionDtos.ActionView v = service.createForHazard(11L, request(40L));
+        assertThat(v.priority()).isEqualTo(ControlPriority.PPE);
 
         ArgumentCaptor<Action> saved = ArgumentCaptor.forClass(Action.class);
         verify(actions).save(saved.capture());
@@ -95,7 +97,7 @@ class ActionServiceTest {
     void 내용이_비면_400() {
         when(hazards.findById(11L)).thenReturn(Optional.of(hazard(true)));
         assertThatThrownBy(() -> service.createForHazard(11L,
-                new ActionDtos.CreateActionRequest(40L, " ", "관리부", null, null)))
+                new ActionDtos.CreateActionRequest(40L, " ", "관리부", null, null, null)))
                 .isInstanceOf(InvalidRequestException.class);
     }
 

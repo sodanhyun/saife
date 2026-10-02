@@ -78,7 +78,8 @@ public class HazardAnalysisTools {
             StringBuilder sb = new StringBuilder("도출된 발생형태 " + axes.size() + "종:\n");
             for (AccidentType axis : axes) sb.append("- ").append(axis.getLabel()).append(": ").append(axis.getMissingControlHint()).append('\n');
 
-            List<Evidence> guides = registerSafely(cid, safeSearch(SearchRequest.guides(combined, 3)));
+            // 업종, 설비와 무관한 지침(철골 데크플레이트 같은 건설 지침)은 붙이지 않는다
+            List<Evidence> guides = registerSafely(cid, relevantGuides(safeSearch(SearchRequest.guides(combined, 6)), combined, 3));
             if (!guides.isEmpty()) {
                 sb.append("\n관련 기술지침:\n");
                 guides.forEach(g -> sb.append(line(g)).append('\n'));
@@ -93,10 +94,10 @@ public class HazardAnalysisTools {
                 sb.append("\n관련 법 조문:\n");
                 numberedLaws.forEach(l -> sb.append(line(l)).append('\n'));
             }
-            sb.append("\n※ 위험성 등급은 작업높이, 안전대 부착설비 등 현장 확인 항목을 받은 뒤 룰 엔진이 결정합니다.\n");
-            ToolCallTracker.summarize("발생형태 " + axes.size() + "종 ("
-                    + String.join(", ", axes.stream().map(AccidentType::getLabel).toList())
-                    + "), 지침 " + guides.size() + "건, 조문 " + numberedLaws.size() + "건");
+            sb.append("\n※ 위험성 등급은 현장 확인 값을 받은 뒤 시스템 판정 기준으로 정해집니다. 등급을 직접 말하지 마세요.\n");
+            ToolCallTracker.summarize(String.join(", ", axes.stream().map(AccidentType::getLabel).toList())
+                    + (guides.isEmpty() ? "" : ", 지침 " + guides.size() + "건")
+                    + (numberedLaws.isEmpty() ? "" : ", 조문 " + numberedLaws.size() + "건"));
             return ToolResult.of(sb.toString());
         });
     }
@@ -143,7 +144,7 @@ public class HazardAnalysisTools {
             List<Evidence> numbered = registerSafely(cid, found);
             if (numbered.isEmpty()) return ToolResult.of("해당 발생형태의 유사 사고사례를 찾지 못했습니다.");
             long photos = numbered.stream().filter(e -> e.mediaUrl() != null).count();
-            ToolCallTracker.summarize(axis.getLabel() + " 사례 " + numbered.size() + "건" + (photos > 0 ? ", 사진 " + photos + "건" : ""));
+            ToolCallTracker.summarize(axis.getLabel() + " 재해사례 " + numbered.size() + "건" + (photos > 0 ? ", 사진 " + photos + "건" : ""));
             StringBuilder sb = new StringBuilder("유사 사고사례:\n");
             numbered.forEach(e -> sb.append(line(e)).append('\n'));
             safeCheckLatest("FATALITY").ifPresent(li -> sb.append("(공단 사고사망 게시판 최신 등재 ").append(li.totalCount()).append("건 기준, ")
@@ -182,7 +183,7 @@ public class HazardAnalysisTools {
                     f.origin(), 1.0, f.fetchedAt(), meta);
             List<Evidence> numberedList = registerSafely(AgentContextKeys.conversationId(toolContext), List.of(card));
             Evidence numbered = numberedList.isEmpty() ? card : numberedList.get(0);
-            ToolCallTracker.summarize(b.chemNameKor() + " MSDS 4개 항목" + (f.origin() == Origin.LIVE ? " (실시간)" : " (캐시)"));
+            ToolCallTracker.summarize(b.chemNameKor() + " MSDS 확인");
             StringBuilder sb = new StringBuilder();
             // 번호가 없으면(conversationId 없음·원장 등록 실패 → no()==0) 접두사를 생략한다
             if (numbered.no() > 0) sb.append("#").append(numbered.no()).append(' ');
@@ -220,6 +221,29 @@ public class HazardAnalysisTools {
         }
         sb.append(switch (e.origin()) { case LIVE -> "실시간 조회"; case CACHE -> "캐시 " + e.fetchedAt().format(MD); case KEYWORD_FALLBACK -> "키워드 검색"; });
         return sb.append(')').toString();
+    }
+
+    /** 이 사업장(제조업 소규모 사업장)과 무관한 건설 공종 지침을 가리키는 말 */
+    private static final String UNRELATED_GUIDE =
+            ".*(데크플레이트|철골|교량|터널|굴착|흙막이|거푸집|동바리|타워크레인|항타|해체공사|건설현장|건축물 신축|도로|궤도|선박|조선).*";
+
+    /**
+     * 지침 관련성 필터. 질의에 없는 건설 공종 지침을 버리고, 남은 것 중 질의 낱말과 겹치는 제목을 앞에 둔다.
+     * 겹치는 것이 하나도 없으면 붙이지 않는다(엉뚱한 지침보다 없는 편이 낫다).
+     */
+    static List<Evidence> relevantGuides(List<Evidence> found, String query, int limit) {
+        String q = query == null ? "" : query;
+        List<String> words = java.util.Arrays.stream(q.split("[\\s,/]+"))
+                .map(w -> w.replaceAll("[^가-힣A-Za-z]", ""))
+                .filter(w -> w.length() >= 2)
+                .map(w -> w.length() > 3 ? w.substring(0, 3) : w)
+                .filter(w -> !w.matches("작업|안전|기술|지침|공장|후면|내일|오늘"))
+                .distinct().toList();
+        return found.stream()
+                .filter(e -> e.title() == null || !e.title().matches(UNRELATED_GUIDE) || q.matches(UNRELATED_GUIDE))
+                .filter(e -> e.title() != null && words.stream().anyMatch(w -> e.title().contains(w)))
+                .limit(limit)
+                .toList();
     }
 
     /** 검색 실패가 도구 실패가 되면 안 된다 — 빈 목록으로 흡수한다 */

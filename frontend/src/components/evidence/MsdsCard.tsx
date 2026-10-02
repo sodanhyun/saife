@@ -2,8 +2,6 @@
 import { plainText } from "@/utils/plainText";
 import { useState } from "react";
 
-import { originLabel, originTone } from "@/components/evidence/evidenceMeta";
-import { StatusBadge } from "@/components/ui/Badge";
 import type { Evidence } from "@/types/evidence";
 
 const SECTION_NAME: Record<string, string> = {
@@ -28,7 +26,6 @@ export default function MsdsCard({ e, scope }: { e: Evidence; scope: string }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-xs text-slate-500">#{e.no}</span>
         <span className="text-xs text-slate-500">MSDS</span>
-        <StatusBadge tone={originTone(e)}>{originLabel(e)}</StatusBadge>
       </div>
       <p className="mt-1 text-stage font-semibold">{plainText(e.title)}</p>
       {visibleCodes.length > 0 && (

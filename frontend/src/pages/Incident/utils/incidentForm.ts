@@ -21,7 +21,7 @@ export function defaultIncidentForm(): IncidentFormState {
     occurredAt: nowLocalInput(),
     victimName: "",
     severity: "LOST_TIME",
-    leaveDays: "14",
+    leaveDays: "",
     accidentType: "FALL",
     description: "",
   };

@@ -1,6 +1,8 @@
 package io.saife.form;
 
+import io.saife.form.service.AssessmentFormService;
 import io.saife.form.service.FormDataService;
+import io.saife.form.service.IncidentFormService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
@@ -31,19 +33,28 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class FormController {
 
     private final FormDataService formDataService;
+    private final IncidentFormService incidentFormService;
+    private final AssessmentFormService assessmentFormService;
 
-    /** 위험성평가표 — 시행규칙 제37조, 3년 보존 대상 */
+    /** 위험성평가표: 시행규칙 제37조의4 기록, 3년 보존 */
     @GetMapping("/assessment/{assessmentId}")
     public String assessment(@PathVariable Long assessmentId, Model model) {
-        model.addAttribute("form", formDataService.assessmentForm(assessmentId));
+        model.addAttribute("form", assessmentFormService.form(assessmentId));
         return "form/assessment";
     }
 
-    /** 산업재해조사표 — 휴업 3일 이상, 발생일로부터 1개월 이내 제출 */
+    /** 산업재해조사표(별지 제30호서식): 사망 또는 3일 이상 휴업이 필요한 재해, 발생일부터 1개월 이내 제출 */
     @GetMapping("/incident/{incidentId}")
     public String incident(@PathVariable Long incidentId, Model model) {
-        model.addAttribute("form", formDataService.incidentForm(incidentId));
+        model.addAttribute("form", incidentFormService.reportForm(incidentId));
         return "form/incident";
+    }
+
+    /** 재발방지 검토서: 사내 검토용, 제출하지 않는다. 사고 전 지적 사항 이행 현황과 재발방지 대책, 수시평가 연결 */
+    @GetMapping("/incident/{incidentId}/review")
+    public String incidentReview(@PathVariable Long incidentId, Model model) {
+        model.addAttribute("form", incidentFormService.reviewForm(incidentId));
+        return "form/incident-review";
     }
 
     /** 위험작업 작업계획서 + 작업 전 브리핑(TBM 기록) */

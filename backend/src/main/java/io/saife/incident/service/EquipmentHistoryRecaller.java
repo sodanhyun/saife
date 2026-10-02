@@ -70,8 +70,9 @@ public class EquipmentHistoryRecaller {
                               LocalDate lastAssessedOn, String lastRuleTrace,
                               boolean sameAxisAsIncident) {}
 
+    /** @param owner 조치 담당. 재발방지 대책의 "누가"에 쓴다 */
     public record UnfinishedAction(Long actionId, String content, LocalDate dueDate,
-                                   ActionStatus status, Long overdueDays, String guideRef) {}
+                                   ActionStatus status, Long overdueDays, String guideRef, String owner) {}
 
     public record PriorWorkPlan(Long workPlanId, String workName, LocalDate workDate,
                                 OffsetDateTime briefingAckAt, String status) {}
@@ -82,7 +83,7 @@ public class EquipmentHistoryRecaller {
     /**
      * 이 소환이 어떤 문맥에서 쓰이는지 — <b>headline 문구만</b> 바꾼다.
      *
-     * <p>{@code POST_INCIDENT}는 사고가 이미 등록된 뒤("이 사고는 예고되어 있었습니다").
+     * <p>{@code POST_INCIDENT}는 사고가 이미 등록된 뒤(사고 전 평가와 미이행 감소대책 요약).
      * {@code PRE_WORK}는 사고가 나기 전, 작업 신고 화면에서 시스템이 먼저 아는 것을
      * 말하는 문맥이다("최근 평가...미이행 조치..."). 소환 로직·정렬·판정은 동일하다.
      */
@@ -120,7 +121,8 @@ public class EquipmentHistoryRecaller {
                 .orElse(equipment.getLocationTag());
 
         List<Hazard> hazards = hazardRepository.findByEquipmentIdOrderByCreatedAtDesc(equipmentId);
-        List<PriorHazard> priorHazards = toPriorHazards(hazards, axis, knownAsOf);
+        List<PriorHazard> priorHazards = toPriorHazards(hazards, axis,
+                purpose == Purpose.POST_INCIDENT ? occurredAt.toLocalDate() : null, knownAsOf);
         List<UnfinishedAction> unfinished = toUnfinishedActions(hazards, occurredAt.toLocalDate());
         List<PriorWorkPlan> workPlans = toPriorWorkPlans(equipmentId, occurredAt);
         List<PriorIncident> priorIncidents = toPriorIncidents(equipmentId, occurredAt);
@@ -150,7 +152,7 @@ public class EquipmentHistoryRecaller {
      * 근거로 "사고 전에 알고 있었다"고 말하는 꼴이 된다.
      */
     private List<PriorHazard> toPriorHazards(List<Hazard> hazards, AccidentType axis,
-                                             OffsetDateTime knownAsOf) {
+                                             LocalDate occurredOn, OffsetDateTime knownAsOf) {
         List<PriorHazard> out = new ArrayList<>();
         for (Hazard h : hazards) {
             if (isAfter(h.getCreatedAt(), knownAsOf)) {
@@ -163,7 +165,8 @@ public class EquipmentHistoryRecaller {
                     : assessmentHazardRepository.findHistoryByHazardId(h.getId())) {
                 Assessment assessment =
                         assessmentRepository.findById(candidate.getAssessmentId()).orElse(null);
-                if (assessment == null || isAfter(assessment.getCreatedAt(), knownAsOf)) {
+                if (assessment == null || isAfter(assessment.getCreatedAt(), knownAsOf)
+                        || !isBeforeIncident(assessment, occurredOn)) {
                     continue;
                 }
                 // findHistoryByHazardId가 평가일 내림차순이라 첫 유효 건이 최신이다
@@ -191,7 +194,7 @@ public class EquipmentHistoryRecaller {
         List<Long> hazardIds = hazards.stream().map(Hazard::getId).toList();
         return actionRepository.findPendingByHazardIds(hazardIds, ActionStatus.DONE).stream()
                 .map(a -> new UnfinishedAction(a.getId(), a.getContent(), a.getDueDate(),
-                        a.getStatus(), overdueDays(a.getDueDate(), asOf), a.getGuideRef()))
+                        a.getStatus(), overdueDays(a.getDueDate(), asOf), a.getGuideRef(), a.getOwner()))
                 .sorted((x, y) -> Long.compare(nullsLow(y.overdueDays()), nullsLow(x.overdueDays())))
                 .toList();
     }
@@ -199,6 +202,22 @@ public class EquipmentHistoryRecaller {
     /** 기한이 사고일보다 며칠 전이었나. 음수면 사고 당시 아직 기한 전이었다 */
     private Long overdueDays(LocalDate dueDate, LocalDate asOf) {
         return dueDate == null ? null : ChronoUnit.DAYS.between(dueDate, asOf);
+    }
+
+    /**
+     * "사고 이전 평가"인가. 평가일이 사고일보다 뒤면 아니다. 사고 당일 평가라도 사고가 만든
+     * 수시평가(trigger INCIDENT)는 사고 뒤의 평가다 — 같은 날 앞서 등록한 다른 사고의 수시평가가
+     * "사고 전 평가 10-02"로 올라오던 버그를 막는다. 설비 이력 화면도 같은 규칙을 쓴다.
+     */
+    public static boolean isBeforeIncident(Assessment assessment, LocalDate occurredOn) {
+        LocalDate on = assessment.getAssessedOn();
+        if (on == null || occurredOn == null) {
+            return true;
+        }
+        if (on.isAfter(occurredOn)) {
+            return false;
+        }
+        return !(on.isEqual(occurredOn) && "INCIDENT".equals(assessment.getTriggerType()));
     }
 
     /** knownAsOf가 null이면(기록 시각 미상) 자르지 않는다 */
@@ -239,45 +258,47 @@ public class EquipmentHistoryRecaller {
         if (purpose == Purpose.PRE_WORK) {
             return preWorkHeadline(priorHazards, unfinished, priorIncidents);
         }
-        return postIncidentHeadline(predicted, unfinished, warnedAt, priorIncidents);
+        return postIncidentHeadline(predicted, priorHazards, unfinished, priorIncidents);
     }
 
-    /** 사고 등록 후(UC2) — 예고 여부를 가장 강하게 말한다 */
-    private String postIncidentHeadline(boolean predicted, List<UnfinishedAction> unfinished,
-                            OffsetDateTime warnedAt, List<PriorIncident> priorIncidents) {
-
+    /**
+     * 사고 등록 후(UC2): 사고 전 기록을 사실형으로 요약한다. 판단 문장("예고되어 있었다")은 쓰지 않는다.
+     * 예: "사고 전 평가 떨어짐 상 (2026-07-16), 감소대책 기한 42일 경과"
+     */
+    private String postIncidentHeadline(boolean predicted, List<PriorHazard> priorHazards,
+                            List<UnfinishedAction> unfinished, List<PriorIncident> priorIncidents) {
         UnfinishedAction overdue = unfinished.stream()
                 .filter(a -> a.overdueDays() != null && a.overdueDays() > 0)
                 .findFirst().orElse(null);
+        PriorHazard same = priorHazards.stream()
+                .filter(PriorHazard::sameAxisAsIncident)
+                .filter(h -> h.lastRiskLevel() != null)
+                .findFirst()
+                .orElse(priorHazards.stream().filter(PriorHazard::sameAxisAsIncident).findFirst().orElse(null));
 
-        if (predicted && overdue != null && warnedAt != null) {
-            return ("이 사고는 예고되어 있었습니다. 같은 발생형태의 위험요인이 이미 등록돼 있었고, "
-                    + "'%s' 조치가 기한(%s)을 %d일 넘긴 상태였으며, 작업 전 브리핑으로 경고까지 전달됐습니다.")
-                    .formatted(overdue.content(), overdue.dueDate(), overdue.overdueDays());
-        }
-        if (predicted && overdue != null) {
-            return ("이 사고는 예고되어 있었습니다. 같은 발생형태의 위험요인이 이미 등록돼 있었고, "
-                    + "'%s' 조치가 기한(%s)을 %d일 넘긴 상태였습니다.")
-                    .formatted(overdue.content(), overdue.dueDate(), overdue.overdueDays());
-        }
-        if (predicted) {
-            return "같은 발생형태의 위험요인이 이 설비에 이미 등록돼 있었습니다. 감소대책의 실효성을 재검토해야 합니다.";
-        }
-        if (!priorIncidents.isEmpty()) {
-            return "같은 설비에서 과거에도 사고가 있었습니다 (%d건).".formatted(priorIncidents.size());
+        List<String> parts = new ArrayList<>();
+        if (same != null) {
+            String axisLabel = same.accidentType() == null ? "" : same.accidentType().getLabel() + " ";
+            parts.add(same.lastRiskLevel() == null
+                    ? "사고 전 위험요인 등록 (%s미평가)".formatted(axisLabel)
+                    : "사고 전 평가 %s%s (%s)".formatted(axisLabel, same.lastRiskLevel().getLabel(), same.lastAssessedOn()));
         }
         if (overdue != null) {
-            return "이 설비에 기한이 지난 미이행 조치가 있습니다: '%s' (기한 %s)."
-                    .formatted(overdue.content(), overdue.dueDate());
+            parts.add("감소대책 기한 %d일 경과".formatted(overdue.overdueDays()));
+        } else if (!unfinished.isEmpty()) {
+            parts.add("미이행 감소대책 %d건".formatted(unfinished.size()));
         }
-        return "사고 전에 기록된 동일 발생형태의 위험요인은 없습니다. 새로운 위험요인으로 등록하십시오.";
+        if (!priorIncidents.isEmpty()) {
+            parts.add("과거 사고 %d건".formatted(priorIncidents.size()));
+        }
+        return parts.isEmpty() ? "사고 전 같은 발생형태의 위험요인 기록 없음" : String.join(", ", parts);
     }
 
     /**
      * 작업 신고 전(UC3 사전 회상) — 아직 사고가 없으므로 "예고" 문구를 쓰지 않는다.
      * 지금 알고 있는 등급·미이행 조치를 사실 그대로 요약한다.
      *
-     * <p>예: "최근 평가 '상'(추락), 미이행 조치 1건(기한 32일 경과)"
+     * <p>예: "최근 평가 상(떨어짐), 미이행 조치 1건(기한 32일 경과)"
      */
     private String preWorkHeadline(List<PriorHazard> priorHazards,
                                    List<UnfinishedAction> unfinished,
@@ -294,7 +315,7 @@ public class EquipmentHistoryRecaller {
         List<String> parts = new ArrayList<>();
         if (worst != null) {
             String axisLabel = worst.accidentType() == null ? "" : "(%s)".formatted(worst.accidentType().getLabel());
-            parts.add("최근 평가 '%s'%s".formatted(worst.lastRiskLevel().getLabel(), axisLabel));
+            parts.add("최근 평가 %s%s".formatted(worst.lastRiskLevel().getLabel(), axisLabel));
         }
         if (overdue != null) {
             parts.add("미이행 조치 %d건(기한 %d일 경과)".formatted(unfinished.size(), overdue.overdueDays()));

@@ -11,29 +11,21 @@ const base: Evidence = {
 };
 
 describe("EvidenceCard", () => {
-  it("번호·제목·발췌·유사도·origin을 그린다", () => {
+  it("번호, 제목(옛 발생형태 머리표 제거), 발췌, 사진을 그리고 출처 상태와 유사도는 보이지 않는다", () => {
     render(<EvidenceCard e={base} scope="chat" />);
     expect(screen.getByText("#3")).toBeInTheDocument();
-    expect(screen.getByText("[협착] 스크류에 끼임")).toBeInTheDocument();
-    expect(screen.getByText(/유사도 84%/)).toBeInTheDocument();
-    expect(screen.getByText(/캐시 09-21/)).toBeInTheDocument();
+    expect(screen.getByText("스크류에 끼임")).toBeInTheDocument();
+    expect(screen.queryByText(/유사도/)).toBeNull();
+    expect(screen.queryByText(/캐시/)).toBeNull();
     expect(screen.getByRole("img", { name: "[협착] 스크류에 끼임" })).toHaveAttribute("src", "/api/media/case/1/photo?w=320");
     expect(document.getElementById("evidence-chat-3")).not.toBeNull();
-  });
-
-  it("origin 배지 — KEYWORD_FALLBACK은 유사도도 숨긴다(R49)", () => {
-    const { rerender } = render(<EvidenceCard e={{ ...base, origin: "LIVE", fetchedAt: "2026-09-28T14:02:00+09:00" }} scope="chat" />);
-    expect(screen.getByText(/실시간 조회 14:02/)).toBeInTheDocument();
-    rerender(<EvidenceCard e={{ ...base, origin: "KEYWORD_FALLBACK" }} scope="chat" />);
-    expect(screen.getByText("키워드 검색")).toBeInTheDocument();
-    expect(screen.queryByText(/유사도/)).toBeNull();
   });
 
   it("사진 실패 degrade — 제목과 원문 링크는 남는다", () => {
     render(<EvidenceCard e={{ ...base, sourceUrl: "https://portal.kosha.or.kr/x" }} scope="chat" />);
     fireEvent.error(screen.getByRole("img"));
     expect(screen.queryByRole("img")).toBeNull();
-    expect(screen.getByText("[협착] 스크류에 끼임")).toBeInTheDocument();
+    expect(screen.getByText("스크류에 끼임")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /원문 보기/ })).toHaveAttribute("href", "https://portal.kosha.or.kr/x");
   });
 

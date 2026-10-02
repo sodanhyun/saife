@@ -22,7 +22,7 @@ describe("EvidenceGrid", () => {
   it("collapsedByDefault면 카드가 DOM에 없다", () => {
     render(<EvidenceGrid items={[ev(1)]} scope="chat" collapsedByDefault />);
     expect(document.getElementById("evidence-chat-1")).toBeNull();
-    expect(screen.getByText("근거 1건 펼치기")).toBeInTheDocument();
+    expect(screen.getByText("근거 1건 ▾")).toBeInTheDocument();
   });
 
   it("칩을 클릭하면 접힌 그리드가 펼쳐지고 카드가 강조된다(F3)", async () => {
@@ -44,7 +44,7 @@ describe("EvidenceGrid", () => {
     const card = document.getElementById("evidence-chat-1");
     expect(card).not.toBeNull();
     expect(card).toHaveClass("ring-progress-border");
-    expect(screen.getByText("근거 1건 접기")).toBeInTheDocument();
+    expect(screen.getByText("근거 1건 ▴")).toBeInTheDocument();
   });
 
   it("다른 scope의 reveal 이벤트는 무시한다(F18)", () => {

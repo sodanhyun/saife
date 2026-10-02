@@ -15,7 +15,7 @@ class ActionSuggestionTableTest {
 
         assertThat(s.content()).contains("안전대 부착설비(앵커");
         assertThat(s.lawRef()).isEqualTo("산업안전보건기준에 관한 규칙 제44조");
-        assertThat(s.lawWhy()).isEqualTo("안전대의 부착설비");
+        assertThat(s.lawTitle()).isEqualTo("안전대의 부착설비 등");
         assertThat(s.guideRef()).isEqualTo("C-31-2017");
     }
 
@@ -54,10 +54,40 @@ class ActionSuggestionTableTest {
             ActionSuggestionTable.Suggestion s = ActionSuggestionTable.suggest(axis, "", null);
             assertThat(s).as(axis.name()).isNotNull();
             assertThat(s.content()).doesNotContain("·", "—", "–");
-            if (s.lawWhy() != null) {
-                assertThat(s.lawWhy()).doesNotContain("·", "—", "–");
+            if (s.lawTitle() != null) {
+                assertThat(s.lawTitle()).doesNotContain("·", "—", "–");
             }
         }
+    }
+
+    @Test
+    void 사다리_최상부_디딤대는_이동식_비계가_1순위이고_제42조제4항_문언을_쓴다() {
+        ActionSuggestionTable.Suggestion s =
+                ActionSuggestionTable.suggest(AccidentType.FALL, "최상부 디딤대 사용", null);
+
+        assertThat(s.content()).startsWith("이동식 비계(안전난간)");
+        assertThat(s.content()).contains("최상부 발판 및 그 하단 디딤대 사용 금지");
+        assertThat(s.lawRef()).endsWith("제42조제4항");
+        assertThat(s.priority()).isEqualTo(ControlPriority.ENGINEERING);
+    }
+
+    @Test
+    void 작업발판_미확보도_이동식_비계로_간다() {
+        ActionSuggestionTable.Suggestion s =
+                ActionSuggestionTable.suggest(AccidentType.FALL, "작업발판 미확보", null);
+
+        assertThat(s.content()).startsWith("이동식 비계");
+        assertThat(s.lawRef()).endsWith("제42조제1항");
+    }
+
+    @Test
+    void 조문_매핑은_원문_조문을_따른다() {
+        assertThat(ActionSuggestionTable.suggest(AccidentType.STRUCK, "통로 폐색", null).lawRef()).endsWith("제22조");
+        assertThat(ActionSuggestionTable.suggest(AccidentType.DROP, "적재 불량", null).lawRef()).endsWith("제393조");
+        assertThat(ActionSuggestionTable.suggest(AccidentType.FIRE, "소화기 미비치", null).lawRef()).endsWith("제243조");
+        assertThat(ActionSuggestionTable.suggest(AccidentType.FIRE, "", null).lawRef()).endsWith("제232조");
+        assertThat(ActionSuggestionTable.suggest(AccidentType.PPE, "안전모 미착용", null).priority())
+                .isEqualTo(ControlPriority.PPE);
     }
 
     @Test

@@ -1,105 +1,165 @@
-// CandidateCard.tsx — AI 후보 한 건. 등급 옆에 룰 트레이스를 항상 같이 띄우고, 채택 버튼이 사람의 자리다.
-// 채택하면 같은 카드 안에서 감소대책 등록 → 이행 대기 → 이행 완료로 이어진다.
+// CandidateCard.tsx — 위험요인 한 건. 반영/제외 → 허용 가능 여부 → 개선대책 → 이행 결과가 한 카드 안에서 이어진다.
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
-import EvidenceGrid from "@/components/evidence/EvidenceGrid";
-import { Badge } from "@/components/ui/Badge";
+import EvidenceCard from "@/components/evidence/EvidenceCard";
+import PhotoLightbox from "@/components/evidence/PhotoLightbox";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import RiskGradeMark from "@/components/ui/RiskGradeMark";
+import SegmentedControl from "@/components/ui/SegmentedControl";
+import cn from "@/lib/cn";
 import { ActionForm, ActionStatusRow } from "@/pages/Vision/components/ActionPanel";
 import type { ActionInput } from "@/pages/Vision/hooks/useVision";
-import { daysUntil } from "@/pages/Vision/utils/dates";
+import { daysUntil, dueLabel, shortDate } from "@/pages/Vision/utils/dates";
+import { isOverdue } from "@/pages/Vision/utils/inspection";
+import type { SuggestedAction } from "@/types/action";
+import type { Evidence } from "@/types/evidence";
 import type { VisionCandidate } from "@/types/vision";
-import { dDayLabel } from "@/utils/datetime";
 
 interface Props {
   c: VisionCandidate;
   busy: boolean;
-  onDecide: (hazardId: number, adopt: boolean) => void;
+  onDecide: (hazardId: number, reflect: boolean) => void;
+  onAcceptable: (hazardId: number, acceptable: boolean) => void;
   onCreateAction: (c: VisionCandidate, input: ActionInput) => void;
   onCompleteAction: (hazardId: number, actionId: number) => void;
   /** 등장 순서 지연(ms) */
   delay?: number;
 }
 
-export default function CandidateCard({ c, busy, onDecide, onCreateAction, onCompleteAction, delay = 0 }: Props) {
-  // 이미 미이행 조치가 걸린 재확인 후보는 폼을 접어 둔다. 새 대책은 사람이 열어서 추가한다
-  const [formOpen, setFormOpen] = useState(c.priorOpenAction === null);
+/** 기한 지난 기존 조치가 있을 때의 초안. 고시 제12조④: 미이행이 길어지면 잠정조치를 둔다 */
+const INTERIM: SuggestedAction = {
+  content: "잠정조치: 기존 대책 이행 전까지 해당 작업 중지",
+  lawRef: "고시 제12조제4항",
+  lawTitle: "잠정조치",
+  guideRef: null,
+  priority: "ADMINISTRATIVE",
+};
+
+function decisionChip(adopted: boolean | null) {
+  if (adopted === null) return <StatusBadge tone="pending">검토 필요</StatusBadge>;
+  return adopted ? <StatusBadge tone="progress">반영</StatusBadge> : <StatusBadge tone="neutral">제외</StatusBadge>;
+}
+
+/** 근거 카드(지침, 조문, 사례). 접힌 채로 시작한다 */
+function EvidenceList({ items, scope }: { items: Evidence[]; scope: string }) {
+  const [open, setOpen] = useState(false);
+  const [photo, setPhoto] = useState<Evidence | null>(null);
+  if (items.length === 0) return null;
+  return (
+    <section className="mt-3" aria-label="근거">
+      <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800">
+        근거 {items.length}건
+        <ChevronDown aria-hidden className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="mt-2 grid grid-cols-1 gap-2">
+          {items.map((e) => <EvidenceCard key={`${e.kind}-${e.refKey}-${e.no}`} e={e} scope={scope} onOpenPhoto={setPhoto} />)}
+        </div>
+      )}
+      {photo && <PhotoLightbox e={photo} onClose={() => setPhoto(null)} />}
+    </section>
+  );
+}
+
+export default function CandidateCard({ c, busy, onDecide, onAcceptable, onCreateAction, onCompleteAction, delay = 0 }: Props) {
   const prior = c.priorOpenAction;
   const priorDays = daysUntil(prior?.dueDate ?? null);
+  const priorOverdue = isOverdue(prior);
+  // 기한이 남은 기존 조치가 있으면 폼을 접어 둔다. 기한이 지났으면 대책을 다시 세워야 하므로 펼친다
+  const [formOpen, setFormOpen] = useState(prior === null || priorOverdue);
 
   return (
-    <article aria-label={`후보 ${c.missingControl}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card animate-rise-in" style={{ animationDelay: `${delay}ms` }}>
+    <article aria-label={`위험요인 ${c.missingControl}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card animate-rise-in" style={{ animationDelay: `${delay}ms` }}>
       <div className="flex gap-4 p-5">
         <RiskGradeMark level={c.riskLevel} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="progress">AI 후보</Badge>
             <Badge>{c.accidentLabel}</Badge>
-            {c.alreadyKnown && <Badge variant="pending">기존 위험요인 재확인</Badge>}
-            {c.gateStatus === "CHECKLIST" && <Badge variant="pending">참고, 현장 확인 필요</Badge>}
+            {c.alreadyKnown && <Badge variant="pending">기존 위험요인</Badge>}
+            {c.gateStatus === "CHECKLIST" && <Badge variant="pending">현장 확인 필요</Badge>}
+            <span className="ml-auto">{decisionChip(c.adopted)}</span>
           </div>
           <h3 className="mt-1.5 text-headline text-slate-900">{c.missingControl}</h3>
           {c.evidence && (
-            <p className="mt-1 text-sm text-slate-600"><span className="mr-1.5 text-xs font-bold text-slate-500">사진 근거</span>{c.evidence}</p>
+            <p className="mt-1 text-sm text-slate-600"><span className="mr-1.5 text-xs font-bold text-slate-500">판독 내용</span>{c.evidence}</p>
           )}
-          {c.gateNote && <p className="mt-1 text-xs text-slate-500">{c.gateNote}</p>}
 
           <div className="mt-3 rounded-md bg-panel px-3 py-2">
-            <p className="text-xs font-bold tracking-wide text-slate-500">룰 엔진 판정</p>
+            <p className="text-xs font-bold tracking-wide text-slate-500">등급 근거</p>
             <p className="mt-0.5 text-sm text-slate-700">{c.ruleTrace}</p>
           </div>
 
           {prior && (
-            <div className="mt-3 rounded-md border border-risk-high-border bg-risk-high-bg px-3 py-2">
-              <p className="text-sm font-semibold text-risk-high-text">이 위험요인에 끝나지 않은 조치가 있습니다</p>
-              <p className="mt-0.5 text-sm text-slate-700">
-                {prior.content}
-                {prior.dueDate && <span className="ml-2 text-xs text-slate-500">기한 {prior.dueDate}</span>}
-                {priorDays !== null && priorDays < 0 && <span className="ml-2 font-semibold text-risk-high-text">{dDayLabel(priorDays)}, 기한 경과</span>}
+            <div className={cn("mt-3 rounded-md border px-3 py-2", priorOverdue ? "border-risk-high-border bg-risk-high-bg" : "border-slate-200 bg-slate-50")}>
+              <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <span className={cn("font-semibold", priorOverdue ? "text-risk-high-text" : "text-slate-700")}>미이행 조치</span>
+                <span className="text-slate-800">{prior.content}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {[prior.owner, prior.dueDate ? `기한 ${shortDate(prior.dueDate)}` : null].filter(Boolean).join(", ")}
+                {priorOverdue && <span className="ml-2 font-semibold text-risk-high-text">{dueLabel(priorDays)}</span>}
               </p>
             </div>
           )}
 
-          <EvidenceGrid items={c.evidenceItems ?? []} title="근거" collapsedByDefault scope={`candidate-${c.hazardId}`} className="mt-3" />
+          <EvidenceList items={c.evidenceItems ?? []} scope={`candidate-${c.hazardId}`} />
         </div>
       </div>
 
       <footer className="border-t border-slate-100 bg-slate-50">
         {c.adopted === null && (
           <div className="flex items-center gap-2 px-5 py-3.5">
-            <Button loading={busy} onClick={() => onDecide(c.hazardId, true)}>채택</Button>
-            <Button variant="secondary" disabled={busy} onClick={() => onDecide(c.hazardId, false)}>반려</Button>
-            <p className="ml-auto text-xs text-slate-500">AI는 후보만 제안합니다. 확정은 사람이 합니다</p>
+            <Button loading={busy} onClick={() => onDecide(c.hazardId, true)}>반영</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => onDecide(c.hazardId, false)}>제외</Button>
           </div>
         )}
 
         {c.adopted === false && (
-          <div className="flex items-center gap-3 px-5 py-3.5">
-            <span className="text-sm font-semibold text-slate-500">반려됨</span>
-            <span className="text-xs text-slate-400">채택률 분모에만 남고 평가표에서는 빠집니다</span>
+          <div className="flex items-center gap-3 px-5 py-3">
+            <span className="text-sm font-semibold text-slate-500">제외</span>
             <Button className="ml-auto" size="sm" variant="subtle" disabled={busy} onClick={() => onDecide(c.hazardId, true)}>되돌리기</Button>
           </div>
         )}
 
-        {c.adopted === true && c.action === null && (
-          formOpen ? (
-            <div className="bg-white">
-              <ActionForm suggested={c.suggestedAction} busy={busy} onSubmit={(input) => onCreateAction(c, input)} onCancel={prior ? () => setFormOpen(false) : undefined} />
+        {c.adopted === true && (
+          <>
+            <div className="flex items-center gap-3 px-5 py-3">
+              <span className="text-xs font-bold tracking-wide text-slate-500">허용 가능 여부</span>
+              <SegmentedControl<boolean>
+                ariaLabel="허용 가능 여부"
+                size="sm"
+                className="w-44"
+                value={c.acceptable}
+                onChange={(v) => { if (v !== c.acceptable) onAcceptable(c.hazardId, v); }}
+                options={[
+                  { value: false, label: "불가" },
+                  { value: true, label: "가능" },
+                ]}
+              />
+              {c.acceptable && <span className="text-sm text-slate-500">현 상태 유지</span>}
             </div>
-          ) : (
-            <div className="flex items-center gap-3 px-5 py-3.5">
-              <span className="text-sm font-semibold text-risk-low-text">채택됨</span>
-              <span className="text-xs text-slate-500">기존 조치의 이행이 먼저입니다</span>
-              <Button className="ml-auto" size="sm" variant="secondary" onClick={() => setFormOpen(true)}>감소대책 추가</Button>
-            </div>
-          )
-        )}
 
-        {c.adopted === true && c.action !== null && (
-          <div className={c.action.status === "DONE" ? "bg-risk-low-bg" : "bg-white"}>
-            <ActionStatusRow action={c.action} busy={busy} onComplete={() => c.action && onCompleteAction(c.hazardId, c.action.id)} />
-          </div>
+            {!c.acceptable && c.action !== null && (
+              <div className={cn("border-t border-slate-100", c.action.status === "DONE" ? "bg-risk-low-bg" : "bg-white")}>
+                <ActionStatusRow action={c.action} busy={busy} onComplete={() => c.action && onCompleteAction(c.hazardId, c.action.id)} />
+              </div>
+            )}
+
+            {!c.acceptable && c.action === null && (
+              formOpen ? (
+                <div className="border-t border-slate-100 bg-white">
+                  <ActionForm suggested={priorOverdue ? INTERIM : c.suggestedAction} busy={busy} onSubmit={(input) => onCreateAction(c, input)} onCancel={prior && !priorOverdue ? () => setFormOpen(false) : undefined} />
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 border-t border-slate-100 px-5 py-3">
+                  <span className="text-sm text-slate-600">기존 조치 이행 대기</span>
+                  <Button className="ml-auto" size="sm" variant="secondary" onClick={() => setFormOpen(true)}>개선대책 추가</Button>
+                </div>
+              )
+            )}
+          </>
         )}
       </footer>
     </article>

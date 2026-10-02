@@ -28,7 +28,7 @@ class EquipmentHistoryRecallerTest {
     private EquipmentHistoryRecaller recaller;
 
     @Test
-    @DisplayName("POST_INCIDENT — 같은 발생형태의 위험요인이 미이행이면 '예고되어 있었다'고 말한다")
+    @DisplayName("POST_INCIDENT — 사고 전 평가와 감소대책 경과일을 사실형으로 말한다(판단 문장 없음)")
     void postIncidentHeadlineNamesThePrediction() {
         // 이동식 사다리 A: hazard1(FALL)이 미이행 조치(action1, OVERDUE)와 함께 등록돼 있다
         EquipmentHistoryRecaller.Recall recall = recaller.recall(1L, AccidentType.FALL,
@@ -36,7 +36,7 @@ class EquipmentHistoryRecallerTest {
                 EquipmentHistoryRecaller.Purpose.POST_INCIDENT);
 
         assertThat(recall.predicted()).isTrue();
-        assertThat(recall.headline()).contains("예고되어 있었습니다");
+        assertThat(recall.headline()).startsWith("사고 전 평가 떨어짐").doesNotContain("예고").doesNotContain("'");
     }
 
     @Test
@@ -50,7 +50,7 @@ class EquipmentHistoryRecallerTest {
                 .as("axis=null이면 sameAxisAsIncident가 전부 false라 predicted도 false다")
                 .isFalse();
         assertThat(recall.headline()).doesNotContain("예고되어");
-        assertThat(recall.headline()).contains("최근 평가");
+        assertThat(recall.headline()).contains("최근 평가").doesNotContain("'");
     }
 
     @Test

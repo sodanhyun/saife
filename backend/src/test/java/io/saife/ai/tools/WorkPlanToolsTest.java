@@ -80,7 +80,7 @@ class WorkPlanToolsTest {
 
         String out = tools().createWorkPlan(42L, ctx);
 
-        assertThat(out).contains("작업계획서 제출 완료");
+        assertThat(out).contains("점검표 제출 완료");
         ArgumentCaptor<WorkPlanEvidence> cap = ArgumentCaptor.forClass(WorkPlanEvidence.class);
         verify(workPlanEvidenceRepository, times(2)).save(cap.capture());
         assertThat(cap.getAllValues()).extracting(WorkPlanEvidence::getEvidenceNo).containsExactly(1, 2);
@@ -102,7 +102,25 @@ class WorkPlanToolsTest {
 
         String out = tools().createWorkPlan(42L, ctx);
 
-        assertThat(out).contains("작업계획서 제출 완료").contains("브리핑");
+        assertThat(out).contains("점검표 제출 완료").contains("브리핑");
         verify(workPlanRepository).save(argThat(p -> p.getStatus() == WorkPlanStatus.SUBMITTED));
+    }
+
+    @Test
+    void 이동식_사다리면_발판_높이_최상부_디딤대_넘어짐_방지_제품명_순으로_묻는다() {
+        assertThat(WorkPlanTools.requiredSlotsFor("천장 페인트 작업", io.saife.core.service.RiskRuleEngine.KIND_LADDER))
+                .containsExactly("work_height", "top_step", "tip_guard", "product_name");
+    }
+
+    @Test
+    void 사다리_흐름에서는_안전대_부착설비를_묻지_않는다() {
+        assertThat(WorkPlanTools.requiredSlotsFor("천장 페인트 작업", io.saife.core.service.RiskRuleEngine.KIND_LADDER))
+                .doesNotContain("anchor_installed");
+    }
+
+    @Test
+    void 고소작업대는_작업대_안전난간을_묻는다() {
+        assertThat(WorkPlanTools.requiredSlotsFor("조명 교체", io.saife.core.service.RiskRuleEngine.KIND_AERIAL_PLATFORM))
+                .containsExactly("work_height", "platform_guardrail");
     }
 }

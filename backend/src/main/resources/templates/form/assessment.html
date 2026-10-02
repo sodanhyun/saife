@@ -1,103 +1,120 @@
 <!DOCTYPE html>
 <!--
-  위험성평가표.
-
-  ⚠️ 열 순서를 바꾸지 않는다. 산업안전보건법 시행규칙 제37조가 요구하는 3요소를
-  그 순서 그대로 놓은 것이다: ① 유해·위험요인 ② 위험성 결정 내용 ③ 조치 내용.
-  특화점검에서 "제대로 했느냐"를 볼 때 이 세 칸을 본다.
+  위험성평가표. 시행규칙 제37조의4 기록 항목을 그 순서대로 둔다.
+  ① 실시 시기와 담당자 ② 참여한 근로자 및 근로자대표
+  ③ 유해위험요인, 위험성 수준 결정 결과, 개선대책 수립 내용 및 이행 결과
+  등급은 3단계 판단법(상/중/하)으로만 적는다. 빈도와 강도 숫자는 쓰지 않는다.
 -->
 <html lang="ko" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{form/_layout :: layout('위험성평가표', ~{::main})}">
 <body>
 <main class="sheet">
+  <style>.grid td, .grid th { font-size: 9pt; padding: 4px 5px; word-break: keep-all; overflow-wrap: anywhere; } .grid th { white-space: normal; }</style>
   <h1>위 험 성 평 가 표</h1>
-  <p class="subtitle">산업안전보건법 제36조, 같은 법 시행규칙 제37조</p>
+  <p class="subtitle" th:text="${form.basis}">근거</p>
 
   <table>
     <tr>
       <td class="label">사업장명</td>
       <td th:text="${form.siteName}">-</td>
-      <td class="label">사업자등록번호</td>
-      <td th:text="${form.businessNumber}">-</td>
-    </tr>
-    <tr>
-      <td class="label">대표자</td>
-      <td th:text="${form.representative}">-</td>
-      <td class="label">평가 실시일</td>
-      <td th:text="${form.assessedOn}">-</td>
-    </tr>
-    <tr>
       <td class="label">평가 종류</td>
       <td th:text="${form.kindLabel}">-</td>
-      <td class="label">실시 사유</td>
-      <td th:text="${form.triggerLabel}">-</td>
     </tr>
     <tr>
-      <td class="label">참여자</td>
-      <td th:text="${form.participants}">-</td>
+      <td class="label">실시 시기</td>
+      <td th:text="${form.assessedOn}">-</td>
+      <td class="label">평가 방법</td>
+      <td th:text="${form.method}">-</td>
+    </tr>
+    <tr>
+      <td class="label">담당자</td>
+      <td th:text="${form.inspector}"></td>
       <td class="label">상태</td>
       <td th:text="${form.statusLabel}">-</td>
     </tr>
   </table>
 
-  <div class="section-title">유해위험요인 파악, 위험성 결정, 감소대책</div>
-
+  <div class="section-title">참여 근로자</div>
   <table>
     <thead>
     <tr>
-      <th style="width:26px">번호</th>
-      <th style="width:120px">설비/장소</th>
-      <th style="width:54px">발생형태</th>
-      <th>① 유해위험요인</th>
-      <th style="width:210px">② 위험성 결정 내용</th>
-      <th>③ 조치 내용</th>
-      <th style="width:72px">담당/기한</th>
-      <th style="width:62px">이행 상태</th>
+      <th style="width:34px">번호</th>
+      <th>성명</th>
+      <th style="width:140px">서명</th>
+      <th style="width:34px">번호</th>
+      <th>성명</th>
+      <th style="width:140px">서명</th>
+    </tr>
+    </thead>
+    <tbody>
+    <!-- 두 명씩 한 줄. 빈 칸은 현장에서 손으로 적는다 -->
+    <tr th:each="i : ${#numbers.sequence(0, (#lists.size(form.participants) le 2 ? 1 : (#lists.size(form.participants) + 1) / 2) - 1)}">
+      <td style="text-align:center" th:text="${i * 2 + 1}">1</td>
+      <td th:text="${i * 2 lt #lists.size(form.participants)} ? ${form.participants[i * 2]} : ''"></td>
+      <td></td>
+      <td style="text-align:center" th:text="${i * 2 + 2}">2</td>
+      <td th:text="${i * 2 + 1 lt #lists.size(form.participants)} ? ${form.participants[i * 2 + 1]} : ''"></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td class="label" colspan="2">근로자대표</td>
+      <td colspan="4" th:text="${form.workerRep}"></td>
+    </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">유해위험요인, 위험성 결정, 개선대책</div>
+
+  <table class="grid" style="table-layout:fixed">
+    <thead>
+    <tr>
+      <th style="width:5%">번호</th>
+      <th style="width:12%">공정/작업</th>
+      <th style="width:16%">유해위험요인</th>
+      <th style="width:10%">현재<br>안전조치</th>
+      <th style="width:14%">위험성</th>
+      <th style="width:6%">허용<br>가능</th>
+      <th style="width:18%">개선대책</th>
+      <th style="width:10%">담당/기한</th>
+      <th style="width:9%">이행 결과</th>
     </tr>
     </thead>
     <tbody>
     <tr th:each="row : ${form.rows}">
       <td style="text-align:center" th:text="${row.no}">1</td>
-      <td th:text="${row.equipmentName}">-</td>
-      <td style="text-align:center" th:text="${row.accidentLabel}">-</td>
+      <td style="word-break:keep-all" th:text="${row.work}">-</td>
       <td>
         <span th:text="${row.hazard}">-</span>
-        <div class="flag" th:if="${row.aiSuggested}">
-          [AI 후보, <span th:text="${row.aiAdoptedLabel}">판단 전</span>]
-        </div>
+        <div class="flag" th:if="${row.hazardDetail}" th:text="${row.hazardDetail}">-</div>
       </td>
+      <td th:text="${row.currentMeasure}">-</td>
       <td>
-        <!-- 등급만 색으로 강조하고, 빈도, 강도, 판정 근거는 본문 글씨로 둔다 -->
-        <div th:classappend="${row.riskLabel == '상'} ? 'risk-high' : (${row.riskLabel == '중'} ? 'risk-medium' : 'risk-low')"
-             th:text="|위험성 '${row.riskLabel}'|">-</div>
-        <div class="pre" style="font-size:8.5pt" th:text="${row.decision}">-</div>
+        <div th:class="${row.riskClass}" th:text="${row.riskLabel}">-</div>
+        <div class="flag" th:text="${row.riskBasis}">-</div>
       </td>
+      <td style="text-align:center" th:text="${row.acceptable}">-</td>
       <td>
-        <span th:text="${row.action}">-</span>
-        <div class="flag" th:if="${row.actionGuideRef}">근거 KOSHA GUIDE <span style="white-space:nowrap" th:text="${row.actionGuideRef}">-</span></div>
+        <span class="flag" th:if="${row.priority}" th:text="|[${row.priority}]|">[공학적]</span>
+        <span th:text="${row.improvement}">-</span>
+        <div class="flag" th:if="${row.guideRef}">KOSHA GUIDE <span style="white-space:nowrap" th:text="${row.guideRef}">-</span></div>
       </td>
-      <td>
-        <span th:text="${row.actionOwner} ?: '-'">-</span><br>
-        <span th:text="${row.actionDueDate} ?: '-'">-</span>
+      <td style="word-break:keep-all">
+        <span th:text="${row.owner} ?: '-'">-</span><br>
+        <span th:text="${row.dueDate} ?: '-'">-</span>
       </td>
-      <td style="text-align:center">
-        <span th:text="${row.actionStatusLabel} ?: '-'">-</span>
-        <div class="flag" th:if="${row.actionCompletedAt}" th:text="${row.actionCompletedAt}">-</div>
-      </td>
+      <td style="text-align:center; word-break:keep-all" th:text="${row.result}">-</td>
     </tr>
     <tr th:if="${#lists.isEmpty(form.rows)}">
-      <td colspan="8" style="text-align:center; padding:18px">등록된 유해위험요인이 없습니다.</td>
+      <td colspan="9" style="text-align:center; padding:18px">기록된 유해위험요인이 없습니다.</td>
     </tr>
     </tbody>
   </table>
 
-  <div class="notice" th:text="${form.retentionNotice}">보존 안내</div>
-  <div class="notice" th:text="${form.aiNotice}">AI 활용 고지</div>
-
   <div class="sign">
-    작성자 <span class="line"></span> (서명)
-    &nbsp;&nbsp;&nbsp; 확인자 <span class="line"></span> (서명)
+    담당자 <span class="line" style="width:120px; text-align:center" th:text="${form.inspector}"></span> (서명)
+    &nbsp;&nbsp;&nbsp; 근로자대표 <span class="line" style="width:120px"></span> (서명)
   </div>
+  <p class="muted" style="margin-top:18px; text-align:right">SAIFE에서 출력</p>
 </main>
 </body>
 </html>

@@ -49,10 +49,15 @@ class BriefingComposerTest {
     private final EvidenceSearchService evidenceSearchService = mock(EvidenceSearchService.class);
     private final EvidenceLedger evidenceLedger = mock(EvidenceLedger.class);
 
+    private final io.saife.workplan.repository.WorkPlanWorkerRepository workPlanWorkerRepository =
+            mock(io.saife.workplan.repository.WorkPlanWorkerRepository.class);
+
     private BriefingComposer composer() {
-        return new BriefingComposer(equipmentRepository, hazardRepository, assessmentHazardRepository,
+        BriefingViewBuilder viewBuilder = new BriefingViewBuilder(hazardRepository, assessmentHazardRepository,
                 actionRepository, workPlanSlotRepository, msdsCacheRepository, msdsResolver,
-                new RiskRuleEngine(), evidenceSearchService, evidenceLedger);
+                new RiskRuleEngine(), equipmentRepository);
+        return new BriefingComposer(equipmentRepository, hazardRepository, workPlanWorkerRepository,
+                viewBuilder, evidenceSearchService, evidenceLedger);
     }
 
     private WorkPlan plan() {
@@ -135,7 +140,28 @@ class BriefingComposerTest {
 
         String out = composer().compose(plan());
 
-        assertThat(out).doesNotContain("[유사 사고사례]");
+        assertThat(out).doesNotContain("유사 재해사례");
         assertThat(out).contains("작업: 사다리 위 도장");
+    }
+
+    @Test
+    void TBM은_위험_포인트_지킬_것_작업_중지_줄로_끝난다() {
+        stubCommon();
+        when(evidenceSearchService.search(any(SearchRequest.class))).thenReturn(List.of());
+        when(workPlanSlotRepository.findByWorkPlanId(anyLong())).thenReturn(List.of(
+                slot("work_height", "3.2m요"), slot("top_step", "맨 위 바로 아래 칸까지 올라가요"),
+                slot("tip_guard", "따로 잡아주는 사람은 없어요")));
+
+        String out = composer().compose(plan());
+
+        assertThat(out).contains("위험 포인트\n1. 사다리 맨 위나 바로 아래 칸에 서면");
+        assertThat(out).contains("지킬 것\n1. 사다리 대신 이동식 비계(안전난간)나 말비계를 씁니다");
+        assertThat(out.strip()).endsWith("위험하면 작업을 멈추고 관리감독자에게 알립니다.");
+        assertThat(out).doesNotContain("'상'").doesNotContain("→").doesNotContain("·");
+    }
+
+    private io.saife.workplan.domain.WorkPlanSlot slot(String key, String value) {
+        return io.saife.workplan.domain.WorkPlanSlot.builder().workPlanId(10L).slotKey(key).answeredValue(value)
+                .answeredAt(OffsetDateTime.now()).build();
     }
 }

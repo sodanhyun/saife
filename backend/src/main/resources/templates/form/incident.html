@@ -1,114 +1,163 @@
 <!DOCTYPE html>
 <!--
-  산업재해조사표.
+  산업재해조사표: 산업안전보건법 시행규칙 [별지 제30호서식]의 항목 순서를 그대로 따른다.
 
-  "재해 발생 개요" 아래의 [설비 이력]은 법정 서식의 고정 항목이 아니다.
-  SAIFE가 덧붙이는 칸이고, 이 출품작의 논지가 종이 위에 드러나는 자리다 —
-  같은 설비에서 무엇을 이미 알고 있었는지를 조사표에 같이 남긴다.
+  제출용 문서다. 사람 정보(성명, 주민등록번호 등), 사업자등록번호, 산재관리번호는 빈 작성란으로 두고
+  출력 후 담당자가 기입한다. 원인은 사실만 적는다. 사고 전 지적 사항의 이행 현황은
+  사내 재발방지 검토서(form/incident-review)에 있다.
 -->
 <html lang="ko" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{form/_layout :: layout('산업재해조사표', ~{::main})}">
 <body>
 <main class="sheet">
+  <style>
+    .form-no { font-size: 8.5pt; color: #333; margin: 0 0 6px; }
+    .due { font-size: 9pt; color: #333; border: 1px solid #bbb; background: #fafafa; padding: 6px 9px; margin-bottom: 10px; }
+    table.f { table-layout: fixed; margin-bottom: 0; }
+    table.f + table.f { border-top: 0; }
+    table.f td { padding: 4px 6px; font-size: 9.5pt; height: 26px; vertical-align: middle; }
+    table.f td.sec { width: 26px; background: #eef1f5; font-weight: 700; text-align: center; writing-mode: vertical-rl; letter-spacing: 2px; padding: 6px 0; }
+    table.f td.k { background: #f7f8fa; font-weight: 600; white-space: normal; width: 128px; }
+    table.f td.v { background: #fff; }
+    table.f td.box { vertical-align: top; height: auto; min-height: 60px; }
+    .opt { margin-right: 10px; white-space: nowrap; }
+    .blank { display: inline-block; min-width: 38px; border-bottom: 1px solid #999; height: 14px; vertical-align: bottom; }
+    ol.plan { margin: 0; padding-left: 18px; }
+    ol.plan li { margin: 2px 0; }
+    .sub { font-weight: 600; color: #333; margin-right: 6px; }
+    .signs { margin-top: 12px; font-size: 10pt; }
+    .signs .row { display: flex; justify-content: flex-end; align-items: baseline; gap: 8px; margin: 9px 0; }
+    .signs .line { display: inline-block; width: 170px; border-bottom: 1px solid #333; }
+    .to { margin-top: 14px; font-size: 11pt; font-weight: 700; }
+    .printed { margin-top: 18px; font-size: 7.5pt; color: #999; text-align: right; }
+  </style>
+
+  <p class="due no-print" th:text="${form.dueLabel}">제출 기한</p>
+  <p class="form-no">산업안전보건법 시행규칙 [별지 제30호서식]</p>
   <h1>산 업 재 해 조 사 표</h1>
-  <p class="subtitle">산업안전보건법 시행규칙 제73조, 휴업 3일 이상 재해는 발생일로부터 1개월 이내 제출</p>
+  <p class="subtitle">사망 또는 3일 이상 휴업이 필요한 재해, 발생일부터 1개월 이내 관할 지방고용노동관서에 제출</p>
 
-  <table>
+  <!-- Ⅰ. 사업장 정보 -->
+  <table class="f">
+    <colgroup><col style="width:26px"><col style="width:128px"><col><col style="width:110px"><col></colgroup>
     <tr>
-      <td class="label">사업장명</td>
-      <td th:text="${form.siteName}">-</td>
-      <td class="label">사업자등록번호</td>
-      <td th:text="${form.businessNumber}">-</td>
+      <td class="sec" rowspan="5">Ⅰ. 사업장 정보</td>
+      <td class="k">산재관리번호 (사업개시번호)</td><td class="v"></td>
+      <td class="k">사업자등록번호</td><td class="v"></td>
     </tr>
     <tr>
-      <td class="label">대표자</td>
-      <td th:text="${form.representative}">-</td>
-      <td class="label">발생 일시</td>
-      <td th:text="${form.occurredAt}">-</td>
+      <td class="k">사업장명</td><td class="v" th:text="${form.siteName}">사업장명</td>
+      <td class="k">근로자 수</td><td class="v" th:text="${form.workerCount}"></td>
     </tr>
     <tr>
-      <td class="label">발생 장소</td>
-      <td th:text="${form.locationTag} ?: '-'">-</td>
-      <td class="label">관련 설비</td>
-      <td th:text="${form.equipmentName}">-</td>
+      <td class="k">업종</td><td class="v" th:text="${form.industry}"></td>
+      <td class="k">소재지</td><td class="v" th:text="${form.siteAddress}"></td>
+    </tr>
+    <tr>
+      <td class="k">재해자가 사내 수급인 소속인 경우 (건설업 제외)</td>
+      <td class="v" colspan="3"><span class="sub">원도급인 사업장명</span><span class="blank" style="min-width:150px"></span>
+        &nbsp; <span class="sub">사업장 산재관리번호</span><span class="blank" style="min-width:120px"></span></td>
+    </tr>
+    <tr>
+      <td class="k">재해자가 파견근로자인 경우</td>
+      <td class="v" colspan="3"><span class="sub">파견사업주 사업장명</span><span class="blank" style="min-width:150px"></span>
+        &nbsp; <span class="sub">사업장 산재관리번호</span><span class="blank" style="min-width:120px"></span></td>
     </tr>
   </table>
 
-  <div class="section-title">재해자 정보</div>
-  <table>
+  <!-- Ⅱ. 재해 정보 -->
+  <table class="f">
+    <colgroup><col style="width:26px"><col style="width:128px"><col><col style="width:110px"><col></colgroup>
     <tr>
-      <td class="label">성명</td>
-      <td th:text="${form.victimName}">-</td>
-      <td class="label">재해 정도</td>
-      <td th:text="${form.severityLabel}">-</td>
-      <td class="label">휴업일수</td>
-      <td th:text="${form.leaveDays} != null ? ${form.leaveDays} + '일' : '미입력'">-</td>
+      <td class="sec" rowspan="8">Ⅱ. 재해 정보</td>
+      <td class="k">성명</td><td class="v"></td>
+      <td class="k">주민등록번호 (외국인등록번호)</td><td class="v"></td>
+    </tr>
+    <tr>
+      <td class="k">성별</td><td class="v"><span class="opt">□ 남</span><span class="opt">□ 여</span></td>
+      <td class="k">국적</td>
+      <td class="v"><span class="opt">□ 내국인</span><span class="opt">□ 외국인</span>
+        (국적 <span class="blank"></span>, 체류자격 <span class="blank"></span>)</td>
+    </tr>
+    <tr>
+      <td class="k">직업</td><td class="v"></td>
+      <td class="k">입사일</td><td class="v"><span class="blank"></span> 년 <span class="blank"></span> 월 <span class="blank"></span> 일</td>
+    </tr>
+    <tr>
+      <td class="k">같은 종류 업무 근속기간</td>
+      <td class="v" colspan="3"><span class="blank"></span> 년 <span class="blank"></span> 월</td>
+    </tr>
+    <tr>
+      <td class="k">고용형태</td>
+      <td class="v" colspan="3"><span class="opt">□ 상용</span><span class="opt">□ 임시</span><span class="opt">□ 일용</span><span class="opt">□ 무급가족종사자</span><span class="opt">□ 자영업자</span><span class="opt">□ 그 밖의 사항 <span class="blank"></span></span></td>
+    </tr>
+    <tr>
+      <td class="k">근무형태</td>
+      <td class="v" colspan="3"><span class="opt">□ 정상</span><span class="opt">□ 2교대</span><span class="opt">□ 3교대</span><span class="opt">□ 4교대</span><span class="opt">□ 시간제</span><span class="opt">□ 그 밖의 사항 <span class="blank"></span></span></td>
+    </tr>
+    <tr>
+      <td class="k">상해종류 (질병명)</td><td class="v"></td>
+      <td class="k">상해부위 (질병부위)</td><td class="v"></td>
+    </tr>
+    <tr>
+      <td class="k">휴업예상일수</td>
+      <td class="v">휴업 <strong th:text="${form.leaveDays}"></strong><span th:if="${#strings.isEmpty(form.leaveDays)}" class="blank"></span> 일</td>
+      <td class="k">사망 여부</td>
+      <td class="v"><span class="opt" th:text="${form.fatal} ? '■ 사망' : '□ 사망'">□ 사망</span></td>
     </tr>
   </table>
 
-  <div class="section-title">재해 발생 개요</div>
-  <table>
+  <!-- Ⅲ. 재해발생 개요 및 원인 -->
+  <table class="f">
+    <colgroup><col style="width:26px"><col style="width:128px"><col style="width:110px"><col></colgroup>
     <tr>
-      <td class="label">발생형태</td>
-      <td th:text="${form.accidentLabel}">-</td>
+      <td class="sec" rowspan="5">Ⅲ. 재해발생 개요 및 원인</td>
+      <td class="k" rowspan="4">재해발생 개요</td>
+      <td class="k">발생일시</td>
+      <td class="v"><span th:text="${form.occurredDate}">날짜</span>&nbsp; <span th:text="${form.occurredTime}">시각</span></td>
     </tr>
     <tr>
-      <td class="label">재해 경위</td>
-      <td class="pre" th:text="${form.description}">-</td>
+      <td class="k">발생장소</td><td class="v" th:text="${form.place}">장소</td>
+    </tr>
+    <tr>
+      <td class="k">재해관련 작업유형</td><td class="v" th:text="${form.workType}"></td>
+    </tr>
+    <tr>
+      <td class="k">재해발생 당시 상황</td><td class="v box pre" th:text="${form.situation}">상황</td>
+    </tr>
+    <tr>
+      <td class="k">재해발생 원인</td>
+      <td class="v box pre" colspan="2" th:text="${form.cause}" style="height:72px">원인</td>
     </tr>
   </table>
 
-  <div class="section-title">사고 전 이 설비에 기록돼 있던 사항</div>
-  <table>
-    <tr th:each="line : ${form.recallLines}">
-      <td class="pre" th:text="${line}">-</td>
-    </tr>
-    <tr th:if="${#lists.isEmpty(form.recallLines)}">
-      <td>사고 전 기록된 사항이 없습니다.</td>
-    </tr>
-  </table>
-
-  <div class="section-title">재해 발생 원인</div>
-  <table>
-    <tr><td class="pre" th:text="${form.cause}">-</td></tr>
-  </table>
-
-  <div class="section-title">재발 방지 계획</div>
-  <table>
-    <tr><td class="pre" th:text="${form.prevention}">-</td></tr>
-  </table>
-
-  <div class="section-title">법정 처리</div>
-  <table>
+  <!-- Ⅳ. 재발방지 계획 -->
+  <table class="f">
+    <colgroup><col style="width:26px"><col></colgroup>
     <tr>
-      <td class="label">조사표 제출</td>
-      <td th:text="${form.reportStatusLabel}">-</td>
-      <td class="label">제출 기한</td>
-      <td th:text="${form.reportDueDate} ?: '해당 없음'">-</td>
-    </tr>
-    <tr>
-      <td class="label">판단 근거</td>
-      <td class="pre" colspan="3" th:text="${form.reportBasis}">-</td>
-    </tr>
-    <tr>
-      <td class="label">수시평가</td>
-      <td colspan="3">
-        <span th:if="${form.followUpAssessmentId} != null"
-              th:text="'평가 #' + ${form.followUpAssessmentId} + ' 자동 생성, 재해 발생 작업은 재개 전 수시평가 대상입니다 (법 제36조)'">-</span>
-        <span th:if="${form.followUpAssessmentId} == null">생성되지 않음</span>
+      <td class="sec">Ⅳ. 재발방지 계획</td>
+      <td class="v box" style="height:96px">
+        <span class="sub">재발방지 계획</span>
+        <ol class="plan" th:if="${!#lists.isEmpty(form.plans)}">
+          <li th:each="p : ${form.plans}">
+            <span th:text="${p.what}">대책</span><span th:if="${!#strings.isEmpty(p.who)}"
+              th:text="' (담당 ' + ${p.who} + ', 기한 ' + ${p.when} + ')'"></span>
+          </li>
+        </ol>
       </td>
     </tr>
   </table>
 
-  <div class="notice warn">
-    이 문서는 초안입니다. 관할 지방고용노동관서 제출 전 사업장 담당자가 내용을 확인하고 확정해야 합니다.
-  </div>
-  <div class="notice" th:text="${form.aiNotice}">AI 활용 고지</div>
+  <p class="muted" style="margin-top:6px">※ 위 재발방지 계획 이행을 위한 안전보건교육 및 기술지원 서비스를 한국산업안전보건공단에서 무료로 제공하고 있으니 즉시 기술지원 서비스를 받고자 하는 경우 오른쪽에 표시하시기 바랍니다. &nbsp; □ 즉시 기술지원 서비스 요청</p>
 
-  <div class="sign">
-    작성자 <span class="line"></span> (서명)
-    &nbsp;&nbsp;&nbsp; 사업주 <span class="line"></span> (서명)
+  <div class="signs">
+    <div class="row">작성자 성명 <span class="line"></span> &nbsp; 작성자 전화번호 <span class="line" style="width:130px"></span></div>
+    <div class="row">작성일 <span class="blank"></span> 년 <span class="blank"></span> 월 <span class="blank"></span> 일</div>
+    <div class="row">사업주 <span class="line"></span> (서명 또는 인)</div>
+    <div class="row">근로자대표 (재해자) <span class="line"></span> (서명 또는 인)</div>
   </div>
+  <p class="to">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ) 지방고용노동청장 (지청장) 귀하</p>
+  <p class="printed">SAIFE에서 출력</p>
 </main>
 </body>
 </html>

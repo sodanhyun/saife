@@ -1,4 +1,4 @@
-// IncidentForm.tsx — 사고 등록 입력. 설비를 고르면 그 설비의 작업계획서만 연결 후보로 보인다.
+// IncidentForm.tsx — 사고 보고 입력. 설비를 고르면 그 설비의 작업만 연결 후보로 보인다.
 import Button from "@/components/ui/Button";
 import Callout from "@/components/ui/Callout";
 import DateInput from "@/components/ui/DateInput";
@@ -7,6 +7,7 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import type { IncidentFormState } from "@/pages/Incident/utils/incidentForm";
+import { shortDate } from "@/pages/Incident/utils/priorRecord";
 import { ACCIDENT_LABEL, SEVERITY_LABEL, type AccidentType, type IncidentSeverity } from "@/types/domain";
 import type { EquipmentItem } from "@/types/equipment";
 import type { WorkPlanListItem } from "@/types/workPlan";
@@ -34,14 +35,14 @@ export default function IncidentForm({ form, setForm, equipment, plans, busy, er
 
   return (
     <form
-      aria-label="사고 등록"
+      aria-label="사고 보고"
       className="rounded-xl border border-slate-200 bg-white shadow-card"
       onSubmit={(e) => {
         e.preventDefault();
         if (!busy) onSubmit();
       }}
     >
-      <fieldset disabled={busy} className="grid gap-x-4 gap-y-3 px-6 pb-5 pt-5 md:grid-cols-6">
+      <fieldset disabled={busy} className="grid gap-x-4 gap-y-3 px-6 pb-4 pt-5 md:grid-cols-6">
         <FormField label="사고 설비" className="md:col-span-2">
           <Select
             value={form.equipmentId ?? ""}
@@ -56,12 +57,12 @@ export default function IncidentForm({ form, setForm, equipment, plans, busy, er
             ))}
           </Select>
         </FormField>
-        <FormField label="관련 작업계획서" className="md:col-span-2">
+        <FormField label="관련 작업" className="md:col-span-2">
           <Select value={form.workPlanId} onChange={set("workPlanId")}>
-            <option value="">{equipmentPlans.length === 0 ? "(이 설비의 계획서 없음)" : "(연결 안 함)"}</option>
+            <option value="">(없음)</option>
             {equipmentPlans.map((p) => (
               <option key={p.id} value={p.id}>
-                #{p.id} {p.workName} ({p.workDate})
+                {p.workName} ({shortDate(p.workDate)})
               </option>
             ))}
           </Select>
@@ -94,30 +95,27 @@ export default function IncidentForm({ form, setForm, equipment, plans, busy, er
             ))}
           </Select>
         </FormField>
-        <FormField label="휴업일수" hint={reportable ? "조사표 제출 대상" : "3일 이상이면 조사표 대상"}>
+        <FormField label="휴업예상일수" hint={reportable ? "조사표 제출 대상" : undefined}>
           <Input type="number" min={0} value={form.leaveDays} onChange={set("leaveDays")} />
         </FormField>
         <FormField label="재해 경위" className="md:col-span-3">
           <Textarea
             rows={1}
-            placeholder="예: 천장 도장 작업 중 사다리 상부에서 중심을 잃고 약 3.2m 아래로 추락"
+            placeholder="예: 차양부 천장 도장 중 이동식 사다리에서 중심을 잃고 떨어짐"
             value={form.description}
             onChange={set("description")}
           />
         </FormField>
       </fieldset>
 
-      <div className="flex flex-wrap items-center gap-4 border-t border-slate-100 bg-slate-50 px-6 py-3.5">
-        <p className="text-sm text-slate-600">
-          등록하면 이 설비의 사전 기록 소환, 수시평가 생성, 조사표 기한 계산, 작업계획서 경고가 한 번에 진행됩니다.
-        </p>
+      <div className="flex flex-wrap items-center gap-4 px-6 pb-5">
         {error && (
           <Callout tone="high" className="py-2">
             {error}
           </Callout>
         )}
-        <Button type="submit" variant="danger" size="lg" loading={busy} className="ml-auto min-w-36">
-          사고 등록
+        <Button type="submit" loading={busy} className="ml-auto min-w-36">
+          사고 보고
         </Button>
       </div>
     </form>

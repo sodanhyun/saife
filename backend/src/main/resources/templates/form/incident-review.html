@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<!--
+  재발방지 검토서: 사내 검토용이다. 관할 관서에 제출하지 않는다.
+
+  사고 전에 이 설비에서 지적된 위험요인과 감소대책이 사고 시점에 어떤 상태였는지,
+  재발방지 대책을 누가 언제까지 무엇을 하는지, 수시평가와 작업 보류가 어떻게 이어지는지를 남긴다.
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{form/_layout :: layout('재발방지 검토서', ~{::main})}">
+<body>
+<main class="sheet">
+  <style>
+    table td, table th { font-size: 9.5pt; }
+    td.num, th.num { width: 34px; text-align: center; }
+    tr.overdue td { background: #fef2f2; }
+    td.d { white-space: nowrap; }
+    .elapsed { font-weight: 700; color: #b91c1c; }
+    sup.ref { font-size: 7pt; color: #333; margin-left: 1px; }
+    ol.foot { margin: 0; padding-left: 18px; font-size: 8.5pt; color: #444; }
+    ol.foot li { margin: 2px 0; }
+    .signs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 18px; }
+    .signs > div { border: 1px solid #333; border-left-width: 0; text-align: center; font-size: 9.5pt; }
+    .signs > div:first-child { border-left-width: 1px; }
+    .signs .h { background: #eef1f5; font-weight: 600; padding: 4px; border-bottom: 1px solid #333; }
+    .signs .b { height: 46px; }
+    .printed { margin-top: 18px; font-size: 7.5pt; color: #999; text-align: right; }
+  </style>
+
+  <h1>재 발 방 지 검 토 서</h1>
+  <p class="subtitle">사내 검토용 (제출하지 않음)</p>
+
+  <div class="section-title">사고 개요</div>
+  <table>
+    <tr>
+      <td class="label">사업장</td><td th:text="${form.siteName}">-</td>
+      <td class="label">발생 일시</td><td th:text="${form.occurredAt}">-</td>
+    </tr>
+    <tr>
+      <td class="label">설비</td><td th:text="${form.equipmentName}">-</td>
+      <td class="label">장소</td><td th:text="${form.place}">-</td>
+    </tr>
+    <tr>
+      <td class="label">발생형태</td><td th:text="${form.accidentLabel}">-</td>
+      <td class="label">휴업예상일수</td><td th:text="${form.leaveDaysLabel}">-</td>
+    </tr>
+    <tr>
+      <td class="label">재해 경위</td><td class="pre" colspan="3" th:text="${form.situation}">-</td>
+    </tr>
+    <tr>
+      <td class="label">산업재해조사표</td><td colspan="3" th:text="${form.reportLabel}">-</td>
+    </tr>
+  </table>
+
+  <div class="section-title">사고 전 지적 사항 이행 현황</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:88px">평가일</th>
+        <th style="width:64px">발생형태</th>
+        <th>유해위험요인</th>
+        <th style="width:34px">등급</th>
+        <th>감소대책</th>
+        <th style="width:76px">담당</th>
+        <th style="width:88px">기한</th>
+        <th style="width:84px">사고 시점</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="r : ${form.priorRows}" th:classappend="${r.overdue} ? 'overdue'">
+        <td class="d" th:text="${r.assessedOn}">-</td>
+        <td th:text="${r.accidentLabel}">-</td>
+        <td th:text="${r.hazard}">-</td>
+        <td style="text-align:center" th:classappend="${r.riskClass}" th:text="${r.riskLabel}">-</td>
+        <td th:text="${r.action}">-</td>
+        <td th:text="${r.owner}">-</td>
+        <td class="d" th:text="${r.dueDate}">-</td>
+        <td>
+          <span th:text="${r.statusLabel}">-</span><br th:if="${!#strings.isEmpty(r.elapsedLabel)}">
+          <span th:classappend="${r.overdue} ? 'elapsed'" th:text="${r.elapsedLabel}"></span>
+        </td>
+      </tr>
+      <tr th:if="${#lists.isEmpty(form.priorRows)}">
+        <td colspan="8">사고 전 등록된 위험요인 없음</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">재발방지 대책</div>
+  <table>
+    <thead>
+      <tr><th class="num">번호</th><th>무엇을</th><th style="width:130px">누가</th><th style="width:110px">언제까지</th></tr>
+    </thead>
+    <tbody>
+      <tr th:each="p : ${form.plans}">
+        <td class="num" th:text="${p.no}">1</td>
+        <td><span th:text="${p.what}">-</span><sup class="ref" th:each="n, st : ${p.refs}" th:text="${n} + (${st.last} ? '' : ',')">1</sup></td>
+        <td th:text="${p.who}">-</td>
+        <td th:text="${p.when}">-</td>
+      </tr>
+      <tr th:if="${#lists.isEmpty(form.plans)}">
+        <td colspan="4">작성 필요</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">수시평가 연결</div>
+  <table>
+    <tr>
+      <td class="label">수시평가</td>
+      <td th:text="${form.followUpLabel}">-</td>
+      <td class="label">근거</td>
+      <td>시행규칙 제37조제2항제3호 (산업재해 발생 시 관련 작업 시작 전)</td>
+    </tr>
+  </table>
+  <table th:if="${!#lists.isEmpty(form.regradeRows)}">
+    <thead>
+      <tr><th style="width:64px">발생형태</th><th>유해위험요인</th><th style="width:52px">사고 전</th><th style="width:52px">재판정</th><th>등급 근거</th></tr>
+    </thead>
+    <tbody>
+      <tr th:each="g : ${form.regradeRows}">
+        <td th:text="${g.accidentLabel}">-</td>
+        <td th:text="${g.hazard}">-</td>
+        <td style="text-align:center" th:text="${g.beforeLabel}">-</td>
+        <td style="text-align:center" th:classappend="${g.riskClass}" th:text="${g.afterLabel}">-</td>
+        <td th:text="${g.trace}">-</td>
+      </tr>
+    </tbody>
+  </table>
+  <table>
+    <thead>
+      <tr><th style="width:90px">작업일</th><th>작업 보류된 작업 전 점검</th><th style="width:90px">상태</th></tr>
+    </thead>
+    <tbody>
+      <tr th:each="h : ${form.holdRows}">
+        <td class="d" th:text="${h.workDate}">-</td>
+        <td th:text="${h.workName}">-</td>
+        <td th:text="${h.statusLabel}">-</td>
+      </tr>
+      <tr th:if="${#lists.isEmpty(form.holdRows)}">
+        <td colspan="3">보류 대상 없음</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <th:block th:if="${!#lists.isEmpty(form.footnotes)}">
+    <div class="section-title">참고</div>
+    <ol class="foot">
+      <li th:each="f : ${form.footnotes}" th:value="${f.no}">
+        <span th:text="${f.title}">제목</span>
+        <a th:if="${f.url != null}" th:href="${f.url}" target="_blank" rel="noopener">원문</a>
+      </li>
+    </ol>
+  </th:block>
+
+  <div class="signs">
+    <div><div class="h">작성 (안전관리자)</div><div class="b"></div></div>
+    <div><div class="h">검토 (관리감독자)</div><div class="b"></div></div>
+    <div><div class="h">승인 (사업주)</div><div class="b"></div></div>
+  </div>
+  <p class="printed">SAIFE에서 출력</p>
+</main>
+</body>
+</html>

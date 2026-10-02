@@ -4,6 +4,7 @@ import io.saife.core.domain.*;
 import io.saife.core.repository.*;
 import io.saife.core.service.RiskRuleEngine;
 import io.saife.incident.domain.Incident;
+import io.saife.incident.domain.IncidentSeverity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,8 +17,8 @@ import java.util.List;
 /**
  * 사고 발생 시 수시평가를 자동 생성한다.
  *
- * <p>법 근거: 재해가 발생한 작업은 <b>재개 전에 수시평가</b> 대상이다
- * (산업안전보건법 제36조, 고용노동부고시 제2023-19호). 그래서 이 생성은
+ * <p>법 근거: 산업재해가 발생한 경우 <b>관련 작업을 시작하기 전까지</b> 수시평가
+ * (시행규칙 제37조제2항제3호, 고시 제2024-76호 제15조제2항제5호). 그래서 이 생성은
  * 편의 기능이 아니라 법정 절차의 자동화다.
  *
  * <p><b>등급은 룰 엔진이 낸다.</b> 사고가 났다는 사실이 빈도를 확정하므로
@@ -65,7 +66,8 @@ public class FollowUpAssessmentService {
                 .triggerType(TRIGGER_INCIDENT)
                 .triggerRefId(incident.getId())
                 .assessedOn(today)
-                .participants("(자동 생성 초안, 참여자를 입력한 뒤 확정하십시오)")
+                // 참여 근로자는 사람이 입력한다(시행규칙 제37조의2). 자동 생성 단계에서는 비워 둔다
+                .participants(null)
                 .status("DRAFT")
                 .build());
 
@@ -81,7 +83,7 @@ public class FollowUpAssessmentService {
                     && incident.getAccidentType() == h.getAccidentType();
 
             RiskRuleEngine.Decision decision = sameAxis
-                    ? riskRuleEngine.reassessAfterIncident(before, incident.getLeaveDays())
+                    ? afterIncident(before, incident)
                     : carryForward(before);
 
             axisCovered |= sameAxis;
@@ -107,8 +109,7 @@ public class FollowUpAssessmentService {
                     .build());
             newHazardId = created.getId();
 
-            RiskRuleEngine.Decision decision =
-                    riskRuleEngine.reassessAfterIncident(null, incident.getLeaveDays());
+            RiskRuleEngine.Decision decision = afterIncident(null, incident);
             regraded.add(persist(assessment.getId(), created, null, decision));
         }
 
@@ -173,13 +174,42 @@ public class FollowUpAssessmentService {
         return null;
     }
 
+    /**
+     * 사고와 같은 발생형태: 등급은 룰 엔진({@link RiskRuleEngine#reassessAfterIncident})이 낸다.
+     * 사망 재해는 강도를 최대로 본다. 근거 문구는 화면과 서식에 그대로 나가므로 평문으로 다시 쓴다
+     * (화살표, 따옴표 등급, 빈도 × 강도 숫자를 쓰지 않는다).
+     */
+    private RiskRuleEngine.Decision afterIncident(RiskLevel before, Incident incident) {
+        boolean fatal = incident.getSeverity() == IncidentSeverity.FATALITY;
+        RiskRuleEngine.Decision d = riskRuleEngine.reassessAfterIncident(before,
+                fatal ? Integer.valueOf(Incident.REPORTABLE_LEAVE_DAYS) : incident.getLeaveDays());
+        return new RiskRuleEngine.Decision(d.riskLevel(), d.frequency(), d.severity(),
+                incidentTrace(before, incident));
+    }
+
+    static String incidentTrace(RiskLevel before, Incident incident) {
+        List<String> parts = new ArrayList<>();
+        String axis = incident.getAccidentType() == null ? "" : incident.getAccidentType().getLabel() + " ";
+        parts.add(axis + "사고 발생");
+        Integer leave = incident.getLeaveDays();
+        if (incident.getSeverity() == IncidentSeverity.FATALITY) {
+            parts.add("사망");
+        } else if (leave != null) {
+            parts.add("휴업예상 %d일".formatted(leave));
+        } else {
+            parts.add("휴업예상일수 미입력");
+        }
+        parts.add(before == null ? "사고 전 평가 없음" : "사고 전 " + before.getLabel());
+        return String.join(", ", parts);
+    }
+
     /** 사고와 다른 발생형태는 등급을 바꾸지 않는다. 사고가 그 축의 빈도를 말해주지 않는다 */
     private RiskRuleEngine.Decision carryForward(RiskLevel before) {
         RiskLevel level = before != null ? before : RiskLevel.MEDIUM;
         return new RiskRuleEngine.Decision(level, (short) 2, (short) 2,
                 before != null
-                        ? "사고와 다른 발생형태 → 종전 등급 유지"
-                        : "사고와 다른 발생형태이고 평가 이력이 없음 → 잠정 '중'");
+                        ? "사고와 다른 발생형태, 종전 등급 유지"
+                        : "사고와 다른 발생형태, 평가 이력 없음 (잠정 중)");
     }
 
     private Regrade persist(Long assessmentId, Hazard hazard, RiskLevel before,

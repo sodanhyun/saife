@@ -38,13 +38,17 @@ export interface IncidentSummary {
   followUpAssessmentId: number | null;
 }
 
-/** @property daysRemaining 음수면 기한이 지났다 */
+/**
+ * @property daysRemaining 음수면 기한이 지났다
+ * @property seriousAccidentPossible 사망 재해라 중대재해에 해당할 수 있다(판정 아님, 보고 안내 배너용)
+ */
 export interface ReportDuty {
   status: ReportStatus;
   statusLabel: string;
   dueDate: string | null;
   daysRemaining: number | null;
   basis: string;
+  seriousAccidentPossible: boolean;
 }
 
 export interface PriorHazard {
@@ -65,6 +69,8 @@ export interface UnfinishedAction {
   status: ActionStatus;
   overdueDays: number | null;
   guideRef: string | null;
+  /** 조치 담당 */
+  owner?: string | null;
 }
 
 export interface PriorWorkPlan {
@@ -146,8 +152,8 @@ export interface CascadeStep {
   refType: string | null;
 }
 
-/** 사고 영향을 받는 진행 중 작업계획서 1건 — 백엔드 `IncidentDtos.AffectedWorkPlan`과 1:1(record).
- * 같은 설비, 상태 SUBMITTED/APPROVED/CONDITIONAL, workDate >= 사고일인 계획서만 온다 */
+/** 사고로 작업 보류(HOLD)된 작업 전 점검 1건. 백엔드 `IncidentDtos.AffectedWorkPlan`과 1:1(record).
+ * 같은 설비, 사고 당시 상태 SUBMITTED/APPROVED/CONDITIONAL, workDate >= 사고일인 계획서만 온다 */
 export interface AffectedWorkPlan {
   workPlanId: number;
   workName: string;

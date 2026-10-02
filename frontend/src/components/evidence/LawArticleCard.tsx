@@ -3,8 +3,6 @@ import { plainText } from "@/utils/plainText";
 import { Scale } from "lucide-react";
 import { useState } from "react";
 
-import { originLabel, originTone } from "@/components/evidence/evidenceMeta";
-import { StatusBadge } from "@/components/ui/Badge";
 import type { Evidence } from "@/types/evidence";
 
 export default function LawArticleCard({ e, scope }: { e: Evidence; scope: string }) {
@@ -21,7 +19,6 @@ export default function LawArticleCard({ e, scope }: { e: Evidence; scope: strin
         <span className="font-mono text-xs text-slate-500">#{e.no}</span>
         <Scale size={14} className="text-slate-400" aria-hidden />
         <span className="text-xs text-slate-500">법 조문{eff ? `, 시행 ${eff}` : ""}</span>
-        <StatusBadge tone={originTone(e)}>{originLabel(e)}</StatusBadge>
       </div>
       <p className="mt-1 text-stage font-semibold">{plainText(e.title)}</p>
       <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{open ? full : e.snippet}</p>

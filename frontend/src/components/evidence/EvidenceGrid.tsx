@@ -38,11 +38,11 @@ export default function EvidenceGrid({ items, title = "근거", collapsedByDefau
     <section className={cn("mt-2", className)} aria-label={title}>
       <button
         type="button"
-        className="text-xs font-semibold text-slate-500 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border"
+        className="text-xs font-semibold text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        {title} {items.length}건 {open ? "접기" : "펼치기"}
+        {title} {items.length}건 {open ? "▴" : "▾"}
       </button>
       {open && (
         <div className={cn("mt-2 grid gap-2", items.length >= 4 ? "md:grid-cols-2" : "grid-cols-1")}>

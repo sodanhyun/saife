@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { workPlanApi } from "@/api/workPlanApi";
+import { CURRENT_USER } from "@/components/layout/menu";
 import { useApiData } from "@/hooks/useApiData";
 import { useToastStore } from "@/stores/useToastStore";
 import type { WorkPlanDetail } from "@/types/workPlan";
@@ -14,7 +15,7 @@ export function useWorkPlans() {
   const { data, loading, error, refetch } = useApiData({
     fetchFn: (signal) => workPlanApi.list(0, 10, signal).then((p) => p.content),
     deps: [],
-    errorMessage: "작업계획서 목록을 불러오지 못했습니다",
+    errorMessage: "점검 기록을 불러오지 못했습니다",
     skipFirstSkeleton: true,
   });
   const [detail, setDetail] = useState<WorkPlanDetail | null>(null);
@@ -46,7 +47,9 @@ export function useWorkPlans() {
     busyAction,
     openDetail: (id: number) => run("open", () => workPlanApi.detail(id)),
     closeDetail: () => setDetail(null),
-    acknowledge: (id: number) => run("ack", () => workPlanApi.acknowledge(id), "브리핑 확인이 기록됐습니다 (TBM)"),
-    approve: (id: number) => run("approve", () => workPlanApi.approve(id, "관리부"), "승인했습니다"),
+    acknowledge: (id: number) => run("ack", () => workPlanApi.acknowledge(id), "TBM 실시를 기록했습니다"),
+    /** 승인자는 로그인 사용자(관리감독자). condition이 있으면 조건부 승인(잠정조치) */
+    approve: (id: number, condition?: string) =>
+      run("approve", () => workPlanApi.approve(id, CURRENT_USER.name, condition), condition ? "조건부 승인했습니다" : "승인했습니다"),
   };
 }

@@ -103,10 +103,10 @@ class IncidentServiceEvidenceTest {
                 .build();
 
         EquipmentHistoryRecaller.Recall recall = new EquipmentHistoryRecaller.Recall(4L, "유압 프레스 3호", null,
-                List.of(), List.of(), List.of(), List.of(), false, null, "예고되지 않은 사고입니다.");
+                List.of(), List.of(), List.of(), List.of(), false, null, "사고 전 같은 발생형태의 위험요인 기록 없음");
         TimelineDtos.RecallView recallView = TimelineDtos.RecallView.from(recall);
         IncidentDtos.ReportDuty reportDuty = new IncidentDtos.ReportDuty(
-                ReportStatus.REQUIRED, "제출 필요", LocalDate.now().plusMonths(1), 30L, "근거");
+                ReportStatus.REQUIRED, "제출 필요", LocalDate.now().plusMonths(1), 30L, "근거", false);
         IncidentDtos.FollowUpView followUpView = new IncidentDtos.FollowUpView(9L, "수시", "근거", List.of(), null);
         IncidentService.RegisterCore core = new IncidentService.RegisterCore(
                 committed, recall, recallView, reportDuty, followUpView, List.of());

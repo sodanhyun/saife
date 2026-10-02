@@ -71,7 +71,12 @@ public class LocationEquipmentTools {
             // 이미 화면에서 고른 설비가 있다. "공장동 후면 차양부 천장 페인트 작업"처럼
             // 같은 공정에 설비가 둘 이상이면 자유 텍스트만으로는 못 가른다(2026-09-29 실측,
             // baseline_connectivity.py B2) — 그 문맥을 매칭기의 한계 때문에 버리지 않는다.
+            // 진입 설비 ID는 첫 턴에만 실린다. 뒤 턴에서 모델이 이 도구를 다시 부르면
+            // 이 대화에서 이미 확정한 설비를 쓴다(같은 대화에서 "대장에 없는 설비"로 뒤집히지 않게)
             Long entryEquipmentId = AgentContextKeys.equipmentId(toolContext);
+            if (entryEquipmentId == null) {
+                entryEquipmentId = MatchedEquipmentMemory.last(AgentContextKeys.conversationId(toolContext));
+            }
             if (entryEquipmentId != null && (match.unmatched() || match.needsConfirmation())) {
                 EquipmentMatcher.MatchResult byId = equipmentMatcher.matchById(entryEquipmentId);
                 if (byId.isConfirmed()) {
@@ -80,7 +85,7 @@ public class LocationEquipmentTools {
             }
 
             if (match.unmatched()) {
-                ToolCallTracker.summarize("대장에 없는 설비, 등록 정보를 되묻습니다");
+                ToolCallTracker.summarize("대장에 없는 설비");
                 return ToolResult.of("""
                         등록되지 않은 설비입니다. (unmatched)
                         작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.
@@ -88,7 +93,7 @@ public class LocationEquipmentTools {
             }
 
             if (match.needsConfirmation()) {
-                ToolCallTracker.summarize("비슷한 설비 " + match.candidates().size() + "건, 어느 것인지 되묻습니다");
+                ToolCallTracker.summarize("비슷한 설비 " + match.candidates().size() + "건, 확인 필요");
                 StringBuilder sb = new StringBuilder("비슷한 설비가 여러 건입니다. 어느 것인지 확인이 필요합니다.\n");
                 for (EquipmentMatcher.Candidate c : match.candidates()) {
                     sb.append("- [id=%d] %s (%s)\n".formatted(
@@ -133,9 +138,9 @@ public class LocationEquipmentTools {
 
     /** 트레이스 한 줄: 설비 확정 + 이미 아는 이력 개수 */
     private static String summaryOf(Equipment eq, String described) {
-        StringBuilder sb = new StringBuilder(eq.getName()).append(" 확정");
+        StringBuilder sb = new StringBuilder(eq.getName());
         java.util.regex.Matcher h = java.util.regex.Pattern.compile("기존 위험요인 (\\d+)건").matcher(described);
-        if (h.find()) sb.append(", 위험요인 ").append(h.group(1)).append("건");
+        if (h.find()) sb.append(", 지적 사항 ").append(h.group(1)).append("건");
         java.util.regex.Matcher a = java.util.regex.Pattern.compile("미이행 조치 (\\d+)건").matcher(described);
         if (a.find()) sb.append(", 미이행 조치 ").append(a.group(1)).append("건");
         return sb.toString();
@@ -183,7 +188,7 @@ public class LocationEquipmentTools {
         if (history.isEmpty()) {
             return "";
         }
-        return " (최근 평가 등급 '%s')".formatted(history.get(0).getRiskLevel().getLabel());
+        return " (최근 평가 %s)".formatted(history.get(0).getRiskLevel().getLabel());
     }
 
     private String processLine(WorkProcess p) {

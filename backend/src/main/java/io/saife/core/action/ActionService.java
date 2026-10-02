@@ -22,7 +22,7 @@ import java.util.Optional;
 /**
  * 감소대책 등록과 이행 완료.
  *
- * <p>UC1 루프의 끝이다: 사진 → 후보 → <b>사람이 채택</b> → 대책 등록 → 이행 완료.
+ * <p>순회점검 흐름의 끝이다: 사진, 위험요인 반영, 허용 불가면 개선대책 등록, 이행 완료.
  * 여기서 만든 조치는 같은 위험요인(=같은 설비 ID)에 매달리므로 별도 연동 없이
  * UC4 타임라인, 홈 카드(미이행 수), 오늘 할 일(기한 임박), UC3 브리핑(미이행 경고)이
  * 같은 행을 읽는다.
@@ -39,6 +39,7 @@ public class ActionService {
     private final ActionRepository actionRepository;
     private final HazardRepository hazardRepository;
     private final AssessmentHazardRepository assessmentHazardRepository;
+    private final InspectionRecordStore records;
 
     /**
      * 채택된 위험요인에 감소대책을 등록한다.
@@ -53,14 +54,14 @@ public class ActionService {
                 () -> NotFoundException.of("위험요인", hazardId));
 
         if (hazard.isAiSuggested() && !Boolean.TRUE.equals(hazard.getAiAdopted())) {
-            throw new ConflictException("채택한 위험요인에만 감소대책을 등록할 수 있습니다. 먼저 후보를 채택하십시오.");
+            throw new ConflictException("반영한 위험요인에만 개선대책을 등록할 수 있습니다.");
         }
         if (req == null || req.content() == null || req.content().isBlank()) {
-            throw new InvalidRequestException("감소대책 내용을 입력하십시오.");
+            throw new InvalidRequestException("개선대책 내용을 입력하십시오.");
         }
         String content = req.content().strip();
         if (content.length() > CONTENT_MAX) {
-            throw new InvalidRequestException("감소대책 내용은 %d자 이하로 입력하십시오.".formatted(CONTENT_MAX));
+            throw new InvalidRequestException("개선대책 내용은 %d자 이하로 입력하십시오.".formatted(CONTENT_MAX));
         }
         String owner = trimToNull(req.owner());
         if (owner != null && owner.length() > OWNER_MAX) {
@@ -76,7 +77,7 @@ public class ActionService {
         // 같은 평가에서 같은 위험요인에 대책을 두 번 걸지 않는다 (버튼 연타 방어)
         Optional<Action> existing = findFor(hazardId, assessmentId);
         if (existing.isPresent()) {
-            throw new ConflictException("이 평가에서 이미 등록한 감소대책이 있습니다.");
+            throw new ConflictException("이 점검에서 이미 등록한 개선대책이 있습니다.");
         }
 
         Action saved = actionRepository.save(Action.builder()
@@ -89,9 +90,13 @@ public class ActionService {
                 .guideRef(guideRef)
                 .build());
 
-        log.info("[UC1] 감소대책 등록 조치={} 위험요인={} 평가={} 기한={}",
-                saved.getId(), hazardId, assessmentId, saved.getDueDate());
-        return ActionDtos.ActionView.of(saved, hazard.getEquipmentId());
+        if (req.priority() != null && saved.getId() != null) {
+            records.savePriority(saved.getId(), req.priority());
+        }
+
+        log.info("[UC1] 감소대책 등록 조치={} 위험요인={} 평가={} 기한={} 우선순위={}",
+                saved.getId(), hazardId, assessmentId, saved.getDueDate(), req.priority());
+        return ActionDtos.ActionView.of(saved, hazard.getEquipmentId(), req.priority());
     }
 
     /**
@@ -110,7 +115,13 @@ public class ActionService {
         }
         Long equipmentId = hazardRepository.findById(action.getHazardId())
                 .map(Hazard::getEquipmentId).orElse(null);
-        return ActionDtos.ActionView.of(action, equipmentId);
+        return view(action, equipmentId);
+    }
+
+    /** 조치 한 건의 화면 값. 우선순위(V13 컬럼)를 같이 싣는다 */
+    @Transactional(readOnly = true)
+    public ActionDtos.ActionView view(Action action, Long equipmentId) {
+        return ActionDtos.ActionView.of(action, equipmentId, records.priority(action.getId()));
     }
 
     /** 이 평가에서 이 위험요인에 등록된 조치 (가장 최근 1건) */

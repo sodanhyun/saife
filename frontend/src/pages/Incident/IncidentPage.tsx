@@ -9,24 +9,18 @@ import IncidentTable from "@/pages/Incident/components/IncidentTable";
 import { useIncident } from "@/pages/Incident/hooks/useIncident";
 import IncidentSkeleton from "@/pages/Incident/IncidentSkeleton";
 
-/** UC2. 등록 한 번으로 사전 기록 소환, 수시평가, 법정 기한, 작업계획서 경고가 이어진다. 결과가 나오면 폼은 물러난다. */
+/** UC2 사고 보고. 보고 한 번으로 사고 전 기록, 수시평가, 조사표 기한, 작업 보류가 이어진다. 결과가 나오면 폼은 물러난다. */
 export default function IncidentPage() {
   const s = useIncident();
   if (s.loading) return <IncidentSkeleton />;
   return (
     <PageLayout>
       <PageHeader
-        eyebrow="사고 신고"
-        title="산업재해 등록"
-        description={
-          s.response
-            ? "등록된 사고와 이 설비가 사고 전에 이미 알고 있던 것입니다."
-            : "사고 설비와 경위를 입력하면 이 설비의 기록에서 사고의 전조를 찾아 보여줍니다."
-        }
+        title="사고 보고"
         actions={
           s.response ? (
             <Button variant="secondary" onClick={s.reset}>
-              새 사고 등록
+              새 사고 보고
             </Button>
           ) : undefined
         }
@@ -44,7 +38,7 @@ export default function IncidentPage() {
           />
         )}
         {s.busy && <IncidentProcessing />}
-        {s.response && <IncidentResult r={s.response} />}
+        {s.response && <IncidentResult key={s.response.incident.id} r={s.response} />}
 
         <section aria-labelledby="incident-history-title" className="pt-2">
           {s.loadError && (
@@ -55,7 +49,11 @@ export default function IncidentPage() {
           <h2 id="incident-history-title" className="mb-2 text-xs font-bold tracking-wide text-slate-500">
             사고 이력
           </h2>
-          <IncidentTable incidents={s.incidents} />
+          <IncidentTable
+            incidents={s.incidents}
+            selectedId={s.response?.incident.id ?? null}
+            onOpen={(id) => void s.open(id)}
+          />
         </section>
       </div>
     </PageLayout>
