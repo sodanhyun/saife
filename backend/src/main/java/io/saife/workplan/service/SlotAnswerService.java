@@ -49,9 +49,17 @@ public class SlotAnswerService {
         if (slotKey == null || slotKey.isBlank()) {
             return;
         }
+        // 화면에 떠 있던 칸과 작업자가 실제로 답한 내용이 다를 수 있다(모델은 높이를 묻는데 칸은 최상부 디딤대).
+        // 판정에 쓸 수 없는 답은 저장하지 않는다. 모델이 문장을 읽고 extractWorkPlan으로 제 칸에 넣는다
+        if (!io.saife.core.service.RiskRuleEngine.isUsableAnswer(slotKey, value)) {
+            log.debug("[SLOT] 칸에 맞지 않는 답이라 저장하지 않음 slot={} value={}", slotKey, value);
+            return;
+        }
 
-        // 이 대화가 만들고 있는 작업계획서 — 아직 DRAFT인 가장 최근 것
-        Optional<WorkPlan> target = latestDraft();
+        // 이 대화가 만들고 있는 작업계획서. 대화 ID로 찾고, 없을 때만 가장 최근 초안으로 떨어진다
+        Optional<WorkPlan> target = conversationId == null ? Optional.empty()
+                : workPlanRepository.findFirstByConversationIdAndStatusOrderByIdDesc(conversationId, WorkPlanStatus.DRAFT);
+        if (target.isEmpty()) target = latestDraft();
         if (target.isEmpty()) {
             log.warn("[SLOT] 대상 작업계획서 없음 conversationId={} slot={}", conversationId, slotKey);
             return;
