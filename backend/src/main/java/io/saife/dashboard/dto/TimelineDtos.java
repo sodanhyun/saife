@@ -35,7 +35,12 @@ public final class TimelineDtos {
     /**
      * 타임라인 위쪽 요약.
      *
-     * @param headline 상태 칩 하나("기한 경과 1", "사고 1", "최초 평가 필요", "미이행 1"). 해당 없으면 빈 문자열
+     * @param currentRiskLevel 발생형태마다 가장 최근 평가의 등급을 보고, 그중 가장 높은 등급
+     * @param currentRiskAxis  그 등급을 낸 발생형태
+     * @param lastAssessedOn   가장 최근 평가일
+     * @param incidentCount    사고 수(아차사고 제외)
+     * @param nearMissCount    아차사고 수
+     * @param headline 상태 칩 하나("기한 경과 1", "사고 1", "아차사고 1", "최초 평가 필요", "미이행 1"). 해당 없으면 빈 문자열
      */
     public record TimelineSummary(RiskLevel currentRiskLevel,
                                   AccidentType currentRiskAxis,
@@ -43,6 +48,7 @@ public final class TimelineDtos {
                                   int assessmentCount,
                                   int workPlanCount,
                                   int incidentCount,
+                                  int nearMissCount,
                                   int unfinishedActionCount,
                                   int overdueActionCount,
                                   String headline) {}
@@ -84,7 +90,9 @@ public final class TimelineDtos {
      *
      * @param unfinishedActionCount 미이행 조치 수 (기한 초과 포함)
      * @param overdueActionCount    그중 기한이 지난 것
-     * @param upcomingWorkPlanCount 상태가 SUBMITTED/APPROVED/CONDITIONAL이고 작업일이 오늘 이후인 작업계획서 수
+     * @param upcomingWorkPlanCount 상태가 SUBMITTED/APPROVED/CONDITIONAL이고 작업일이 오늘 이후인 작업 전 점검 수(작업 보류 제외)
+     * @param incidentCount         사고 수(아차사고 제외)
+     * @param nearMissCount         아차사고 수
      * @param lastEventOn           타임라인 마지막 사건 날짜. 사건이 없으면 null
      * @param emphasis              카드 톤. <b>백엔드가 정한다</b> — 화면마다 다르게 판단하면 시연에서 색이 흔들린다
      * @param headline              상태 칩. {@code TimelineSummary.headline}과 같은 값이다
@@ -95,6 +103,7 @@ public final class TimelineDtos {
                                 int unfinishedActionCount, int overdueActionCount,
                                 int upcomingWorkPlanCount,
                                 int incidentCount,
+                                int nearMissCount,
                                 LocalDate lastEventOn,
                                 Emphasis emphasis,
                                 String headline) {}

@@ -22,25 +22,25 @@ function TodayRow({ row, index }: { row: TodayRowModel; index: number }) {
   const tone = emphasisTone(item.emphasis);
   const btn = buttonClassName("secondary", "sm");
   return (
-    <li className="relative grid grid-cols-[8rem_minmax(0,1fr)_11rem_6.5rem_7rem] items-center gap-x-5 py-3 pl-6 pr-5 animate-rise-in"
+    <li className="relative grid grid-cols-[7rem_minmax(0,1fr)_8.5rem_6.5rem_6.5rem] items-center gap-x-4 py-3 pl-6 pr-5 animate-rise-in 2xl:grid-cols-[8rem_minmax(0,1fr)_11rem_7rem_7rem] 2xl:gap-x-5"
       style={{ animationDelay: `${80 + index * 50}ms` }}>
       <span className={cn("absolute inset-y-2 left-0 w-1 rounded-r", item.emphasis === "NORMAL" ? "bg-slate-200" : toneColor(tone).solid)} aria-hidden />
       <span className={cn("text-xs font-bold tracking-wide", item.emphasis === "NORMAL" ? "text-slate-500" : toneColor(tone).text)}>{KIND_LABEL[item.kind]}</span>
       <div className="min-w-0">
-        <p className="flex min-w-0 items-center gap-2">
+        <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
           {row.equipmentHref ? (
-            <Link to={row.equipmentHref} className="truncate text-stage font-semibold text-slate-900 hover:underline">{row.title}</Link>
+            <Link to={row.equipmentHref} className="min-w-0 break-keep text-stage font-semibold text-slate-900 hover:underline">{row.title}</Link>
           ) : (
-            <span className="truncate text-stage font-semibold text-slate-900">{row.title}</span>
+            <span className="min-w-0 break-keep text-stage font-semibold text-slate-900">{row.title}</span>
           )}
           {row.awaitingApproval && <StatusBadge tone="pending">승인 대기</StatusBadge>}
         </p>
         {row.detail && <p className="mt-0.5 truncate text-sm text-slate-500">{row.detail}</p>}
       </div>
-      <span className="truncate text-right text-sm text-slate-600">{item.equipmentName ?? "사업장 전체"}</span>
+      <span className="break-keep text-right text-sm text-slate-600">{item.equipmentName ?? "사업장 전체"}</span>
       <span className="text-right">
         {due && (
-          <span className={cn("text-sm font-bold tabular-nums", due.tone === "neutral" ? "text-slate-500" : toneColor(due.tone).text)}>{due.text}</span>
+          <span className={cn("whitespace-nowrap text-sm font-bold tabular-nums", due.tone === "neutral" ? "text-slate-500" : toneColor(due.tone).text)}>{due.text}</span>
         )}
       </span>
       <span className="flex justify-end">
@@ -68,6 +68,8 @@ export default function TodayInbox({ view, rows, filterLabel, onClearFilter, onR
   if (!view) return null;
   const visible = expanded || filterLabel ? rows : rows.slice(0, COLLAPSED_ROWS);
   const hidden = rows.length - visible.length;
+  // 펼친 뒤에는 접을 수 있어야 한다(필터로 좁힌 목록은 접지 않는다)
+  const collapsible = expanded && !filterLabel && rows.length > COLLAPSED_ROWS;
 
   return (
     <section aria-label="오늘 할 일" className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lift">
@@ -98,6 +100,12 @@ export default function TodayInbox({ view, rows, filterLabel, onClearFilter, onR
         <button type="button" onClick={() => setExpanded(true)}
           className="w-full border-t border-slate-100 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800">
           {hidden}건 더 보기
+        </button>
+      )}
+      {collapsible && (
+        <button type="button" onClick={() => setExpanded(false)}
+          className="w-full border-t border-slate-100 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+          접기
         </button>
       )}
     </section>

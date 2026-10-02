@@ -87,11 +87,19 @@ export function riskColor(level: RiskLevel): ToneClasses {
   return TONES[RISK_TONE[level]];
 }
 
-/** 작업계획서 상태 — 승인 대기만 눈에 걸리고, 반려만 이탈이다. 나머지는 무채색. */
+/**
+ * 작업 전 점검 상태. 승인 초록(low), 조건부 승인 주황(medium), 승인 대기(pending),
+ * 작업 보류 빨강(high), 완료와 작성 중은 회색(neutral).
+ */
 export function workPlanStatusTone(status: WorkPlanStatus): Tone {
-  if (status === "SUBMITTED") return "pending";
-  if (status === "REJECTED" || status === "HOLD") return "high";
-  return "neutral";
+  switch (status) {
+    case "APPROVED": return "low";
+    case "CONDITIONAL": return "medium";
+    case "SUBMITTED": return "pending";
+    case "HOLD":
+    case "REJECTED": return "high";
+    default: return "neutral";
+  }
 }
 
 /** 타임라인 강조도 — 백엔드가 계산한 emphasis를 그대로 색으로 옮긴다. */

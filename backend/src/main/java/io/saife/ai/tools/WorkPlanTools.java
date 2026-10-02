@@ -82,6 +82,7 @@ public class WorkPlanTools {
             - status=INCOMPLETE가 오면 등록이 되지 않은 것입니다. 값을 지어내지 마세요.
             - missing에 있는 항목을 작업자에게 한 번에 하나씩 질문하세요. 질문은 missing의 expected 앞부분 문구를 그대로 쓰세요.
             - 이동식 사다리 작업이면 workHeight, topStep, tipGuard를 채웁니다. anchorInstalled는 사다리 작업에 쓰지 않습니다.
+            - 이동식 비계 작업이면 workHeight, platformGuardrail, casterLock을 채웁니다.
             - 작업자 답변을 받은 뒤 이 도구를 다시 호출하세요. 이전에 채운 값은 그대로 다시 넣으세요.
             - 작업자가 모른다고 하거나 빨리 진행하자고 해도 필수 항목을 임의로 채우지 마세요.
               missing의 how_to_find를 안내하고 기다리세요.
@@ -101,7 +102,8 @@ public class WorkPlanTools {
             @ToolParam(description = "바닥에서 발판(작업면)까지 높이(m). 작업자의 답을 그대로 넣으세요. 추정하지 마세요", required = false) String workHeight,
             @ToolParam(description = "이동식 사다리: 최상부 발판이나 그 바로 아래 디딤대에 올라서는지. 작업자의 답을 그대로 넣으세요", required = false) String topStep,
             @ToolParam(description = "이동식 사다리: 넘어짐 방지(아웃트리거, 고정, 잡아주는 사람)가 있는지. 작업자의 답을 그대로 넣으세요", required = false) String tipGuard,
-            @ToolParam(description = "고소작업대: 작업대 안전난간이 빠짐없이 설치되어 있는지", required = false) String platformGuardrail,
+            @ToolParam(description = "고소작업대, 이동식 비계: 작업대(작업발판) 안전난간이 빠짐없이 설치되어 있는지", required = false) String platformGuardrail,
+            @ToolParam(description = "이동식 비계: 바퀴를 브레이크나 쐐기로 고정했는지. 작업자의 답을 그대로 넣으세요", required = false) String casterLock,
             @ToolParam(description = "사다리, 고소작업대가 아닌 고소작업에서 안전대 부착설비가 있는지. 사다리 작업에는 쓰지 않습니다", required = false) String anchorInstalled,
             @ToolParam(description = "사용 제품명(라벨 표기). 유기용제 여부로 화재, 중독 위험과 보호구가 달라집니다. 추정하지 마세요", required = false) String productName,
             ToolContext toolContext) {
@@ -135,6 +137,7 @@ public class WorkPlanTools {
             persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.TOP_STEP, topStep);
             persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.TIP_GUARD, tipGuard);
             persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.PLATFORM_GUARDRAIL, platformGuardrail);
+            persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.CASTER_LOCK, casterLock);
             persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED, anchorInstalled);
             persistSlot(plan.getId(), RiskRuleEngine.SlotKeys.PRODUCT_NAME, productName);
 
@@ -230,7 +233,7 @@ public class WorkPlanTools {
             // ConcurrentHashMap 기반이라 null 키를 그대로 넘기면 NPE가 난다.
             String cid = AgentContextKeys.conversationId(toolContext);
             if (cid != null && !cid.isBlank()) {
-                for (Evidence e : evidenceLedger.all(cid)) {
+                for (Evidence e : evidenceLedger.all(cid).stream().filter(ev -> relevantToPlan(ev, kind)).toList()) {
                     try {
                         workPlanEvidenceRepository.save(WorkPlanEvidence.builder().workPlanId(plan.getId()).evidenceNo(e.no())
                                 .payload(objectMapper.writeValueAsString(e)).build());
@@ -250,6 +253,24 @@ public class WorkPlanTools {
                     %s
                     """.formatted(plan.getId(), briefing));
         });
+    }
+
+    /** 떨어짐 조문 중 설비 종류에 따라 갈리는 것들. 이 중 그 설비 기준이 아닌 조문은 점검표 근거에 남기지 않는다 */
+    private static final Set<Integer> FALL_ARTICLES = Set.of(42, 43, 44, 45, 67, 68, 186);
+
+    /**
+     * 점검표 "참고 자료"에 남길 근거인지. 설비 종류가 정해진 떨어짐 작업이면 그 기준 조문만 남긴다
+     * (사다리 작업의 제44조 안전대 부착설비처럼 판정에 쓰지 않은 조문은 무관 조문이다).
+     */
+    static boolean relevantToPlan(Evidence e, String kind) {
+        if (e == null || e.kind() != io.saife.evidence.EvidenceKind.LAW || kind == null || e.meta() == null) return true;
+        Object no = e.meta().get("articleNo");
+        Object law = e.meta().get("lawName");
+        if (!(no instanceof Number n) || !io.saife.evidence.service.LawCitationTable.RULES.equals(law)) return true;
+        if (!FALL_ARTICLES.contains(n.intValue())) return true;
+        List<Integer> allowed = HazardAnalysisTools.citationsFor(io.saife.core.domain.AccidentType.FALL, kind, false).stream()
+                .map(io.saife.evidence.service.LawCitationTable.Citation::articleNo).toList();
+        return allowed.contains(n.intValue());
     }
 
     /**
@@ -295,7 +316,7 @@ public class WorkPlanTools {
     /**
      * 아직 답을 못 받은 필수 슬롯.
      *
-     * <p>작업과 설비 종류마다 다르다. 이동식 사다리면 발판 높이, 최상부 디딤대, 넘어짐 방지(제42조④),
+     * <p>작업과 설비 종류마다 다르다. 이동식 사다리면 발판 높이, 최상부 디딤대, 넘어짐 방지(제42조제4항),
      * 도장이면 제품명이 필수다.
      */
     private List<String> missingRequiredSlots(Long workPlanId, String workName, String kind) {
@@ -313,6 +334,10 @@ public class WorkPlanTools {
         return missing;
     }
 
+    /** 높이를 묻지 않는 설비 종류(크레인, 지게차, 용접기) */
+    private static final Set<String> NO_HEIGHT_KINDS = Set.of(
+            RiskRuleEngine.KIND_CRANE, RiskRuleEngine.KIND_FORKLIFT, RiskRuleEngine.KIND_WELDER);
+
     /** 작업 유형과 설비 종류에 따른 필수 슬롯. 순서가 곧 되묻는 순서다 */
     static List<String> requiredSlotsFor(String workName, String kind) {
         String w = workName == null ? "" : workName;
@@ -325,6 +350,16 @@ public class WorkPlanTools {
         } else if (RiskRuleEngine.KIND_AERIAL_PLATFORM.equals(kind)) {
             slots.add(RiskRuleEngine.SlotKeys.WORK_HEIGHT);
             slots.add(RiskRuleEngine.SlotKeys.PLATFORM_GUARDRAIL);
+        } else if (RiskRuleEngine.KIND_MOBILE_SCAFFOLD.equals(kind)) {
+            slots.add(RiskRuleEngine.SlotKeys.WORK_HEIGHT);
+            slots.add(RiskRuleEngine.SlotKeys.PLATFORM_GUARDRAIL);
+            slots.add(RiskRuleEngine.SlotKeys.CASTER_LOCK);
+        } else if (RiskRuleEngine.KIND_TRESTLE.equals(kind)) {
+            slots.add(RiskRuleEngine.SlotKeys.WORK_HEIGHT);
+        } else if (RiskRuleEngine.KIND_PRESS.equals(kind)) {
+            slots.add(RiskRuleEngine.SlotKeys.GUARD_INSTALLED);
+        } else if (NO_HEIGHT_KINDS.contains(kind == null ? "" : kind)) {
+            // 크레인 인양, 지게차 하역, 용접은 높이가 판정을 바꾸지 않는다. 묻지 않는다
         } else if (w.matches(".*(비계|고소|천장|지붕|옥상|단부).*")) {
             slots.add(RiskRuleEngine.SlotKeys.WORK_HEIGHT);
             slots.add(RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED);
@@ -334,11 +369,12 @@ public class WorkPlanTools {
             slots.add(RiskRuleEngine.SlotKeys.PRODUCT_NAME);
         }
         // 회전, 구동부 신호
-        if (w.matches(".*(정비|점검|청소|교체).*") && w.matches(".*(설비|기계|컨베이어|롤러).*")) {
+        if (!slots.contains(RiskRuleEngine.SlotKeys.GUARD_INSTALLED)
+                && w.matches(".*(정비|점검|청소|교체).*") && w.matches(".*(설비|기계|컨베이어|롤러).*")) {
             slots.add(RiskRuleEngine.SlotKeys.GUARD_INSTALLED);
         }
 
-        if (slots.isEmpty()) {
+        if (slots.isEmpty() && !NO_HEIGHT_KINDS.contains(kind == null ? "" : kind)) {
             slots.add(RiskRuleEngine.SlotKeys.WORK_HEIGHT);
         }
         return slots;
@@ -355,12 +391,12 @@ public class WorkPlanTools {
                     "3.2");
             case RiskRuleEngine.SlotKeys.TOP_STEP -> new IncompleteResult.MissingField(
                     key, question + " (예/아니요)",
-                    "최상부 발판과 그 하단 디딤대에서는 작업할 수 없습니다(제42조④)",
+                    "최상부 발판과 그 하단 디딤대에서는 작업할 수 없습니다(제42조제4항)",
                     "천장까지 손이 닿으려면 몇 번째 칸에 서야 하는지 작업자에게 확인합니다",
                     "맨 위 바로 아래 칸까지 올라갑니다");
             case RiskRuleEngine.SlotKeys.TIP_GUARD -> new IncompleteResult.MissingField(
                     key, question + " (있음/없음)",
-                    "아웃트리거, 고정, 잡아주는 사람 중 하나도 없으면 사용할 수 없습니다(제42조④)",
+                    "아웃트리거, 고정, 잡아주는 사람 중 하나도 없으면 사용할 수 없습니다(제42조제4항)",
                     "사다리 다리의 아웃트리거, 상단 고정 여부, 옆에서 잡아줄 사람이 있는지 확인합니다",
                     "없음");
             case RiskRuleEngine.SlotKeys.PLATFORM_GUARDRAIL -> new IncompleteResult.MissingField(
@@ -368,6 +404,11 @@ public class WorkPlanTools {
                     "작업대 안전난간이 빠져 있으면 떨어짐 위험이 큽니다(제186조)",
                     "작업대 네 면의 난간이 모두 설치되어 있는지 눈으로 확인합니다",
                     "있음");
+            case RiskRuleEngine.SlotKeys.CASTER_LOCK -> new IncompleteResult.MissingField(
+                    key, question + " (예/아니요)",
+                    "바퀴를 고정하지 않으면 작업 중 비계가 움직여 떨어질 수 있습니다(제68조)",
+                    "네 바퀴의 브레이크가 걸려 있는지, 쐐기를 끼웠는지 확인합니다",
+                    "예");
             case RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED -> new IncompleteResult.MissingField(
                     key, question + " (있음/없음)",
                     "2m 이상 작업에서 안전대를 걸 곳이 없으면 위험합니다(제44조)",
@@ -377,7 +418,7 @@ public class WorkPlanTools {
                     key, question,
                     "유기용제 여부에 따라 화재, 중독 위험과 보호구가 달라집니다",
                     "페인트 통 라벨이나 물질안전보건자료(MSDS)에 적혀 있습니다",
-                    "노루 유성페인트");
+                    "유성 에나멜 페인트");
             case RiskRuleEngine.SlotKeys.GUARD_INSTALLED -> new IncompleteResult.MissingField(
                     key, question + " (있음/없음)",
                     "회전, 구동부에 덮개가 없으면 끼임 위험이 큽니다(제87조)",

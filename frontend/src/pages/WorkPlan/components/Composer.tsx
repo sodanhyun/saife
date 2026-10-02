@@ -33,7 +33,7 @@ export default function Composer({ disabled, onSend, slot = null, showExamples =
         )}
         <div className="flex items-end gap-3 p-3">
           <textarea rows={2} aria-label="작업 내용" value={input} onChange={(e) => setInput(e.target.value)}
-            placeholder={slot ? "답변 입력" : "예: 내일 차양부 천장 도장, 사다리 사용, 김철수 반장 외 1명"}
+            placeholder={slot ? "답변 입력" : "작업 내용 입력"}
             className="min-h-[52px] flex-1 resize-none border-0 bg-transparent px-1 py-1 text-stage text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0"
             onKeyDown={(e) => {
               // 한글 IME 조합 중 Enter는 조합 확정 키다. 여기서 전송하면 마지막 음절이 잘리거나 두 번 전송된다.

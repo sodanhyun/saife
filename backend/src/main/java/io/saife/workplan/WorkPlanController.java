@@ -2,6 +2,7 @@ package io.saife.workplan;
 
 import io.saife.common.dto.PageResponse;
 import io.saife.common.web.PageRequests;
+import io.saife.workplan.domain.WorkPlanStatus;
 import io.saife.workplan.dto.WorkPlanDtos;
 import io.saife.workplan.service.WorkPlanService;
 import lombok.RequiredArgsConstructor;
@@ -30,12 +31,15 @@ public class WorkPlanController {
 
     private final WorkPlanService workPlanService;
 
+    /** 점검 기록 목록. keyword는 작업명 또는 설비명 부분 일치, status는 상태 하나 */
     @GetMapping
     public ResponseEntity<PageResponse<WorkPlanDtos.ListItem>> list(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) WorkPlanStatus status) {
         return ResponseEntity.ok(PageResponse.from(
-                workPlanService.list(DEMO_SITE_ID, PageRequests.of(page, size))));
+                workPlanService.list(DEMO_SITE_ID, keyword, status, PageRequests.of(page, size))));
     }
 
     @GetMapping("/{workPlanId}")
@@ -43,14 +47,22 @@ public class WorkPlanController {
         return ResponseEntity.ok(workPlanService.detail(workPlanId));
     }
 
-    /** 작업자가 브리핑을 확인했다. 이 시각이 TBM 이행 증빙이 된다 */
+    /** TBM 실시 확인. 승인 후에만 기록한다. 이 시각이 TBM 이행 증빙이 된다 */
     @PostMapping("/{workPlanId}/ack")
     public ResponseEntity<WorkPlanDtos.Detail> acknowledge(@PathVariable Long workPlanId) {
         log.info("[UC3] 브리핑 확인 workPlanId={}", workPlanId);
         return ResponseEntity.ok(workPlanService.acknowledgeBriefing(workPlanId));
     }
 
-    /** 관리부 승인. 조건을 달면 조건부 승인이 된다 */
+    /** 작업 보류. 잠정조치가 작업 금지라 승인할 수 없을 때 */
+    @PostMapping("/{workPlanId}/hold")
+    public ResponseEntity<WorkPlanDtos.Detail> hold(
+            @PathVariable Long workPlanId,
+            @RequestBody(required = false) WorkPlanDtos.HoldRequest request) {
+        return ResponseEntity.ok(workPlanService.hold(workPlanId, request != null ? request.reason() : null));
+    }
+
+    /** 관리감독자 승인. 조건(잠정조치)을 달면 조건부 승인이 된다 */
     @PostMapping("/{workPlanId}/approve")
     public ResponseEntity<WorkPlanDtos.Detail> approve(
             @PathVariable Long workPlanId,

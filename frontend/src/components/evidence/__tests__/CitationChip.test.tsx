@@ -21,7 +21,8 @@ describe("CitationChip", () => {
 
     render(<CitationChip no={2} known scope="chat" />);
     const btn = screen.getByRole("button", { name: "근거 #2" });
-    expect(btn).toHaveTextContent("#2");
+    expect(btn).toHaveTextContent("2");
+    expect(btn).not.toHaveTextContent("#");
 
     fireEvent.click(btn);
     expect(card.scrollIntoView).toHaveBeenCalledWith(expect.objectContaining({ block: "center" }));

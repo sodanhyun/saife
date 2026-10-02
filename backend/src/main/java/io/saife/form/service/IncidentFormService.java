@@ -13,6 +13,8 @@ import io.saife.incident.service.EquipmentHistoryRecaller;
 import io.saife.incident.service.FollowUpAssessmentService;
 import io.saife.incident.service.IncidentEvidenceCollector;
 import io.saife.incident.service.IncidentService;
+import io.saife.incident.service.PreventionFormat;
+import io.saife.incident.repository.FollowUpRecordStore;
 import io.saife.workplan.domain.WorkPlan;
 import io.saife.workplan.domain.WorkPlanStatus;
 import io.saife.workplan.repository.WorkPlanRepository;
@@ -26,7 +28,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -69,6 +70,10 @@ public class IncidentFormService {
     private final FollowUpAssessmentService followUpAssessmentService;
     private final AssessmentRepository assessmentRepository;
     private final IncidentEvidenceCollector evidenceCollector;
+    private final FollowUpRecordStore followUpRecords;
+
+    /** 담당이 비었을 때 쓰는 사람(조사표 초안 작성과 같은 기준) */
+    private static final String SAFETY_MANAGER = "안전관리자 홍길동";
 
     // ────────────────────────── 산업재해조사표 (제출용) ──────────────────────────
 
@@ -82,7 +87,7 @@ public class IncidentFormService {
         String workType = incident.getWorkPlanId() == null ? ""
                 : workPlanRepository.findById(incident.getWorkPlanId()).map(WorkPlan::getWorkName).orElse("");
 
-        List<IncidentFormViews.PlanRow> plans = planRows(incident.getPrevention()).stream()
+        List<IncidentFormViews.PlanRow> plans = planRows(prevention(incident)).stream()
                 .map(p -> new IncidentFormViews.PlanRow(p.no(), p.what(), p.who(), p.when(), List.of()))
                 .toList();
 
@@ -93,7 +98,9 @@ public class IncidentFormService {
                 site == null ? "" : nvl(site.getAddress(), ""),
                 incident.getLeaveDays() == null ? "" : String.valueOf(incident.getLeaveDays()),
                 incident.getSeverity() == IncidentSeverity.FATALITY,
-                "%s (%s)".formatted(at.toLocalDate(), at.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.KOREAN)),
+                nvl(incident.getInjuryType(), ""),
+                nvl(incident.getInjuryPart(), ""),
+                at.toLocalDate().toString(),
                 at.format(HM),
                 place(recall),
                 workType,
@@ -116,7 +123,7 @@ public class IncidentFormService {
         Map<Integer, Evidence> evidenceByNo = new HashMap<>();
         try {
             String query = (nvl(recall.equipmentName(), "") + " " + nvl(incident.getDescription(), "")).strip();
-            for (Evidence e : evidenceCollector.collect(query, incident.getAccidentType()).all()) {
+            for (Evidence e : evidenceCollector.collect(query, incident.getIncidentType()).all()) {
                 evidenceByNo.put(e.no(), e);
             }
         } catch (Exception e) {
@@ -126,7 +133,7 @@ public class IncidentFormService {
         // 각주는 본문에 나온 순서대로 1부터 다시 매긴다(화면의 근거 번호와 서식의 각주 번호는 따로 간다)
         List<IncidentFormViews.PlanRow> plans = new ArrayList<>();
         Map<Integer, Integer> footnoteNo = new LinkedHashMap<>();
-        for (IncidentFormViews.PlanRow p : planRows(incident.getPrevention())) {
+        for (IncidentFormViews.PlanRow p : planRows(prevention(incident))) {
             List<Integer> refs = p.refs().stream()
                     .filter(evidenceByNo::containsKey)
                     .map(n -> footnoteNo.computeIfAbsent(n, k -> footnoteNo.size() + 1))
@@ -152,25 +159,27 @@ public class IncidentFormService {
         List<IncidentFormViews.HoldRow> holds = incident.getEquipmentId() == null ? List.of()
                 : workPlanRepository.findBySiteIdAndEquipmentIdAndStatusInAndWorkDateGreaterThanEqualOrderByWorkDateAsc(
                                 incident.getSiteId(), incident.getEquipmentId(),
-                                List.of(WorkPlanStatus.HOLD), occurredOn).stream()
-                        .filter(p -> p.getWarningNote() != null && p.getWarningNote().contains(IncidentService.HOLD_WARNING))
-                        .map(p -> new IncidentFormViews.HoldRow(p.getWorkDate().toString(), p.getWorkName(), "작업 보류"))
+                                Arrays.asList(WorkPlanStatus.values()), occurredOn).stream()
+                        .filter(io.saife.incident.service.FollowUpConfirmService::heldByIncident)
+                        .map(p -> new IncidentFormViews.HoldRow(p.getWorkDate().toString(), p.getWorkName(),
+                                p.getStatus() == WorkPlanStatus.HOLD ? "작업 보류" : "보류 해제"))
                         .toList();
 
         String leave = incident.getSeverity() == IncidentSeverity.FATALITY ? "사망"
                 : incident.getLeaveDays() == null ? "미입력" : incident.getLeaveDays() + "일";
 
         return new IncidentFormViews.ReviewForm(
+                incident.isNearMiss() ? "아차사고 기록" : "재발방지 검토서",
                 site == null ? "" : site.getName(),
                 recall.equipmentName(),
                 nvl(recall.locationTag(), ""),
                 format(incident.getOccurredAt()),
-                incident.getAccidentType() == null ? "" : incident.getAccidentType().getLabel(),
+                incident.getIncidentType() == null ? "" : incident.getIncidentType().getLabel(),
                 incident.getSeverity() == null ? "" : incident.getSeverity().getLabel(),
                 leave,
                 nvl(incident.getDescription(), ""),
                 dueLabel(incident),
-                priorRows(recall, occurredOn),
+                priorRows(recall, incident.getOccurredAt()),
                 plans,
                 followUpLabel(incident.getFollowUpAssessmentId()),
                 regrades,
@@ -181,18 +190,22 @@ public class IncidentFormService {
     /**
      * 사고 전 지적 사항: 사고 전 위험요인마다 그 감소대책과 사고 시점 이행 상태.
      * 사고와 같은 발생형태가 맨 위다(소환 순서 그대로).
+     *
+     * <p>사고 시점 기준이다(화면의 사고 전 기록과 같은 규칙, {@link EquipmentHistoryRecaller#openAt}).
+     * 조치 생성이 사고 전이고, 완료가 없거나 사고 뒤인 대책이 "미이행"이다. 경과일도 사고일 기준이다.
+     * 평가일은 그 대책을 처음 지적한 평가(대책이 묶인 평가)의 날짜다.
      */
-    private List<IncidentFormViews.PriorRow> priorRows(EquipmentHistoryRecaller.Recall recall, LocalDate occurredOn) {
+    private List<IncidentFormViews.PriorRow> priorRows(EquipmentHistoryRecaller.Recall recall, OffsetDateTime occurredAt) {
+        LocalDate occurredOn = occurredAt.atZoneSameInstant(KST).toLocalDate();
         List<IncidentFormViews.PriorRow> rows = new ArrayList<>();
         for (EquipmentHistoryRecaller.PriorHazard h : recall.priorHazards()) {
             List<Action> known = actionRepository.findByHazardId(h.hazardId()).stream()
-                    .filter(a -> a.getCreatedAt() == null || !a.getCreatedAt().atZoneSameInstant(KST).toLocalDate().isAfter(occurredOn))
+                    .filter(a -> a.getCreatedAt() == null || a.getCreatedAt().isBefore(occurredAt))
                     .toList();
             // 사고 시점에 끝나지 않은 감소대책이 있으면 그것이 이 표의 요점이다(기한이 가장 이른 것).
             // 없으면 가장 최근 대책. 한 위험요인에 예전에 끝낸 대책이 더 있어도 미이행이 가려지지 않게 한다
             Action action = known.stream()
-                    .filter(a -> a.getCompletedAt() == null
-                            || a.getCompletedAt().atZoneSameInstant(KST).toLocalDate().isAfter(occurredOn))
+                    .filter(a -> EquipmentHistoryRecaller.openAt(a, occurredAt))
                     .min(Comparator.comparing(Action::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
                     .or(() -> known.stream().max(Comparator.comparing(Action::getId)))
                     .orElse(null);
@@ -201,11 +214,10 @@ public class IncidentFormService {
             String elapsed = "";
             boolean overdue = false;
             if (action != null) {
-                LocalDate completed = action.getCompletedAt() == null ? null
-                        : action.getCompletedAt().atZoneSameInstant(KST).toLocalDate();
-                if (completed != null && !completed.isAfter(occurredOn)) {
+                if (!EquipmentHistoryRecaller.openAt(action, occurredAt)) {
                     status = "이행 완료";
-                    elapsed = completed.toString();
+                    elapsed = action.getCompletedAt() == null ? ""
+                            : action.getCompletedAt().atZoneSameInstant(KST).toLocalDate().toString();
                 } else if (action.getDueDate() != null && occurredOn.isAfter(action.getDueDate())) {
                     status = "미이행";
                     elapsed = "%d일 경과".formatted(ChronoUnit.DAYS.between(action.getDueDate(), occurredOn));
@@ -215,13 +227,17 @@ public class IncidentFormService {
                     elapsed = "기한 전";
                 }
             }
+            LocalDate flaggedOn = action == null || action.getAssessmentId() == null ? null
+                    : assessmentRepository.findById(action.getAssessmentId())
+                            .map(io.saife.core.domain.Assessment::getAssessedOn).orElse(null);
+            LocalDate assessedOn = flaggedOn != null ? flaggedOn : h.lastAssessedOn();
             rows.add(new IncidentFormViews.PriorRow(
-                    h.lastAssessedOn() == null ? "" : h.lastAssessedOn().toString(),
+                    assessedOn == null ? "" : assessedOn.toString(),
                     h.accidentType() == null ? "" : h.accidentType().getLabel(),
                     nvl(h.missingControl(), nvl(h.description(), "")),
                     h.lastRiskLevel() == null ? "미평가" : h.lastRiskLevel().getLabel(),
                     riskClass(h.lastRiskLevel()),
-                    action == null ? "(등록된 감소대책 없음)" : action.getContent(),
+                    action == null ? "(미수립)" : action.getContent(),
                     action == null ? "" : nvl(action.getOwner(), ""),
                     action == null || action.getDueDate() == null ? "" : action.getDueDate().toString(),
                     status, elapsed, overdue, h.sameAxisAsIncident()));
@@ -234,9 +250,21 @@ public class IncidentFormService {
             return "생성되지 않음";
         }
         return assessmentRepository.findById(assessmentId)
-                .map(a -> "%s 수시평가, %s".formatted(a.getAssessedOn(),
-                        "CONFIRMED".equals(a.getStatus()) ? "확정" : "작성 중 (작업 재개 전 완료)"))
+                .map(a -> "CONFIRMED".equals(a.getStatus())
+                        ? "확정 %s".formatted(followUpRecords.confirmedAt(assessmentId)
+                                .map(t -> t.atZoneSameInstant(KST).toLocalDate())
+                                .orElse(a.getAssessedOn()))
+                        : "작성 중 (%s 생성, 작업 재개 전 확정)".formatted(a.getAssessedOn()))
                 .orElse("생성되지 않음");
+    }
+
+    /**
+     * 재발방지 문안을 서식용으로 맞춘다: 기한은 YYYY-MM-DD, 담당은 이름까지, 행정 절차 줄은 뺀다.
+     * "작업 재개 전" 같은 날짜 아닌 기한은 대책 성격에 따라 사고일부터 7일 또는 14일로 둔다.
+     */
+    private String prevention(Incident incident) {
+        return PreventionFormat.normalize(incident.getPrevention(),
+                incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate(), SAFETY_MANAGER);
     }
 
     // ────────────────────────── 공통 ──────────────────────────
@@ -277,7 +305,8 @@ public class IncidentFormService {
 
     private String dueLabel(Incident incident) {
         if (incident.getReportStatus() == ReportStatus.SUBMITTED) {
-            return "제출 완료";
+            return incident.getReportSubmittedOn() == null ? "제출 완료"
+                    : "제출 완료 %s".formatted(incident.getReportSubmittedOn());
         }
         if (incident.getReportDueDate() != null) {
             return "제출 기한 %s (발생일부터 1개월), 관할 지방고용노동관서".formatted(incident.getReportDueDate());
@@ -302,7 +331,7 @@ public class IncidentFormService {
 
     private Incident find(Long incidentId) {
         return incidentRepository.findById(incidentId).orElseThrow(
-                () -> new NotFoundException("사고를 찾을 수 없습니다: " + incidentId));
+                () -> new NotFoundException("사고를 찾을 수 없습니다."));
     }
 
     private String industry(String code) {

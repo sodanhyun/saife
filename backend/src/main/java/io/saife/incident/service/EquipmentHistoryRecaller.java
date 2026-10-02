@@ -36,6 +36,8 @@ import java.util.Optional;
 @Slf4j
 public class EquipmentHistoryRecaller {
 
+    private static final java.time.ZoneId KST = java.time.ZoneId.of("Asia/Seoul");
+
     private final EquipmentRepository equipmentRepository;
     private final ProcessRepository processRepository;
     private final HazardRepository hazardRepository;
@@ -122,8 +124,8 @@ public class EquipmentHistoryRecaller {
 
         List<Hazard> hazards = hazardRepository.findByEquipmentIdOrderByCreatedAtDesc(equipmentId);
         List<PriorHazard> priorHazards = toPriorHazards(hazards, axis,
-                purpose == Purpose.POST_INCIDENT ? occurredAt.toLocalDate() : null, knownAsOf);
-        List<UnfinishedAction> unfinished = toUnfinishedActions(hazards, occurredAt.toLocalDate());
+                purpose == Purpose.POST_INCIDENT ? occurredAt.atZoneSameInstant(KST).toLocalDate() : null, knownAsOf);
+        List<UnfinishedAction> unfinished = toUnfinishedActions(hazards, occurredAt);
         List<PriorWorkPlan> workPlans = toPriorWorkPlans(equipmentId, occurredAt);
         List<PriorIncident> priorIncidents = toPriorIncidents(equipmentId, occurredAt);
 
@@ -187,16 +189,44 @@ public class EquipmentHistoryRecaller {
         return out;
     }
 
-    private List<UnfinishedAction> toUnfinishedActions(List<Hazard> hazards, LocalDate asOf) {
+    /**
+     * 사고 시점에 끝나지 않은 감소대책. <b>지금 상태가 아니라 사고 시점 기준이다.</b>
+     *
+     * <p>조치 생성 시각이 사고 전이고, 완료 시각이 없거나 사고 뒤인 것만 고른다. 사고 뒤에 만든 조치나
+     * 사고 전에 이미 끝낸 조치가 "사고 시점 미이행"으로 올라오면 사실이 아니다. 경과일도 사고일 기준이고,
+     * 상태 역시 사고일에 기한이 지났으면 OVERDUE, 아니면 PENDING으로 그때의 상태를 돌려준다.
+     * 재발방지 검토서({@code IncidentFormService})도 같은 규칙({@link #openAt})을 쓴다.
+     */
+    private List<UnfinishedAction> toUnfinishedActions(List<Hazard> hazards, OffsetDateTime asOf) {
         if (hazards.isEmpty()) {
             return List.of();
         }
+        LocalDate asOfDate = asOf.atZoneSameInstant(KST).toLocalDate();
         List<Long> hazardIds = hazards.stream().map(Hazard::getId).toList();
-        return actionRepository.findPendingByHazardIds(hazardIds, ActionStatus.DONE).stream()
+        return actionRepository.findByHazardIdIn(hazardIds).stream()
+                .filter(a -> openAt(a, asOf))
                 .map(a -> new UnfinishedAction(a.getId(), a.getContent(), a.getDueDate(),
-                        a.getStatus(), overdueDays(a.getDueDate(), asOf), a.getGuideRef(), a.getOwner()))
+                        statusAt(a, asOfDate), overdueDays(a.getDueDate(), asOfDate), a.getGuideRef(), a.getOwner()))
                 .sorted((x, y) -> Long.compare(nullsLow(y.overdueDays()), nullsLow(x.overdueDays())))
                 .toList();
+    }
+
+    /** 이 시각에 열려 있던 조치인가: 그 전에 만들었고, 그때까지 끝내지 않았다 */
+    public static boolean openAt(Action action, OffsetDateTime asOf) {
+        if (asOf == null) {
+            return action.getStatus() != ActionStatus.DONE;
+        }
+        boolean createdBefore = action.getCreatedAt() == null || action.getCreatedAt().isBefore(asOf);
+        boolean notDoneYet = action.getCompletedAt() == null
+                ? action.getStatus() != ActionStatus.DONE
+                : action.getCompletedAt().isAfter(asOf);
+        return createdBefore && notDoneYet;
+    }
+
+    /** 그 날짜의 조치 상태. 기한이 지났으면 OVERDUE */
+    private ActionStatus statusAt(Action action, LocalDate asOfDate) {
+        return action.getDueDate() != null && asOfDate.isAfter(action.getDueDate())
+                ? ActionStatus.OVERDUE : ActionStatus.PENDING;
     }
 
     /** 기한이 사고일보다 며칠 전이었나. 음수면 사고 당시 아직 기한 전이었다 */
@@ -231,7 +261,7 @@ public class EquipmentHistoryRecaller {
 
     private List<PriorWorkPlan> toPriorWorkPlans(Long equipmentId, OffsetDateTime occurredAt) {
         return workPlanRepository.findByEquipmentIdOrderByWorkDateDesc(equipmentId).stream()
-                .filter(p -> !p.getWorkDate().isAfter(occurredAt.toLocalDate()))
+                .filter(p -> !p.getWorkDate().isAfter(occurredAt.atZoneSameInstant(KST).toLocalDate()))
                 .map(p -> new PriorWorkPlan(p.getId(), p.getWorkName(), p.getWorkDate(),
                         p.getBriefingAckAt(), p.getStatus().name()))
                 .toList();

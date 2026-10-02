@@ -24,7 +24,6 @@ export default function MsdsCard({ e, scope }: { e: Evidence; scope: string }) {
       aria-label={`근거 #${e.no}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-xs text-slate-500">#{e.no}</span>
         <span className="text-xs text-slate-500">MSDS</span>
       </div>
       <p className="mt-1 text-stage font-semibold">{plainText(e.title)}</p>

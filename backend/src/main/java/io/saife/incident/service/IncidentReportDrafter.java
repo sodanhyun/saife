@@ -61,7 +61,7 @@ public class IncidentReportDrafter {
 
         if (demoModeConfig.isDemoMode()) {
             log.info("[UC2] 데모 모드 — 조사표 문안은 폴백을 쓴다");
-            return sanitize(fallback(incident, recall), knownNos);
+            return sanitize(fallback(incident, recall), knownNos, incident);
         }
         try {
             String text = chatClientBuilder.build()
@@ -80,55 +80,64 @@ public class IncidentReportDrafter {
             Draft parsed = parse(text);
             if (parsed == null) {
                 log.warn("[UC2] 조사표 문안 파싱 실패 — 폴백 사용");
-                return sanitize(fallback(incident, recall), knownNos);
+                return sanitize(fallback(incident, recall), knownNos, incident);
             }
-            return sanitize(parsed, knownNos);
+            return sanitize(parsed, knownNos, incident);
 
         } catch (Exception e) {
             // 모델이 죽어도 사고 등록과 법정 기한은 살아야 한다
             log.warn("[UC2] 조사표 문안 생성 실패 — 폴백 사용: {}", e.toString());
-            return sanitize(fallback(incident, recall), knownNos);
+            return sanitize(fallback(incident, recall), knownNos, incident);
         }
     }
 
-    /** 모델이 목록에 없는 번호를 인용했으면 지운다. 폴백 문안도 예외 없이 거친다(항상 안전한 경로 하나) */
-    private Draft sanitize(Draft d, Set<Integer> knownNos) {
-        return new Draft(CitationSanitizer.sanitize(d.cause(), knownNos),
-                CitationSanitizer.sanitize(d.prevention(), knownNos), d.aiGenerated());
+    /**
+     * 모델이 목록에 없는 번호를 인용했으면 지운다. 폴백 문안도 예외 없이 거친다(항상 안전한 경로 하나).
+     * 재발방지 줄은 "무엇을 (담당 누구, 기한 YYYY-MM-DD)" 형식으로 맞춘다({@link PreventionFormat}).
+     */
+    private Draft sanitize(Draft d, Set<Integer> knownNos, Incident incident) {
+        String prevention = CitationSanitizer.sanitize(d.prevention(), knownNos);
+        prevention = PreventionFormat.normalize(prevention,
+                incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate(), SAFETY_MANAGER);
+        return new Draft(CitationSanitizer.sanitize(d.cause(), knownNos), prevention, d.aiGenerated());
     }
+
+    /** 담당이 비었을 때 쓰는 사람. 사업장 안전관리자(시드의 샘플 이름) */
+    static final String SAFETY_MANAGER = "안전관리자 홍길동";
 
     /**
      * 산업재해조사표(별지 제30호서식) "재해 발생 원인"과 "재발방지 계획"의 초안.
      *
-     * <p>조사표는 관할 관서에 <b>제출하는 문서</b>다. 원인은 확인된 사실(작업, 설비, 상태, 행동)로만 쓰고
-     * 사업주의 법 위반이나 과실을 스스로 단정하는 문장을 넣지 않는다. 사전 지적 사항의 미이행 경위는
-     * 사내 「재발방지 검토서」가 다룬다. 재발방지는 "무엇을 (담당 누가, 기한 언제까지)" 한 줄 형식이다.
+     * <p>조사표는 관할 관서에 <b>제출하는 문서</b>다. 원인은 불안전한 상태와 불안전한 행동으로 나눠 확인된 사실만
+     * 쓰고, 사업주의 법 위반이나 과실을 스스로 단정하는 문장을 넣지 않는다. 사전 지적 사항의 미이행 경위는
+     * 사내 「재발방지 검토서」가 다룬다. 재발방지는 "무엇을 (담당 누구, 기한 YYYY-MM-DD)" 한 줄 형식이고,
+     * "작업 재개 전" 같은 날짜 아닌 기한을 쓰지 않는다.
      */
     private static final String SYSTEM = """
             당신은 산업재해조사표(산업안전보건법 시행규칙 별지 제30호서식) 작성을 돕는 보조자입니다. 법률 자문을 하지 않습니다.
 
             규칙
             - 주어진 자료에 없는 사실을 만들지 마십시오. 날짜, 수치, 설비명, 인명을 지어내지 마십시오.
-            - [원인]은 확인된 사실만 짧은 평서문으로 씁니다: 어떤 작업 중, 어떤 설비에서, 어떤 상태와 행동이 있었고, 어떻게 다쳤는지.
-              재해발생 당시 상황을 그대로 반복하지 말고, 자료에서 확인되는 불안전한 상태(예: 작업발판 없이 이동식 사다리 사용)와
-              불안전한 행동(예: 최상부 바로 아래 디딤대에 올라섬)을 사실로 짚으십시오.
+            - [원인]은 두 줄입니다. 첫 줄은 "불안전한 상태: "로 시작해 설비, 작업 환경, 방호 상태 중 자료에서 확인되는 것을,
+              둘째 줄은 "불안전한 행동: "으로 시작해 재해자의 동작이나 작업 방법 중 자료에서 확인되는 것을 사실형 평서문으로 씁니다.
+              재해발생 당시 상황 문장을 그대로 반복하지 마십시오. 확인되지 않으면 "(확인 필요)"라고 씁니다.
               "위반", "과실", "소홀", "방치", "미이행으로 인해" 같은 책임을 단정하는 말은 쓰지 마십시오.
-              확인되지 않은 것은 "(확인 필요)"로 남기십시오.
-            - [재발방지]는 3개 이내, 한 줄에 하나, 반드시 이 형식입니다: 번호. 무엇을 (담당 누가, 기한 언제까지)
-              담당은 자료에 있는 담당자를 그대로 쓰고, 없으면 "안전관리자" 또는 "관리감독자"로 씁니다.
-              기한은 "작업 재개 전" 또는 YYYY-MM-DD 날짜로 씁니다.
+            - [재발방지]는 3개 이내, 한 줄에 하나, 반드시 이 형식입니다: 번호. 무엇을 (담당 직책 이름, 기한 YYYY-MM-DD)
+              담당은 자료에 있는 담당자를 그대로 쓰고, 없으면 "안전관리자 홍길동"으로 씁니다.
+              기한은 반드시 자료의 [기한 기준]에 있는 날짜 형식(YYYY-MM-DD)입니다. "작업 재개 전", "즉시", "상시" 같은 말을 쓰지 마십시오.
               감소대책 우선순위(제거, 공학적 대책, 관리적 대책, 보호구)를 따르고, 자료의 미이행 감소대책이 있으면 첫 줄에 둡니다.
               조사표 제출, 수시평가 실시 같은 행정 절차는 재발방지 대책이 아니므로 쓰지 마십시오.
             - 재발방지 줄 끝에만 근거 번호를 [#n]으로 붙일 수 있습니다. 목록에 없는 번호는 쓰지 마십시오. [원인]에는 붙이지 마십시오.
-            - 가운뎃점(·), 대시(—, –), 화살표(→)를 쓰지 마십시오. 쉼표와 괄호를 쓰십시오.
+            - 가운뎃점, 대시, 화살표 기호를 쓰지 마십시오. 쉼표와 괄호를 쓰십시오.
 
             출력 형식(다른 말을 덧붙이지 마십시오)
 
             [원인]
-            (2~4문장)
+            불안전한 상태: (사실)
+            불안전한 행동: (사실)
 
             [재발방지]
-            1. (무엇을) (담당 누가, 기한 언제까지)
+            1. (무엇을) (담당 직책 이름, 기한 YYYY-MM-DD)
             2. ...
             """;
 
@@ -142,8 +151,8 @@ public class IncidentReportDrafter {
             sb.append(" (").append(recall.locationTag()).append(')');
         }
         sb.append('\n');
-        if (incident.getAccidentType() != null) {
-            sb.append("- 발생형태: ").append(incident.getAccidentType().getLabel()).append('\n');
+        if (incident.getIncidentType() != null) {
+            sb.append("- 발생형태: ").append(incident.getIncidentType().getLabel()).append('\n');
         }
         if (incident.getSeverity() != null) {
             sb.append("- 재해 정도: ").append(incident.getSeverity().getLabel()).append('\n');
@@ -152,6 +161,14 @@ public class IncidentReportDrafter {
             sb.append("- 휴업예상일수: ").append(incident.getLeaveDays()).append("일\n");
         }
         sb.append("- 재해발생 당시 상황: ").append(nvl(incident.getDescription(), "(미입력)")).append('\n');
+        if (incident.getInjuryType() != null || incident.getInjuryPart() != null) {
+            sb.append("- 상해: ").append(nvl(incident.getInjuryType(), "(미입력)"))
+                    .append(", 부위 ").append(nvl(incident.getInjuryPart(), "(미입력)")).append('\n');
+        }
+        java.time.LocalDate occurredOn = incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate();
+        sb.append("\n[기한 기준]\n");
+        sb.append("- 관리적 대책(점검표, 교육, 작업 방법): ").append(PreventionFormat.adminDue(occurredOn)).append('\n');
+        sb.append("- 공학적 대책(설비, 방호장치, 작업발판): ").append(PreventionFormat.engineeringDue(occurredOn)).append('\n');
 
         sb.append("\n[이 설비의 사고 전 위험성평가]\n");
         if (recall.priorHazards().isEmpty()) {
@@ -178,6 +195,9 @@ public class IncidentReportDrafter {
                 sb.append("- ").append(a.content());
                 if (a.owner() != null && !a.owner().isBlank()) {
                     sb.append(" (담당 ").append(a.owner()).append(')');
+                }
+                if (a.dueDate() != null) {
+                    sb.append(", 당초 기한 ").append(a.dueDate());
                 }
                 sb.append('\n');
             }
@@ -228,19 +248,20 @@ public class IncidentReportDrafter {
 
     /**
      * 모델 없이 쓰는 문안. 소환된 사실만 옮긴다. 책임을 단정하는 문장을 쓰지 않는다.
+     * 원인은 불안전한 상태와 불안전한 행동 두 줄, 재발방지는 날짜 기한이다.
      */
     private Draft fallback(Incident incident, EquipmentHistoryRecaller.Recall recall) {
-        StringBuilder cause = new StringBuilder();
-        cause.append(nvl(incident.getDescription(), "재해발생 당시 상황 (확인 필요)"));
-        if (!cause.toString().endsWith(".")) {
-            cause.append('.');
-        }
-        recall.priorHazards().stream()
+        java.time.LocalDate occurredOn = incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate();
+        String state = recall.priorHazards().stream()
                 .filter(EquipmentHistoryRecaller.PriorHazard::sameAxisAsIncident)
                 .map(EquipmentHistoryRecaller.PriorHazard::missingControl)
                 .filter(m -> m != null && !m.isBlank())
                 .findFirst()
-                .ifPresent(m -> cause.append(" 사고 당시 ").append(m).append(" 상태 (현장 확인 필요)."));
+                .map(m -> m + " 상태에서 작업 (현장 확인 필요).")
+                .orElse("(확인 필요)");
+        String cause = "불안전한 상태: " + state + "\n"
+                + "불안전한 행동: " + nvl(incident.getDescription(), "(확인 필요)")
+                + (incident.getDescription() != null && !incident.getDescription().strip().endsWith(".") ? "." : "");
 
         StringBuilder prevention = new StringBuilder();
         int n = 1;
@@ -249,13 +270,13 @@ public class IncidentReportDrafter {
                 break;
             }
             prevention.append(n++).append(". ").append(a.content())
-                    .append(" (담당 ").append(nvl(a.owner(), "안전관리자")).append(", 기한 작업 재개 전)\n");
+                    .append(" (담당 ").append(nvl(a.owner(), SAFETY_MANAGER))
+                    .append(", 기한 ").append(PreventionFormat.engineeringDue(occurredOn)).append(")\n");
         }
-        prevention.append(n++).append(". 수시평가 완료 후 작업 재개 (담당 안전관리자, 기한 작업 재개 전)\n");
-        prevention.append(n).append(". 같은 설비 사용 작업의 작업 전 안전점검표 재검토 (담당 관리감독자, 기한 ")
-                .append(incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate().plusDays(7)).append(')');
+        prevention.append(n).append(". 같은 설비 사용 작업의 작업 전 안전점검표 재검토, 작업자 교육 (담당 ")
+                .append(SAFETY_MANAGER).append(", 기한 ").append(PreventionFormat.adminDue(occurredOn)).append(')');
 
-        return new Draft(cause.toString(), prevention.toString(), false);
+        return new Draft(cause, prevention.toString(), false);
     }
 
     private String nvl(String v, String fallback) {

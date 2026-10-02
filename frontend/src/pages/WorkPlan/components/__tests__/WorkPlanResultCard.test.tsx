@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import WorkPlanResultCard from "@/pages/WorkPlan/components/WorkPlanResultCard";
@@ -23,13 +24,14 @@ describe("WorkPlanResultCard", () => {
     render(<WorkPlanResultCard detail={detail} evidence={[]} onOpenDetail={() => {}} />);
     expect(screen.getByLabelText("위험성 상")).toBeInTheDocument();
     expect(screen.getByText(/최상부 발판 또는 그 하단 디딤대 사용/)).toBeInTheDocument();
-    expect(screen.getByText("이동식 비계(안전난간) 또는 말비계로 작업발판 확보 (제42조①)")).toBeInTheDocument();
+    expect(screen.getByText("이동식 비계(안전난간) 또는 말비계로 작업발판 확보 (제42조제1항)")).toBeInTheDocument();
     expect(screen.queryByText(/빈도/)).toBeNull();
   });
 
-  it("미이행 조치는 한 번만, 경과일은 n일 경과로 보인다", () => {
+  it("미이행 조치는 한 번만, 기한 날짜와 n일 경과로 보인다", () => {
     render(<WorkPlanResultCard detail={detail} evidence={[]} onOpenDetail={() => {}} />);
     expect(screen.getAllByText("차양부 천장 작업 시 이동식 비계(안전난간) 사용")).toHaveLength(1);
+    expect(screen.getByText("기한 09-02")).toBeInTheDocument();
     expect(screen.getByText("30일 경과")).toBeInTheDocument();
   });
 
@@ -67,8 +69,46 @@ describe("WorkPlanResultCard", () => {
   });
 
   it("승인되면 머리에 승인자와 시각을 보인다", () => {
-    render(<WorkPlanResultCard detail={{ ...detail, status: "CONDITIONAL", approvedBy: "홍길동", approvedAt: "2026-10-02T08:50:00+09:00", approvalNote: "사다리 작업 금지" }} evidence={[]} />);
-    expect(screen.getByText("조건부 승인 홍길동, 10-02 08:50")).toBeInTheDocument();
-    expect(screen.getByText("사다리 작업 금지")).toBeInTheDocument();
+    render(<WorkPlanResultCard detail={{ ...detail, status: "CONDITIONAL", approvedBy: "김철수", approvedAt: "2026-10-02T08:50:00+09:00", approvalNote: "2인 1조, 맨 위 두 칸 사용 금지" }} evidence={[]} />);
+    expect(screen.getByText("조건부 승인 김철수, 10-02 08:50")).toBeInTheDocument();
+    expect(screen.getByText("2인 1조, 맨 위 두 칸 사용 금지")).toBeInTheDocument();
+  });
+
+  it("승인 후 TBM 전이면 바닥 주 버튼은 TBM 실시다", () => {
+    render(<WorkPlanResultCard detail={{ ...detail, status: "APPROVED", approvedBy: "김철수", approvedAt: "2026-10-02T08:50:00+09:00" }} evidence={[]} onOpenDetail={() => {}} />);
+    expect(screen.getByRole("button", { name: "TBM 실시" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "검토 및 승인" })).toBeNull();
+  });
+
+  it("작업 보류면 수시평가로 가고, 보류 전 승인 시각은 따로 말한다", () => {
+    render(
+      <MemoryRouter>
+        <WorkPlanResultCard detail={{ ...detail, status: "HOLD", holdAssessmentId: 77, approvedBy: "최동훈", approvedAt: "2026-10-03T08:00:00+09:00",
+          warningNote: "작업 보류: 수시평가 완료 전 작업 재개 금지" }} evidence={[]} onOpenDetail={() => {}} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "수시평가" })).toHaveAttribute("href", "/assessment/77");
+    expect(screen.getByText("보류 전 승인 최동훈, 10-03 08:00")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "검토 및 승인" })).toBeNull();
+  });
+
+  it("작업계획서는 작업지휘자와 사전조사를 보인다", () => {
+    const base = detail.briefingView!;
+    render(<WorkPlanResultCard detail={{ ...detail, documentType: "WORK_PLAN", documentTitle: "작업계획서", supervisor: "정민준",
+      briefingView: { ...base, preSurvey: ["인양물 중량과 무게중심"] } }} evidence={[]} onOpenDetail={() => {}} />);
+    expect(screen.getByText("작업지휘자")).toBeInTheDocument();
+    expect(screen.getByText("정민준")).toBeInTheDocument();
+    expect(screen.getByText("사전조사")).toBeInTheDocument();
+    expect(screen.getByText("인양물 중량과 무게중심")).toBeInTheDocument();
+  });
+
+  it("사례 제목의 꼬리표와 관리번호를 떼고 표기를 바로잡는다", () => {
+    render(<WorkPlanResultCard detail={detail} evidence={[{ ...kase(3, null), title: "[6/19, 경남 거제시] [사망 1명] 작업중 알콜 증기 화재 (200903)" }]} onOpenDetail={() => {}} />);
+    expect(screen.getByText("작업 중 알코올 증기 화재")).toBeInTheDocument();
+  });
+
+  it("현장 확인 값이 없으면 현장 확인 절을 그리지 않는다", () => {
+    render(<WorkPlanResultCard detail={{ ...detail, slots: [] }} evidence={[]} onOpenDetail={() => {}} />);
+    expect(screen.queryByText("현장 확인")).toBeNull();
   });
 });

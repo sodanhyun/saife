@@ -45,59 +45,74 @@ public class PhotoRiskTable {
             // 두 행은 같은 위험요인(FALL_LADDER)이다. 사진이 보여준 장면에 따라 근거 문장만 갈린다
             new Row(AccidentType.FALL, "FALL_LADDER", List.of("최상부", "디딤대", "맨 위"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "이동식 사다리 최상부 발판 및 그 하단 디딤대 사용 금지 (안전보건규칙 제42조제4항)"),
+                    "이동식 사다리 최상부 발판 및 그 하단 디딤대 사용 금지 (제42조제4항)"),
             new Row(AccidentType.FALL, "FALL_LADDER", List.of("사다리", "발판 미확보", "작업발판 미설치"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "작업발판 없이 이동식 사다리 위에서 작업 (안전보건규칙 제42조제1항, 제4항)"),
+                    "작업발판 없이 이동식 사다리 위에서 작업 (제42조제1항, 제42조제4항)"),
             new Row(AccidentType.FALL, "FALL_ANCHOR", List.of("안전대 부착설비", "앵커", "구명줄"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "2m 이상 작업에 안전대 부착설비 없음 (안전보건규칙 제44조)"),
+                    "2m 이상 작업에 안전대 부착설비 없음 (제44조)"),
+            // 지붕 채광창은 개구부와 같은 위험요인으로 묶는다(분류 코드 유지). 근거 조문만 제45조다
+            new Row(AccidentType.FALL, "FALL_OPENING", List.of("채광창", "선라이트", "썬라이트"),
+                    RiskLevel.HIGH, (short) 3, (short) 3,
+                    "지붕 채광창 덮개 없음, 밟으면 떨어짐 (제45조)"),
             new Row(AccidentType.FALL, "FALL_OPENING", List.of("개구부", "덮개"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "개구부 덮개 없음, 통행 중 떨어짐 (안전보건규칙 제43조)"),
+                    "개구부 덮개 없음, 통행 중 떨어짐 (제43조)"),
             new Row(AccidentType.FALL, "FALL_GUARDRAIL", List.of("난간", "작업발판"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "작업발판 단부 안전난간 없음 (안전보건규칙 제13조)"),
+                    "작업발판 단부 안전난간 없음 (제13조)"),
 
             // 끼임
+            // 프레스는 방호장치(제103조)가 기준이다. 분류 코드는 방호덮개와 같다
+            new Row(AccidentType.CAUGHT, "CAUGHT_GUARD", List.of("프레스", "광전자", "양수조작"),
+                    RiskLevel.HIGH, (short) 3, (short) 3,
+                    "프레스 방호장치 없음 (제103조)"),
             new Row(AccidentType.CAUGHT, "CAUGHT_GUARD", List.of("방호덮개", "덮개", "방호"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "회전, 구동부 방호덮개 없음 (안전보건규칙 제87조)"),
+                    "회전, 구동부 방호덮개 없음 (제87조)"),
 
             // 물체에 맞음
+            // 크레인 훅 해지장치. 분류 코드는 축 기본값과 같게 둔다(기존 위험요인과 갈라지지 않게)
+            new Row(AccidentType.DROP, "DROP_OTHER", List.of("해지장치", "훅"),
+                    RiskLevel.HIGH, (short) 3, (short) 3,
+                    "크레인 훅 해지장치 없음, 줄걸이 이탈 (제137조)"),
             new Row(AccidentType.DROP, "DROP_NET", List.of("방지망", "낙하물"),
                     RiskLevel.MEDIUM, (short) 2, (short) 3,
-                    "낙하물 방지망 없음, 하부 통행이 있을 때 위험 (안전보건규칙 제14조)"),
+                    "낙하물 방지망 없음, 하부 통행이 있을 때 위험 (제14조)"),
             new Row(AccidentType.DROP, "DROP_STACK", List.of("적재"),
                     RiskLevel.MEDIUM, (short) 2, (short) 3,
-                    "적재 불량, 무너지면 물체에 맞음 (안전보건규칙 제393조)"),
+                    "적재 불량, 무너지면 물체에 맞음 (제393조)"),
 
             // 부딪힘
             new Row(AccidentType.STRUCK, "STRUCK_AISLE", List.of("통로", "폐색", "적치"),
                     RiskLevel.MEDIUM, (short) 2, (short) 2,
-                    "통로 막힘, 보행자와 운반기계 동선 겹침 (안전보건규칙 제22조)"),
+                    "통로 막힘, 보행자와 운반기계 동선 겹침 (제22조)"),
             new Row(AccidentType.STRUCK, "STRUCK_MARKING", List.of("구획", "표식", "유도"),
                     RiskLevel.MEDIUM, (short) 2, (short) 2,
-                    "구획선, 통로 표시 없음 (안전보건규칙 제22조)"),
+                    "구획선, 통로 표시 없음 (제22조)"),
 
             // 화재
             new Row(AccidentType.FIRE, "FIRE_IGNITION", List.of("화기", "불티", "용접"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "가연물 가까이 화기 작업 (안전보건규칙 제241조)"),
+                    "가연물 가까이 화기 작업 (제241조)"),
             new Row(AccidentType.FIRE, "FIRE_EXTINGUISHER", List.of("소화기", "소화"),
                     RiskLevel.MEDIUM, (short) 2, (short) 2,
-                    "소화기 없음, 초기 진화 불가 (안전보건규칙 제243조)"),
+                    "소화기 없음, 초기 진화 불가 (제243조)"),
 
             // 보호구 미착용
             new Row(AccidentType.PPE, "PPE_HELMET", List.of("안전모"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "안전모 미착용 (안전보건규칙 제32조)"),
+                    "안전모 미착용 (제32조)"),
             new Row(AccidentType.PPE, "PPE_HARNESS", List.of("안전대", "안전벨트"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "2m 이상 작업에 안전대 미착용 (안전보건규칙 제32조)"),
+                    "2m 이상 작업에 안전대 미착용 (제32조)"),
+            new Row(AccidentType.PPE, "PPE_OTHER", List.of("방독", "호흡"),
+                    RiskLevel.MEDIUM, (short) 2, (short) 2,
+                    "유기용제 취급 중 방독마스크 미착용 (제32조, 제450조)"),
             new Row(AccidentType.PPE, "PPE_OTHER", List.of("보안경", "방독", "마스크", "장갑", "귀마개"),
                     RiskLevel.MEDIUM, (short) 2, (short) 2,
-                    "작업에 맞는 보호구 미착용 (안전보건규칙 제32조)")
+                    "작업에 맞는 보호구 미착용 (제32조)")
     );
 
     /** 모든 사진 등급에 붙는 단서. 정지 사진은 작업높이와 빈도를 담지 못한다 */
@@ -155,7 +170,7 @@ public class PhotoRiskTable {
     private static Map<AccidentType, Row> defaults() {
         Map<AccidentType, Row> m = new LinkedHashMap<>();
         m.put(AccidentType.FALL, new Row(AccidentType.FALL, "FALL_OTHER", List.of(), RiskLevel.HIGH,
-                (short) 3, (short) 3, "떨어짐 방지 조치 미흡 (안전보건규칙 제42조)"));
+                (short) 3, (short) 3, "떨어짐 방지 조치 미흡 (제42조)"));
         m.put(AccidentType.CAUGHT, new Row(AccidentType.CAUGHT, "CAUGHT_OTHER", List.of(), RiskLevel.HIGH,
                 (short) 3, (short) 3, "끼임 방호조치 미흡"));
         m.put(AccidentType.DROP, new Row(AccidentType.DROP, "DROP_OTHER", List.of(), RiskLevel.MEDIUM,

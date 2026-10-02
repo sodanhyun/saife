@@ -1,11 +1,13 @@
 import Button from "@/components/ui/Button";
-import Callout from "@/components/ui/Callout";
 import PageHeader from "@/components/ui/PageHeader";
 import PageLayout from "@/components/ui/PageLayout";
+import SectionTitle from "@/components/ui/SectionTitle";
+import Skeleton from "@/components/ui/Skeleton";
 import IncidentForm from "@/pages/Incident/components/IncidentForm";
 import IncidentProcessing from "@/pages/Incident/components/IncidentProcessing";
 import IncidentResult from "@/pages/Incident/components/IncidentResult";
 import IncidentTable from "@/pages/Incident/components/IncidentTable";
+import LoadError from "@/pages/Incident/components/LoadError";
 import { useIncident } from "@/pages/Incident/hooks/useIncident";
 import IncidentSkeleton from "@/pages/Incident/IncidentSkeleton";
 
@@ -13,6 +15,8 @@ import IncidentSkeleton from "@/pages/Incident/IncidentSkeleton";
 export default function IncidentPage() {
   const s = useIncident();
   if (s.loading) return <IncidentSkeleton />;
+  // 이력 행을 눌러 다른 사고를 여는 중이면 결과 자리에 골격을 둔다(지금 결과를 그대로 두면 눌린 줄 모른다)
+  const openingOther = s.opening !== null && s.opening !== s.response?.incident.id;
   return (
     <PageLayout>
       <PageHeader
@@ -26,7 +30,8 @@ export default function IncidentPage() {
         }
       />
       <div className="space-y-6">
-        {!s.response && (
+        {s.formLoadError && !s.response && <LoadError onRetry={() => window.location.reload()} />}
+        {!s.response && !openingOther && (
           <IncidentForm
             form={s.form}
             setForm={s.setForm}
@@ -34,26 +39,40 @@ export default function IncidentPage() {
             plans={s.plans}
             busy={s.busy}
             error={s.error}
+            fieldErrors={s.fieldErrors}
+            maxOccurredAt={s.maxOccurredAt}
             onSubmit={() => void s.submit()}
           />
         )}
         {s.busy && <IncidentProcessing />}
-        {s.response && <IncidentResult key={s.response.incident.id} r={s.response} />}
+        {openingOther ? (
+          <div role="status" aria-label="사고 불러오는 중" className="space-y-4">
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        ) : (
+          s.response && (
+            <IncidentResult
+              key={s.response.incident.id}
+              r={s.response}
+              onMarkSubmitted={() => void s.markSubmitted()}
+              submitting={s.submitting}
+            />
+          )
+        )}
 
-        <section aria-labelledby="incident-history-title" className="pt-2">
-          {s.loadError && (
-            <Callout tone="high" className="mb-3">
-              데이터를 불러오지 못했습니다. 백엔드 연결을 확인한 뒤 새로고침하세요.
-            </Callout>
+        <section aria-label="사고 이력" className="pt-2">
+          <SectionTitle className="mb-2">사고 이력</SectionTitle>
+          {s.listError ? (
+            <LoadError onRetry={s.refetchList} />
+          ) : (
+            <IncidentTable
+              incidents={s.incidents}
+              selectedId={s.response?.incident.id ?? null}
+              openingId={s.opening}
+              onOpen={(id) => void s.open(id)}
+            />
           )}
-          <h2 id="incident-history-title" className="mb-2 text-xs font-bold tracking-wide text-slate-500">
-            사고 이력
-          </h2>
-          <IncidentTable
-            incidents={s.incidents}
-            selectedId={s.response?.incident.id ?? null}
-            onOpen={(id) => void s.open(id)}
-          />
         </section>
       </div>
     </PageLayout>

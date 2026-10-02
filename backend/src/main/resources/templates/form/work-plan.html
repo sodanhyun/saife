@@ -10,7 +10,8 @@
       th:replace="~{form/_layout :: layout(${form.documentTitle}, ~{::main})}">
 <body>
 <main class="sheet">
-  <h1 th:text="${form.documentTitle}">작업 전 안전점검표 (TBM)</h1>
+  <h1 th:if="${#strings.contains(form.documentTitle, ' (')}"><span th:text="${#strings.substringBefore(form.documentTitle, ' (')}">작업 전 안전점검표</span> <span class="ls0" th:text="'(' + ${#strings.substringAfter(form.documentTitle, ' (')}">(TBM)</span></h1>
+  <h1 th:unless="${#strings.contains(form.documentTitle, ' (')}" th:text="${form.documentTitle}">작업 전 안전점검표</h1>
   <p class="subtitle" th:text="${form.documentBasis}">근거</p>
 
   <table>
@@ -18,7 +19,7 @@
       <td class="label">사업장</td>
       <td th:text="${form.siteName}">-</td>
       <td class="label">작업 일자</td>
-      <td th:text="${form.workDate}">-</td>
+      <td class="d" th:text="${form.workDate}">-</td>
     </tr>
     <tr>
       <td class="label">작업명</td>
@@ -36,9 +37,25 @@
       <td class="label">작업 방법</td>
       <td class="pre" colspan="3" th:text="${form.method}">-</td>
     </tr>
+    <tr th:if="${form.documentType == 'WORK_PLAN'}">
+      <td class="label">작업지휘자</td>
+      <td colspan="3" th:text="${form.supervisor}"></td>
+    </tr>
   </table>
 
-  <div class="section-title">1. 현장 확인</div>
+  <th:block th:if="${!#lists.isEmpty(form.preSurvey)}">
+  <div class="section-title">사전조사</div>
+  <table>
+    <tr th:each="p, st : ${form.preSurvey}">
+      <td style="width:34px; text-align:center" th:text="${st.count}">1</td>
+      <td th:text="${p}">-</td>
+      <td style="width:90px; text-align:center">□ 확인</td>
+    </tr>
+  </table>
+  </th:block>
+
+  <th:block th:if="${!#lists.isEmpty(form.checks)}">
+  <div class="section-title">현장 확인</div>
   <table>
     <thead>
     <tr>
@@ -53,13 +70,11 @@
       <td style="text-align:center" th:class="${c.conflicted} ? 'risk-high' : ''" th:text="${c.value}">-</td>
       <td style="text-align:center" th:text="${c.ledgerValue}">-</td>
     </tr>
-    <tr th:if="${#lists.isEmpty(form.checks)}">
-      <td colspan="3" style="text-align:center; padding:12px">확인 항목 없음</td>
-    </tr>
     </tbody>
   </table>
+  </th:block>
 
-  <div class="section-title">2. 유해위험요인과 위험성</div>
+  <div class="section-title">유해위험요인과 위험성</div>
   <table>
     <thead>
     <tr>
@@ -74,7 +89,7 @@
       <td style="text-align:center" th:text="${d.label}">-</td>
       <td style="text-align:center" th:class="${d.gradeClass}" th:text="${d.grade}">-</td>
       <td th:text="${d.basis}">-</td>
-      <td th:text="${d.measure}">-</td>
+      <td th:text="${d.measure}"></td>
     </tr>
     <tr th:if="${#lists.isEmpty(form.decisions)}">
       <td colspan="4" style="text-align:center; padding:12px">판정 없음</td>
@@ -90,7 +105,7 @@
     </tbody>
   </table>
 
-  <div class="section-title">3. 작업 전 안전점검회의 (TBM)</div>
+  <div class="section-title">작업 전 안전점검회의 (TBM)</div>
   <table>
     <tr>
       <td class="label">위험 포인트</td>
@@ -114,7 +129,7 @@
     </tr>
   </table>
 
-  <div class="section-title">4. TBM 참석자</div>
+  <div class="section-title">TBM 참석자</div>
   <table>
     <thead>
     <tr>
@@ -140,15 +155,15 @@
     </tbody>
   </table>
 
-  <div class="section-title">5. 관리감독자 확인</div>
-  <table>
+  <div class="section-title">관리감독자 확인</div>
+  <table class="keep">
     <tr>
       <td class="label">상태</td>
       <td th:text="${form.statusLabel}">-</td>
       <td class="label">확인자</td>
       <td th:text="${form.approvedBy}"></td>
-      <td class="label">확인 시각</td>
-      <td style="white-space:nowrap" th:text="${form.approvedAt}"></td>
+      <td class="label" th:text="${form.approvedAtLabel}">확인 시각</td>
+      <td class="d" th:text="${form.approvedAt}"></td>
     </tr>
     <tr>
       <td class="label">잠정조치</td>
@@ -166,8 +181,8 @@
   <div class="section-title" th:if="${!form.references.isEmpty()}">참고 자료</div>
   <ol class="refs" th:if="${!form.references.isEmpty()}">
     <li th:each="r : ${form.references}">
-      <span th:text="${r.title}">-</span>
-      <a th:if="${r.sourceUrl != null}" th:href="${r.sourceUrl}" th:text="${r.linkText}" target="_blank" rel="noreferrer">원문</a>
+      <span class="src" th:text="${r.source} + ','">출처,</span> <span th:text="${r.title}">-</span>
+      <a class="no-print" th:if="${r.sourceUrl != null}" th:href="${r.sourceUrl}" target="_blank" rel="noreferrer">원문</a>
     </li>
   </ol>
 
@@ -179,6 +194,7 @@
     ol.refs { margin: 0 0 8px; padding-left: 20px; font-size: 9pt; }
     ol.refs li { margin: 2px 0; }
     ol.refs a { margin-left: 6px; color: #1d4ed8; text-decoration: none; }
+    ol.refs .src { color: #444; }
     td.sign-cell { height: 26px; }
     .printed-by { margin-top: 18px; text-align: right; font-size: 8pt; color: #888; }
   </style>

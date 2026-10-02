@@ -147,3 +147,12 @@ export function storyLinkedIds(story: StoryEvent[], focusId: string | null): Set
   });
   return out;
 }
+
+/** 등급 이력 칩 앞의 연도 표기. 첫 칩이 올해가 아니거나, 앞 칩과 연도가 바뀌면 연도를 붙인다 */
+export function yearMarks(dates: string[], thisYear: string): (string | null)[] {
+  return dates.map((d, i) => {
+    const year = d.slice(0, 4);
+    if (i === 0) return year !== thisYear ? year : null;
+    return dates[i - 1].slice(0, 4) !== year ? year : null;
+  });
+}

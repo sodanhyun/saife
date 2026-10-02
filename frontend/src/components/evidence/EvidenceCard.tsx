@@ -1,10 +1,11 @@
 // EvidenceCard.tsx — 근거 카드. 사례·지침은 공통 레이아웃, 조문·MSDS는 전용 카드로 위임한다.
+// 내부 번호(#n)는 카드에 쓰지 않는다. 본문 인용 칩이 카드를 찾아갈 때는 id로 찾는다.
 import { useState } from "react";
 
 import LawArticleCard from "@/components/evidence/LawArticleCard";
 import MsdsCard from "@/components/evidence/MsdsCard";
+import { cleanEvidenceSnippet, cleanEvidenceTitle } from "@/components/evidence/evidenceMeta";
 import cn from "@/lib/cn";
-import { plainText } from "@/utils/plainText";
 import { EVIDENCE_KIND_LABEL, type Evidence } from "@/types/evidence";
 
 interface Props {
@@ -24,6 +25,8 @@ export default function EvidenceCard({ e, scope, onOpenPhoto, className }: Props
 function GenericCard({ e, scope, onOpenPhoto, className }: Props) {
   const [imgFailed, setImgFailed] = useState(false);
   const showImg = !!e.thumbnailUrl && !imgFailed;
+  const title = cleanEvidenceTitle(e.title);
+  const snippet = cleanEvidenceSnippet(e.snippet);
   return (
     <article
       id={`evidence-${scope}-${e.no}`}
@@ -37,23 +40,20 @@ function GenericCard({ e, scope, onOpenPhoto, className }: Props) {
           className="block w-24 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border"
           onClick={() => onOpenPhoto?.(e)}
         >
-          <img src={e.thumbnailUrl ?? undefined} alt={e.title} className="h-16 w-24 rounded object-cover" onError={() => setImgFailed(true)} />
+          <img src={e.thumbnailUrl ?? undefined} alt={title} className="h-16 w-24 rounded object-cover" onError={() => setImgFailed(true)} />
         </button>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs tabular-nums text-slate-400">#{e.no}</span>
-          <span className="text-xs text-slate-500">{EVIDENCE_KIND_LABEL[e.kind]}</span>
-        </div>
-        <p className="mt-1 text-stage font-semibold leading-snug">{plainText(e.title.replace(/^\[(추락|협착|낙하|부딪힘|화재|보호구|떨어짐|끼임)\]\s*/, ""))}</p>
-        {e.snippet && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{e.snippet}</p>}
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-          {(e.sourceUrl ?? e.mediaUrl) && (
+        <span className="text-xs text-slate-500">{EVIDENCE_KIND_LABEL[e.kind]}</span>
+        <p className="mt-1 text-stage font-semibold leading-snug">{title}</p>
+        {snippet && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{snippet}</p>}
+        {(e.sourceUrl ?? e.mediaUrl) && (
+          <div className="mt-2 text-xs text-slate-500">
             <a href={e.sourceUrl ?? e.mediaUrl ?? "#"} target="_blank" rel="noreferrer" className="underline">
               원문 보기
             </a>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </article>
   );

@@ -3,10 +3,11 @@ import { useState } from "react";
 
 import TimelineList from "@/components/timeline/TimelineList";
 import TimelineSummary from "@/components/timeline/TimelineSummary";
-import Callout from "@/components/ui/Callout";
 import LinkButton from "@/components/ui/LinkButton";
+import LoadErrorCallout from "@/components/ui/LoadErrorCallout";
 import PageHeader from "@/components/ui/PageHeader";
 import PageLayout from "@/components/ui/PageLayout";
+import SectionTitle from "@/components/ui/SectionTitle";
 import Select from "@/components/ui/Select";
 import { useEquipmentTimeline } from "@/hooks/useEquipmentTimeline";
 import TimelineSkeleton from "@/pages/Timeline/TimelineSkeleton";
@@ -29,13 +30,13 @@ export default function TimelinePage() {
           </>
         } />
       {loadError ? (
-        <Callout tone="high">데이터를 불러오지 못했습니다. 새로고침하세요.</Callout>
+        <LoadErrorCallout />
       ) : (
         timeline && (
           <div key={timeline.equipment.id} className="space-y-6">
             <TimelineSummary timeline={timeline} showName />
             <section aria-label="이력">
-              <h2 className="mb-3 text-base font-semibold text-slate-900">이력</h2>
+              <SectionTitle className="mb-3">이력</SectionTitle>
               <TimelineList events={timeline.events} focusId={focusId} onFocus={setFocusId} />
             </section>
           </div>

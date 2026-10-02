@@ -9,11 +9,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -62,6 +64,25 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<?> handleIllegalState(IllegalStateException e, HttpServletRequest req) {
         return respond(HttpStatus.CONFLICT, "CONFLICT", e.getMessage(), req);
+    }
+
+    /**
+     * 경로는 있지만 그 메서드가 없다(예: GET /api/assessment). 500이 아니라 405다(2026-10-03 리뷰).
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<?> handleMethodNotAllowed(HttpRequestMethodNotSupportedException e, HttpServletRequest req) {
+        return respond(HttpStatus.METHOD_NOT_ALLOWED, "VALIDATION", "지원하지 않는 요청입니다.", req);
+    }
+
+    /** 없는 경로. 정적 리소스 탐색 실패가 "나머지 전부"로 떨어져 500이 되던 것을 404로 */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<?> handleNoResource(NoResourceFoundException e, HttpServletRequest req) {
+        String path = req.getRequestURI();
+        // /api/assessment처럼 같은 도메인 접두사 아래 다른 메서드만 있는 경로는 405로 답한다
+        if (path != null && path.matches("/api/[a-z-]+/?")) {
+            return respond(HttpStatus.METHOD_NOT_ALLOWED, "VALIDATION", "지원하지 않는 요청입니다.", req);
+        }
+        return respond(HttpStatus.NOT_FOUND, "NOT_FOUND", "찾을 수 없습니다.", req);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

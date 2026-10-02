@@ -1,9 +1,12 @@
 package io.saife.incident.dto;
 
 import io.saife.core.domain.AccidentType;
+import io.saife.core.domain.ActionStatus;
+import io.saife.core.domain.RiskLevel;
 import io.saife.dashboard.dto.TimelineDtos;
 import io.saife.evidence.Evidence;
 import io.saife.incident.domain.IncidentSeverity;
+import io.saife.incident.domain.IncidentType;
 import io.saife.incident.domain.ReportStatus;
 import io.saife.incident.service.FollowUpAssessmentService;
 
@@ -26,6 +29,11 @@ public final class IncidentDtos {
      *
      * <p>{@code equipmentId}를 모르면 {@code equipmentQuery}에 설비명이나 장소를 넣는다.
      * 설비 매칭은 UC3과 같은 매처를 쓴다 — <b>설비 ID가 쪼개지면 이력이 끊긴다.</b>
+     *
+     * @param incidentType 사고 발생형태(공단 분류). 필수
+     * @param severity     재해 정도. 필수. 휴업이면 {@code leaveDays}(휴업예상일수)도 필수다
+     * @param injuryType   상해 종류(질병명). 조사표 항목, 선택
+     * @param injuryPart   상해 부위(질병 부위). 조사표 항목, 선택
      */
     public record RegisterRequest(Long equipmentId,
                                   String equipmentQuery,
@@ -34,8 +42,10 @@ public final class IncidentDtos {
                                   String victimName,
                                   IncidentSeverity severity,
                                   Integer leaveDays,
-                                  AccidentType accidentType,
-                                  String description) {}
+                                  IncidentType incidentType,
+                                  String description,
+                                  String injuryType,
+                                  String injuryPart) {}
 
     /**
      * 등록 결과 — 화면 한 장이 이 응답 하나로 그려진다.
@@ -97,6 +107,10 @@ public final class IncidentDtos {
                                    String status,
                                    String warning) {}
 
+    /**
+     * @param incidentType 사고 발생형태(공단 분류). 화면 표기는 {@code incidentTypeLabel}
+     * @param accidentType 위험요인 6축 대응(사고 전 기록과 잇는 값). 대응이 없으면 null
+     */
     public record IncidentSummary(Long id,
                                   Long siteId,
                                   Long equipmentId,
@@ -106,8 +120,12 @@ public final class IncidentDtos {
                                   String victimName,
                                   IncidentSeverity severity,
                                   Integer leaveDays,
+                                  IncidentType incidentType,
+                                  String incidentTypeLabel,
                                   AccidentType accidentType,
                                   String description,
+                                  String injuryType,
+                                  String injuryPart,
                                   Long followUpAssessmentId) {}
 
     /**
@@ -123,14 +141,21 @@ public final class IncidentDtos {
                              LocalDate dueDate,
                              Long daysRemaining,
                              String basis,
-                             boolean seriousAccidentPossible) {}
+                             boolean seriousAccidentPossible,
+                             LocalDate submittedOn) {}
 
-    /** @param kindLabel "수시" — 심사위원이 평가 종류를 바로 읽을 수 있어야 한다 */
+    /**
+     * @param kindLabel   "수시" — 심사위원이 평가 종류를 바로 읽을 수 있어야 한다
+     * @param status      {@code "DRAFT" | "CONFIRMED"}
+     * @param confirmedOn 확정일. 작성 중이면 null
+     */
     public record FollowUpView(Long assessmentId,
                                String kindLabel,
                                String legalBasis,
                                List<FollowUpAssessmentService.Regrade> regraded,
-                               Long newHazardId) {}
+                               Long newHazardId,
+                               String status,
+                               LocalDate confirmedOn) {}
 
     /** @param aiGenerated false면 모델이 아니라 폴백이 쓴 문안이다. 화면에 구분해 표시한다 */
     public record DraftView(String cause, String prevention, boolean aiGenerated, String disclaimer) {}
@@ -140,12 +165,78 @@ public final class IncidentDtos {
                                    Long equipmentId,
                                    String equipmentName,
                                    OffsetDateTime occurredAt,
-                                   AccidentType accidentType,
+                                   IncidentType incidentType,
+                                   String incidentTypeLabel,
                                    IncidentSeverity severity,
                                    Integer leaveDays,
                                    ReportStatus reportStatus,
                                    String reportStatusLabel,
                                    LocalDate reportDueDate,
                                    Long daysRemaining,
+                                   LocalDate reportSubmittedOn,
                                    Long followUpAssessmentId) {}
+
+    // ────────────────────────── 수시평가 (사고 후, 작업 재개 전) ──────────────────────────
+
+    /**
+     * 사고가 만든 수시평가 한 건. 프론트 {@code /assessment/:id} 화면이 이 응답 하나로 그려진다.
+     *
+     * @param status      {@code "DRAFT" | "CONFIRMED"}
+     * @param confirmedOn 확정일. 작성 중이면 null
+     * @param workPlans   이 사고로 작업 보류된 작업 전 점검. 확정하면 재승인 대기(SUBMITTED)로 돌아간다
+     */
+    public record FollowUpDetail(Long assessmentId,
+                                 Long incidentId,
+                                 String status,
+                                 LocalDate assessedOn,
+                                 LocalDate confirmedOn,
+                                 Long equipmentId,
+                                 String equipmentName,
+                                 String locationTag,
+                                 OffsetDateTime occurredAt,
+                                 IncidentType incidentType,
+                                 String incidentTypeLabel,
+                                 IncidentSeverity severity,
+                                 String legalBasis,
+                                 String inspector,
+                                 List<String> participants,
+                                 List<FollowUpHazard> hazards,
+                                 List<AffectedWorkPlan> workPlans) {}
+
+    /**
+     * 수시평가의 위험요인 한 건.
+     *
+     * @param before      사고 전 등급. 신규면 null
+     * @param acceptable  허용 가능 여부. 사람이 정하지 않았으면 등급 기본값(상, 중은 불가)
+     * @param action      이 수시평가에서 세운 개선대책. 없으면 null
+     * @param priorAction 다른 평가에서 세운, 아직 끝나지 않은 대책(가장 이른 기한)
+     * @param suggestion  감소대책 초안(기준표). 없으면 null
+     */
+    public record FollowUpHazard(Long hazardId,
+                                 AccidentType accidentType,
+                                 String missingControl,
+                                 String description,
+                                 RiskLevel before,
+                                 RiskLevel riskLevel,
+                                 String ruleTrace,
+                                 boolean sameAxis,
+                                 boolean acceptable,
+                                 FollowUpAction action,
+                                 FollowUpAction priorAction,
+                                 FollowUpSuggestion suggestion) {}
+
+    public record FollowUpAction(Long actionId, String content, String owner, LocalDate dueDate,
+                                 ActionStatus status, LocalDate completedOn) {}
+
+    /** @param lawRef 근거 조문(예: "산업안전보건기준에 관한 규칙 제42조제1항") */
+    public record FollowUpSuggestion(String content, String lawRef) {}
+
+    /**
+     * 수시평가 저장, 확정 요청.
+     *
+     * @param hazards 위험요인별 허용 여부와 개선대책. 대책 칸을 비우면 새로 만들지 않는다
+     */
+    public record FollowUpRequest(String inspector, List<String> participants, List<FollowUpHazardInput> hazards) {}
+
+    public record FollowUpHazardInput(Long hazardId, Boolean acceptable, String content, String owner, LocalDate dueDate) {}
 }

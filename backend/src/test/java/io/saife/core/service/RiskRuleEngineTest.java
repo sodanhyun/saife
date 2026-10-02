@@ -33,23 +33,23 @@ class RiskRuleEngineTest {
 
         assertThat(d.riskLevel()).isEqualTo(RiskLevel.HIGH);
         assertThat(d.ruleTrace()).isEqualTo(
-                "발판 높이 3.2m, 최상부 발판 또는 그 하단 디딤대 사용, 넘어짐 방지(아웃트리거, 고정, 지지자) 없음 (제42조④)");
+                "발판 높이 3.2m, 최상부 발판 또는 그 하단 디딤대 사용, 넘어짐 방지(아웃트리거, 고정, 지지자) 없음 (제42조제4항)");
         assertThat(engine.recommendation(AccidentType.FALL, slots, d))
-                .isEqualTo("이동식 비계(안전난간) 또는 말비계로 작업발판 확보 (제42조①)");
+                .isEqualTo("이동식 비계(안전난간) 또는 말비계로 작업발판 확보 (제42조제1항)");
     }
 
     @Test
     void 발판_높이_3_5m_초과는_사다리_사용_불가로_상() {
         RiskRuleEngine.Decision d = engine.decide(AccidentType.FALL, ladder("3.6", "아니요", "있어요"));
         assertThat(d.riskLevel()).isEqualTo(RiskLevel.HIGH);
-        assertThat(d.ruleTrace()).isEqualTo("발판 높이 3.6m, 3.5m 초과로 이동식 사다리 사용 불가 (제42조④)");
+        assertThat(d.ruleTrace()).isEqualTo("발판 높이 3.6m, 3.5m 초과로 이동식 사다리 사용 불가 (제42조제4항)");
     }
 
     @Test
     void 발판_높이_정확히_3_5m는_사용_가능_범위라_조건_충족이면_중() {
         RiskRuleEngine.Decision d = engine.decide(AccidentType.FALL, ladder("3.5", "아니요", "아웃트리거 있어요"));
         assertThat(d.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
-        assertThat(d.ruleTrace()).isEqualTo("발판 높이 3.5m, 안전모, 안전대 착용 (제32조, 제42조④)");
+        assertThat(d.ruleTrace()).isEqualTo("발판 높이 3.5m, 안전모, 안전대 착용 (제32조, 제42조제4항)");
     }
 
     @Test
@@ -60,22 +60,23 @@ class RiskRuleEngineTest {
 
         RiskRuleEngine.Decision top = engine.decide(AccidentType.FALL, ladder("2m", "네, 맨 위까지요", "있어요"));
         assertThat(top.riskLevel()).isEqualTo(RiskLevel.HIGH);
-        assertThat(top.ruleTrace()).isEqualTo("발판 높이 2m, 최상부 발판 또는 그 하단 디딤대 사용 (제42조④)");
+        assertThat(top.ruleTrace()).isEqualTo("발판 높이 2m, 최상부 발판 또는 그 하단 디딤대 사용 (제42조제4항)");
     }
 
     @Test
     void 바로_아래_1_9m는_2m_미만이라_하() {
         RiskRuleEngine.Decision d = engine.decide(AccidentType.FALL, ladder("1.9", "네", "없어요"));
         assertThat(d.riskLevel()).isEqualTo(RiskLevel.LOW);
-        assertThat(d.ruleTrace()).isEqualTo("발판 높이 1.9m (2m 미만), 사용 전 점검 (제42조④)");
-        assertThat(engine.recommendation(AccidentType.FALL, ladder("1.9", "네", "없어요"), d)).isNull();
+        assertThat(d.ruleTrace()).isEqualTo("발판 높이 1.9m (2m 미만), 사용 전 점검 (제42조제4항)");
+        assertThat(engine.recommendation(AccidentType.FALL, ladder("1.9", "네", "없어요"), d))
+                .isEqualTo("사용 전 점검, 평탄한 바닥에 설치 (제42조제4항)");
     }
 
     @Test
     void 높이_2m_이상에서_넘어짐_방지만_없어도_상() {
         RiskRuleEngine.Decision d = engine.decide(AccidentType.FALL, ladder("2.5", "아니요", "없습니다"));
         assertThat(d.riskLevel()).isEqualTo(RiskLevel.HIGH);
-        assertThat(d.ruleTrace()).isEqualTo("발판 높이 2.5m, 넘어짐 방지(아웃트리거, 고정, 지지자) 없음 (제42조④)");
+        assertThat(d.ruleTrace()).isEqualTo("발판 높이 2.5m, 넘어짐 방지(아웃트리거, 고정, 지지자) 없음 (제42조제4항)");
     }
 
     @Test
@@ -90,7 +91,7 @@ class RiskRuleEngineTest {
     @Test
     void 사다리_슬롯이_있으면_설비_종류를_몰라도_사다리_기준이다() {
         Map<String, String> slots = new HashMap<>(Map.of(SlotKeys.WORK_HEIGHT, "3.2", SlotKeys.TOP_STEP, "네"));
-        assertThat(engine.decide(AccidentType.FALL, slots).ruleTrace()).contains("(제42조④)");
+        assertThat(engine.decide(AccidentType.FALL, slots).ruleTrace()).contains("(제42조제4항)");
     }
 
     @Test
@@ -120,11 +121,11 @@ class RiskRuleEngineTest {
     @Test
     void 유성페인트는_인화성_증기_문구로_중이고_보호구에_방독마스크가_들어간다() {
         Map<String, String> slots = ladder("3.2", null, null);
-        slots.put(SlotKeys.PRODUCT_NAME, "노루 유성페인트");
+        slots.put(SlotKeys.PRODUCT_NAME, "유성 에나멜 페인트");
         RiskRuleEngine.Decision fire = engine.decide(AccidentType.FIRE, slots);
         assertThat(fire.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
-        assertThat(fire.ruleTrace()).isEqualTo("인화성 증기, 점화원 관리, 실내면 환기와 방독마스크 (제232조, 제450조)");
-        assertThat(engine.decide(AccidentType.PPE, slots).ruleTrace()).isEqualTo("안전모, 안전대, 방독마스크 착용 (제32조)");
+        assertThat(fire.ruleTrace()).isEqualTo("인화성 증기, 점화원 관리, 실내 환기, 방독마스크 (제232조, 제450조)");
+        assertThat(engine.decide(AccidentType.PPE, slots).ruleTrace()).isEqualTo("안전모, 안전대, 방독마스크 착용 (제32조, 제450조)");
     }
 
     @Test
@@ -174,5 +175,85 @@ class RiskRuleEngineTest {
         org.assertj.core.api.Assertions.assertThat(RiskRuleEngine.isUsableAnswer(RiskRuleEngine.SlotKeys.TIP_GUARD, "따로 잡아주는 사람은 없어요")).isTrue();
         org.assertj.core.api.Assertions.assertThat(RiskRuleEngine.isUsableAnswer(RiskRuleEngine.SlotKeys.WORK_HEIGHT, "높아요")).isFalse();
         org.assertj.core.api.Assertions.assertThat(RiskRuleEngine.isUsableAnswer(RiskRuleEngine.SlotKeys.WORK_HEIGHT, "3.2m요")).isTrue();
+    }
+
+    // ── 설비별 판정 기준(2차 개선) ──────────────────────────────────────
+
+    private Map<String, String> derived(String equipmentName, String workName) {
+        return RiskRuleEngine.withEquipmentKind(Map.of(), equipmentName, workName);
+    }
+
+    @Test
+    void 용접_작업과_CO2_용접기는_화재_최소_중이고_근거는_화재감시자다() {
+        RiskRuleEngine.Decision byEquipment = engine.decide(AccidentType.FIRE, derived("CO2 용접기 1호", "작업대 보강"));
+        assertThat(byEquipment.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
+        assertThat(byEquipment.ruleTrace()).isEqualTo("용접 불티 비산, 화재감시자 (제241조, 제241조의2)");
+
+        RiskRuleEngine.Decision byWork = engine.decide(AccidentType.FIRE, derived("천장크레인 1호", "브래킷 용단"));
+        assertThat(byWork.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
+
+        Map<String, String> solvent = new HashMap<>(derived("CO2 용접기 1호", "용접"));
+        solvent.put(SlotKeys.PRODUCT_NAME, "시너");
+        assertThat(engine.decide(AccidentType.FIRE, solvent).riskLevel()).isEqualTo(RiskLevel.HIGH);
+        assertThat(engine.recommendation(AccidentType.FIRE, derived("CO2 용접기 1호", "용접"),
+                engine.decide(AccidentType.FIRE, derived("CO2 용접기 1호", "용접")))).contains("화재감시자").contains("(제241조, 제241조의2, 제243조)");
+    }
+
+    @Test
+    void 크레인_인양은_양중기_규정으로_판정한다() {
+        Map<String, String> slots = derived("천장크레인 1호", "금형 인양 (1.2톤)");
+        assertThat(slots).containsEntry(SlotKeys.EQUIPMENT_KIND, RiskRuleEngine.KIND_CRANE);
+        RiskRuleEngine.Decision d = engine.decide(AccidentType.DROP, slots);
+        assertThat(d.ruleTrace()).isEqualTo("인양물 하부 출입 금지, 훅 해지장치 사용, 달기구 점검 (제146조, 제137조, 제163조)");
+        assertThat(engine.recommendation(AccidentType.DROP, slots, d)).contains("해지장치").contains("제137조");
+        assertThat(engine.decide(AccidentType.PPE, slots).ruleTrace()).isEqualTo("안전모, 안전화 착용 (제32조)");
+    }
+
+    @Test
+    void 이동식_비계는_제68조_안전난간_바퀴_고정() {
+        Map<String, String> slots = new HashMap<>(derived("이동식 비계 1호", "배관 보온"));
+        slots.put(SlotKeys.WORK_HEIGHT, "3.6");
+        slots.put(SlotKeys.PLATFORM_GUARDRAIL, "있음");
+        slots.put(SlotKeys.CASTER_LOCK, "예");
+        RiskRuleEngine.Decision ok = engine.decide(AccidentType.FALL, slots);
+        assertThat(ok.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
+        assertThat(ok.ruleTrace()).isEqualTo("작업발판 높이 3.6m, 안전난간, 바퀴 고정 확인, 안전모 착용 (제68조, 제32조)");
+
+        slots.put(SlotKeys.CASTER_LOCK, "아니요");
+        RiskRuleEngine.Decision bad = engine.decide(AccidentType.FALL, slots);
+        assertThat(bad.riskLevel()).isEqualTo(RiskLevel.HIGH);
+        assertThat(bad.ruleTrace()).isEqualTo("작업발판 높이 3.6m, 바퀴 고정 없음 (제68조)");
+        assertThat(engine.recommendation(AccidentType.FALL, slots, bad)).contains("(제68조)");
+    }
+
+    @Test
+    void 프레스_방호장치는_제103조() {
+        Map<String, String> slots = new HashMap<>(derived("기계식 프레스 1호", "금형 교체"));
+        slots.put(SlotKeys.GUARD_INSTALLED, "없어요");
+        RiskRuleEngine.Decision d = engine.decide(AccidentType.CAUGHT, slots);
+        assertThat(d.riskLevel()).isEqualTo(RiskLevel.HIGH);
+        assertThat(d.ruleTrace()).isEqualTo("프레스 방호장치 없음 (제103조)");
+    }
+
+    @Test
+    void 지붕_작업은_채광창_제45조() {
+        Map<String, String> slots = new HashMap<>(derived("지붕 작업 구역", "채광창 주변 방수 보수"));
+        slots.put(SlotKeys.WORK_HEIGHT, "6");
+        slots.put(SlotKeys.ANCHOR_INSTALLED, "없음");
+        RiskRuleEngine.Decision d = engine.decide(AccidentType.FALL, slots);
+        assertThat(d.riskLevel()).isEqualTo(RiskLevel.HIGH);
+        assertThat(d.ruleTrace()).isEqualTo("지붕 높이 6m, 채광창 파손 시 떨어짐, 안전대 부착설비 없음 (제45조, 제44조)");
+    }
+
+    @Test
+    void 권고_대책은_중_하_판정에도_나오고_조문_표기는_한_가지다() {
+        Map<String, String> slots = ladder("3.2", "아니요", "있어요");
+        slots.put(SlotKeys.PRODUCT_NAME, "유성페인트");
+        for (AccidentType axis : AccidentType.values()) {
+            RiskRuleEngine.Decision d = engine.decide(axis, slots);
+            String rec = engine.recommendation(axis, slots, d);
+            assertThat(rec).as(axis + " 권고").isNotBlank();
+            assertThat(d.ruleTrace() + rec).doesNotContainPattern("[①-⑳]");
+        }
     }
 }

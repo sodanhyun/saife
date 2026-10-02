@@ -7,6 +7,9 @@ import io.saife.dashboard.dto.TimelineDtos.Emphasis;
 import io.saife.dashboard.dto.TimelineDtos.EventType;
 import io.saife.dashboard.dto.TimelineDtos.TimelineEvent;
 import io.saife.incident.domain.Incident;
+import io.saife.incident.domain.IncidentSeverity;
+import io.saife.publicapi.domain.KoshaGuide;
+import io.saife.publicapi.repository.KoshaGuideRepository;
 import io.saife.incident.domain.ReportStatus;
 import io.saife.incident.repository.IncidentRepository;
 import io.saife.incident.service.EquipmentHistoryRecaller;
@@ -65,6 +68,7 @@ public class EquipmentTimelineService {
     private final WorkPlanRepository workPlanRepository;
     private final IncidentRepository incidentRepository;
     private final EquipmentHistoryRecaller equipmentHistoryRecaller;
+    private final KoshaGuideRepository koshaGuideRepository;
 
     /** 진행 중(=아직 안 끝난) 작업계획서 상태. "예정 작업" 카운트에 쓴다 */
     private static final Set<WorkPlanStatus> UPCOMING_STATUSES =
@@ -120,7 +124,7 @@ public class EquipmentTimelineService {
                     timeline.equipment().locationTag(), timeline.equipment().processName(),
                     summary.currentRiskLevel(), summary.currentRiskAxis(), summary.lastAssessedOn(),
                     summary.unfinishedActionCount(), summary.overdueActionCount(), upcoming,
-                    summary.incidentCount(), lastEventOn, emphasis, summary.headline()));
+                    summary.incidentCount(), summary.nearMissCount(), lastEventOn, emphasis, summary.headline()));
         }
 
         cards.sort(Comparator
@@ -194,7 +198,8 @@ public class EquipmentTimelineService {
         List<TimelineEvent> events = new ArrayList<>();
         Map<Long, String> assessmentEventIdByAssessment = new HashMap<>();
 
-        events.addAll(assessmentEvents(hazardById, incidents, assessmentEventIdByAssessment));
+        Map<Long, Assessment> assessmentById = new HashMap<>();
+        events.addAll(assessmentEvents(hazardById, incidents, assessmentEventIdByAssessment, assessmentById));
         events.addAll(actionEvents(actions, assessmentEventIdByAssessment));
         events.addAll(workPlanEvents(workPlans, actions));
         events.addAll(incidentEvents(incidents, hazardById, actions, assessmentEventIdByAssessment));
@@ -207,7 +212,7 @@ public class EquipmentTimelineService {
         events = withLinkLabels(events);
 
         TimelineDtos.TimelineSummary summary =
-                summary(hazards, incidents, workPlans, actions, events);
+                summary(hazards, hazardById, assessmentById, incidents, workPlans, actions, events);
 
         log.info("[UC4] 설비 {} 타임라인 — 사건 {}건", equipmentId, events.size());
 
@@ -224,7 +229,8 @@ public class EquipmentTimelineService {
      */
     private List<TimelineEvent> assessmentEvents(Map<Long, Hazard> hazardById,
                                                  List<Incident> incidents,
-                                                 Map<Long, String> eventIdOut) {
+                                                 Map<Long, String> eventIdOut,
+                                                 Map<Long, Assessment> assessmentOut) {
         if (hazardById.isEmpty()) {
             return List.of();
         }
@@ -250,6 +256,7 @@ public class EquipmentTimelineService {
             }
             String eventId = "assessment-" + assessment.getId();
             eventIdOut.put(assessment.getId(), eventId);
+            assessmentOut.put(assessment.getId(), assessment);
 
             AssessmentHazard worst = entry.getValue().stream()
                     .max(Comparator.comparingInt(l -> severityRank(l.getRiskLevel())))
@@ -300,7 +307,7 @@ public class EquipmentTimelineService {
             String detail = action.getStatus() == ActionStatus.DONE ? "이행 완료"
                     : overdue ? "기한 경과, 미이행" : "이행 예정";
             if (action.getGuideRef() != null && !action.getGuideRef().isBlank()) {
-                detail += " (근거 " + action.getGuideRef() + ")";
+                detail += " (근거 " + guideName(action.getGuideRef()) + ")";
             }
 
             out.add(new TimelineEvent("action-" + action.getId(), EventType.ACTION,
@@ -336,7 +343,7 @@ public class EquipmentTimelineService {
                 }
             }
 
-            String detail = acknowledged ? "TBM 실시" : "TBM 전";
+            String detail = acknowledged ? "TBM 실시" : "TBM 미실시";
 
             out.add(new TimelineEvent("workplan-" + plan.getId(), EventType.WORK_PLAN,
                     plan.getWorkDate(), plan.getBriefingAckAt(),
@@ -397,9 +404,9 @@ public class EquipmentTimelineService {
     }
 
     private String incidentTitle(Incident incident, Map<Long, Hazard> hazardById) {
-        String axis = incident.getAccidentType() == null ? "재해"
-                : incident.getAccidentType().getLabel();
-        return "%s 사고".formatted(axis);
+        String axis = incident.getIncidentType() == null ? "재해"
+                : incident.getIncidentType().getLabel();
+        return "%s %s".formatted(axis, isNearMiss(incident) ? "아차사고" : "사고");
     }
 
     /**
@@ -428,45 +435,99 @@ public class EquipmentTimelineService {
     // ---------- 요약 ----------
 
     private TimelineDtos.TimelineSummary summary(List<Hazard> hazards,
+                                                 Map<Long, Hazard> hazardById,
+                                                 Map<Long, Assessment> assessmentById,
                                                  List<Incident> incidents,
                                                  List<WorkPlan> workPlans,
                                                  List<Action> actions,
                                                  List<TimelineEvent> events) {
-        TimelineEvent latestAssessment = events.stream()
-                .filter(e -> e.type() == EventType.ASSESSMENT)
-                .reduce((a, b) -> b)
-                .orElse(null);
-
-        RiskLevel current = null;
-        AccidentType currentAxis = null;
-        LocalDate lastAssessedOn = null;
-        if (latestAssessment != null) {
-            current = latestAssessment.riskLevel();
-            currentAxis = latestAssessment.accidentType();
-            lastAssessedOn = latestAssessment.at();
-        }
+        CurrentGrade grade = currentGrade(hazardById, assessmentById);
 
         int overdue = (int) actions.stream().filter(EquipmentTimelineService::isOverdue).count();
         int unfinished = (int) actions.stream().filter(a -> a.getStatus() != ActionStatus.DONE).count();
         int assessmentCount = (int) events.stream()
                 .filter(e -> e.type() == EventType.ASSESSMENT).count();
+        int nearMiss = (int) incidents.stream().filter(EquipmentTimelineService::isNearMiss).count();
+        int incidentCount = incidents.size() - nearMiss;
 
-        return new TimelineDtos.TimelineSummary(current, currentAxis, lastAssessedOn,
-                assessmentCount, workPlans.size(), incidents.size(), unfinished, overdue,
-                headline(current, incidents, overdue, unfinished, hazards));
+        return new TimelineDtos.TimelineSummary(grade.level(), grade.axis(), grade.lastAssessedOn(),
+                assessmentCount, workPlans.size(), incidentCount, nearMiss, unfinished, overdue,
+                headline(grade.level(), incidentCount, nearMiss, overdue, unfinished, hazards));
+    }
+
+    /** 현재 등급: 발생형태별 최신 평가 등급의 최댓값과 그 발생형태, 가장 최근 평가일 */
+    record CurrentGrade(RiskLevel level, AccidentType axis, LocalDate lastAssessedOn) {}
+
+    /**
+     * 현재 등급.
+     *
+     * <p>마지막 평가 하나의 등급만 보면, 끼임만 다시 본 평가가 떨어짐 상을 덮어 설비가 하로 보인다.
+     * 그래서 발생형태마다 가장 최근 평가의 등급(같은 평가 안에서는 가장 높은 것)을 고르고, 그중 가장
+     * 높은 등급을 현재 등급으로 한다. 같은 등급이 여럿이면 더 최근에 평가된 발생형태를 고른다.
+     */
+    CurrentGrade currentGrade(Map<Long, Hazard> hazardById, Map<Long, Assessment> assessmentById) {
+        if (hazardById.isEmpty() || assessmentById.isEmpty()) {
+            return new CurrentGrade(null, null, null);
+        }
+        List<AssessmentHazard> links =
+                assessmentHazardRepository.findByHazardIdIn(List.copyOf(hazardById.keySet()));
+        Comparator<Assessment> recency = Comparator.comparing(Assessment::getAssessedOn)
+                .thenComparing(Assessment::getCreatedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
+                .thenComparing(Assessment::getId);
+
+        // 발생형태 -> 그 형태의 가장 최근 평가, 그 평가 안의 최고 등급
+        Map<AccidentType, Assessment> latestByAxis = new EnumMap<>(AccidentType.class);
+        Map<AccidentType, RiskLevel> levelByAxis = new EnumMap<>(AccidentType.class);
+        LocalDate lastAssessedOn = null;
+        for (AssessmentHazard link : links) {
+            Assessment a = assessmentById.get(link.getAssessmentId());
+            AccidentType axis = axisOf(hazardById, link.getHazardId());
+            if (a == null || axis == null || link.getRiskLevel() == null) {
+                continue;
+            }
+            if (lastAssessedOn == null || a.getAssessedOn().isAfter(lastAssessedOn)) {
+                lastAssessedOn = a.getAssessedOn();
+            }
+            Assessment cur = latestByAxis.get(axis);
+            if (cur == null || recency.compare(a, cur) > 0) {
+                latestByAxis.put(axis, a);
+                levelByAxis.put(axis, link.getRiskLevel());
+            } else if (cur.getId().equals(a.getId())
+                    && severityRank(link.getRiskLevel()) > severityRank(levelByAxis.get(axis))) {
+                levelByAxis.put(axis, link.getRiskLevel());
+            }
+        }
+        AccidentType best = null;
+        for (AccidentType axis : levelByAxis.keySet()) {
+            if (best == null) {
+                best = axis;
+                continue;
+            }
+            int diff = severityRank(levelByAxis.get(axis)) - severityRank(levelByAxis.get(best));
+            if (diff > 0 || (diff == 0 && recency.compare(latestByAxis.get(axis), latestByAxis.get(best)) > 0)) {
+                best = axis;
+            }
+        }
+        return best == null ? new CurrentGrade(null, null, lastAssessedOn)
+                : new CurrentGrade(levelByAxis.get(best), best, lastAssessedOn);
+    }
+
+    static boolean isNearMiss(Incident incident) {
+        return incident.getSeverity() == IncidentSeverity.NEAR_MISS;
     }
 
     /**
      * 상태 칩 하나. 서술 문장이 아니라 가장 강한 사실 하나의 이름과 숫자다
-     * ("기한 경과 1", "사고 1", "최초 평가 필요", "미이행 1"). 해당 없으면 빈 문자열.
+     * ("기한 경과 1", "사고 1", "최초 평가 필요", "미이행 1", "아차사고 1"). 해당 없으면 빈 문자열.
+     * 아차사고는 사고 수에 넣지 않는다.
      */
-    private String headline(RiskLevel current, List<Incident> incidents,
+    private String headline(RiskLevel current, int incidentCount, int nearMissCount,
                             int overdue, int unfinished, List<Hazard> hazards) {
         if (overdue > 0) {
             return "기한 경과 %d".formatted(overdue);
         }
-        if (!incidents.isEmpty()) {
-            return "사고 %d".formatted(incidents.size());
+        if (incidentCount > 0) {
+            return "사고 %d".formatted(incidentCount);
         }
         if (hazards.isEmpty() || current == null) {
             return "최초 평가 필요";
@@ -474,7 +535,20 @@ public class EquipmentTimelineService {
         if (unfinished > 0) {
             return "미이행 %d".formatted(unfinished);
         }
+        if (nearMissCount > 0) {
+            return "아차사고 %d".formatted(nearMissCount);
+        }
         return "";
+    }
+
+    /** 지침 근거는 코드가 아니라 지침명으로 보인다. 캐시에 없으면 코드 그대로 */
+    private String guideName(String guideRef) {
+        String code = guideRef.strip();
+        return koshaGuideRepository.findByGuideNo(code)
+                .map(KoshaGuide::getGuideName)
+                .filter(n -> !n.isBlank())
+                .map(n -> plainSeparators(n.strip()))
+                .orElse(code);
     }
 
     // ---------- 보조 ----------

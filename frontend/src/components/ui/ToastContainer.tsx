@@ -147,7 +147,8 @@ export default function ToastContainer() {
 
   return (
     <div
-      className="fixed top-5 right-5 z-[9999] pointer-events-none"
+      // 오른쪽 아래에 띄운다. 오른쪽 위는 페이지 머리의 주요 버튼(새 대화, 위험성평가표 등) 자리라 가린다
+      className="fixed bottom-5 right-5 z-[9999] pointer-events-none"
       style={{ width: 340, height: stackHeight }}
     >
       {visible.map((toast, index) => (
@@ -164,7 +165,7 @@ export default function ToastContainer() {
       {hiddenCount > 0 && (
         <div
           className="absolute right-0 text-xs text-slate-400 font-medium pointer-events-none text-right w-full"
-          style={{ top: stackHeight + 4 }}
+          style={{ bottom: stackHeight + 4 }}
         >
           {`+${hiddenCount}개 더`}
         </div>

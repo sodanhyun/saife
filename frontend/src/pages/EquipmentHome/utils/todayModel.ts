@@ -2,6 +2,7 @@
 // 서버 정렬(긴급, 주의, 기한 순)은 그대로 두고, 같은 계획서가 두 규칙에 걸린 경우만 한 줄로 합친다.
 import { formUrl } from "@/api/formUrl";
 import { monthDay, plainText } from "@/utils/plainText";
+import { ACCIDENT_LABEL } from "@/types/domain";
 import type { EquipmentCard, TodayItem, TodayKind } from "@/types/timeline";
 import type { Tone } from "@/utils/statusColors";
 
@@ -56,6 +57,8 @@ export function dueText(days: number): string {
 
 function dueOf(item: TodayItem): TodayRowModel["due"] {
   const days = item.daysRemaining;
+  // 작업 보류는 기한이 아니라 금지다. 날짜 칸에는 보류된 작업의 작업일을 둔다
+  if (item.kind === "WORK_HOLD") return item.dueDate ? { text: `작업일 ${monthDay(item.dueDate)}`, tone: "neutral" } : null;
   if (days === null) return null;
   const tone: Tone = days < 0 ? "high" : days <= 3 ? "pending" : "neutral";
   // 법정 1개월 기한은 날짜로 말한다(숫자 카운트다운을 강조하지 않는다)
@@ -67,8 +70,8 @@ function actionOf(item: TodayItem): TodayAction | null {
   const eq = item.equipmentId;
   switch (item.kind) {
     case "WORK_HOLD":
-      // 작업 재개 전 수시평가는 그 설비의 순회점검으로 한다
-      return { label: "수시평가", href: eq !== null ? `/vision?equipmentId=${eq}` : "/vision", external: false };
+      // 사고가 만든 수시평가를 확정해야 보류가 풀린다. 수시평가 id가 없으면 사고 보고 화면으로
+      return { label: "수시평가", href: item.assessmentId !== null && item.assessmentId !== undefined ? `/assessment/${item.assessmentId}` : "/incident", external: false };
     case "OVERDUE_ACTION":
     case "DUE_ACTION":
       return eq !== null && item.refId !== null
@@ -78,7 +81,7 @@ function actionOf(item: TodayItem): TodayAction | null {
     case "PENDING_APPROVAL":
       return item.refId !== null ? { label: "검토", href: `/work-plan?planId=${item.refId}`, external: false } : null;
     case "REPORT_DUE":
-      return item.refId !== null ? { label: "조사표 작성", href: formUrl.incident(item.refId), external: true } : null;
+      return item.refId !== null ? { label: "조사표 작성", href: `/incident?incidentId=${item.refId}`, external: false } : null;
     case "PATROL_DUE":
       return { label: "순회점검", href: "/vision", external: false };
     case "PERIODIC_DUE":
@@ -144,37 +147,49 @@ export interface KpiModel {
   tone: "high" | "pending" | "neutral";
 }
 
-/** 서버 데이터에서만 계산한다. 숫자를 화면이 지어내지 않는다 */
-export function buildKpis(items: TodayItem[], cards: EquipmentCard[]): KpiModel[] {
-  const of = (kinds: TodayKind[]) => items.filter((i) => kinds.includes(i.kind));
-  const overdue = of(KPI_KINDS.overdue);
-  const week = of(KPI_KINDS.week).filter((i) => i.daysRemaining !== null && i.daysRemaining <= 7);
-  const approval = of(KPI_KINDS.approval);
-  const report = of(KPI_KINDS.report);
+/** "7일 내 마감": 기한 임박 조치와 위험 작업 예정 중 오늘부터 7일 안. KPI 숫자와 목록 필터가 이 한 규칙을 쓴다 */
+function inWeek(row: TodayRowModel): boolean {
+  const days = row.item.daysRemaining;
+  return KPI_KINDS.week.includes(row.item.kind) && days !== null && days >= 0 && days <= 7;
+}
+
+/** KPI 하나가 고르는 행. 숫자와 필터 결과가 늘 같도록 KPI 값도 이 함수로 센다 */
+function matches(row: TodayRowModel, key: Exclude<KpiKey, "highRisk">): boolean {
+  if (key === "approval") return row.item.kind === "PENDING_APPROVAL" || row.awaitingApproval;
+  if (key === "week") return inWeek(row);
+  return KPI_KINDS[key].includes(row.item.kind);
+}
+
+/** 서버 데이터에서만 계산한다. 숫자를 화면이 지어내지 않는다. 숫자는 목록 행 기준(필터 결과와 같은 수) */
+export function buildKpis(rows: TodayRowModel[], cards: EquipmentCard[]): KpiModel[] {
+  const overdue = rows.filter((r) => matches(r, "overdue"));
+  const report = rows.filter((r) => matches(r, "report"));
   const high = cards.filter((c) => c.currentRiskLevel === "HIGH");
-  const worstOverdue = overdue.length ? Math.max(...overdue.map((i) => -(i.daysRemaining ?? 0))) : 0;
+  const worstOverdue = overdue.length ? Math.max(...overdue.map((r) => -(r.item.daysRemaining ?? 0))) : 0;
   const nextReport = report
+    .map((r) => r.item)
     .filter((i) => i.dueDate !== null)
     .sort((a, b) => (a.dueDate! < b.dueDate! ? -1 : 1))[0];
   return [
     { key: "overdue", label: "기한 경과 조치", value: overdue.length, tone: "high",
       note: overdue.length ? `최장 ${worstOverdue}일` : null },
-    { key: "week", label: "7일 내 마감", value: week.length, tone: "pending", note: null },
-    { key: "approval", label: "승인 대기", value: approval.length, tone: "pending", note: null },
+    { key: "week", label: "7일 내 마감", value: rows.filter((r) => matches(r, "week")).length, tone: "pending", note: null },
+    { key: "approval", label: "승인 대기", value: rows.filter((r) => matches(r, "approval")).length, tone: "pending", note: null },
     { key: "report", label: "조사표 미제출", value: report.length, tone: "pending",
       note: nextReport?.dueDate ? `기한 ${monthDay(nextReport.dueDate)}` : null },
     { key: "highRisk", label: "고위험 설비", value: high.length, tone: "high", note: null },
   ];
 }
 
+/** KPI 필터. 고위험 설비는 오늘 할 일이 아니라 설비 목록을 좁히므로 여기서는 전체를 돌려준다 */
 export function filterRows(rows: TodayRowModel[], key: KpiKey | null): TodayRowModel[] {
   if (!key || key === "highRisk") return rows;
-  const kinds = KPI_KINDS[key];
-  return rows.filter((r) => {
-    if (key === "approval") return r.item.kind === "PENDING_APPROVAL" || r.awaitingApproval;
-    if (key === "week") return kinds.includes(r.item.kind) && r.item.daysRemaining !== null && r.item.daysRemaining <= 7;
-    return kinds.includes(r.item.kind);
-  });
+  return rows.filter((r) => matches(r, key));
+}
+
+/** 고위험 설비 필터: 현재 등급 상인 설비만 */
+export function filterHighRisk(cards: EquipmentCard[], on: boolean): EquipmentCard[] {
+  return on ? cards.filter((c) => c.currentRiskLevel === "HIGH") : cards;
 }
 
 const RISK_RANK = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const;
@@ -206,13 +221,22 @@ export interface CardChip {
 }
 
 /**
- * 설비 상태 칩 하나. 서버 headline과 같은 규칙(기한 경과, 사고, 최초 평가 필요, 미이행 순)을
+ * 설비 상태 칩 하나. 서버 headline과 같은 규칙(기한 경과, 사고, 최초 평가 필요, 미이행, 아차사고 순)을
  * 카드 숫자에서 다시 읽는다. 톤을 정하려면 종류가 필요해서다.
  */
-export function cardChip(c: Pick<EquipmentCard, "overdueActionCount" | "incidentCount" | "unfinishedActionCount" | "currentRiskLevel">): CardChip | null {
+export function cardChip(c: Pick<EquipmentCard, "overdueActionCount" | "incidentCount" | "unfinishedActionCount" | "currentRiskLevel"> & { nearMissCount?: number }): CardChip | null {
   if (c.overdueActionCount > 0) return { text: `기한 경과 ${c.overdueActionCount}`, tone: "high" };
   if (c.incidentCount > 0) return { text: `사고 ${c.incidentCount}`, tone: "high" };
   if (!c.currentRiskLevel) return { text: "최초 평가 필요", tone: "pending" };
   if (c.unfinishedActionCount > 0) return { text: `미이행 ${c.unfinishedActionCount}`, tone: "pending" };
+  if ((c.nearMissCount ?? 0) > 0) return { text: `아차사고 ${c.nearMissCount}`, tone: "pending" };
   return null;
+}
+
+/** 우상단 한 줄: "최근 평가 떨어짐 10-04". 평가가 없으면 null */
+export function assessedLabel(card: Pick<EquipmentCard, "currentRiskAxis" | "lastAssessedOn">): string | null {
+  if (!card.lastAssessedOn && !card.currentRiskAxis) return null;
+  const parts = ["최근 평가", card.currentRiskAxis ? ACCIDENT_LABEL[card.currentRiskAxis] : null,
+    card.lastAssessedOn ? monthDay(card.lastAssessedOn) : null];
+  return parts.filter(Boolean).join(" ");
 }

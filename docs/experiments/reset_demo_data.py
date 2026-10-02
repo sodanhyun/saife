@@ -16,8 +16,15 @@ V14, V15)가 만든 것까지만 남기고, 실행 중 생긴 것(추가 사고,
   incident          id <= 6   (V10: 1, V15: 2~6)
   process / site / public_case / kosha_guide / msds_cache 는 건드리지 않는다
 
-날짜는 되돌리지 않는다. 시드 날짜는 V14/V15가 적용된 날 기준이다. 날짜까지 오늘로 맞추려면
-볼륨을 새로 만든다(`docker compose down -v` 후 `up -d --build`, deployment.md 참고).
+날짜는 되돌리지 않는다. 시드 날짜는 V14/V15가 적용된 날 기준 상대값이고 평일로 보정되어 있다(주말, 공휴일 회피).
+날짜까지 오늘로 맞추려면 볼륨을 새로 만든다(`docker compose down -v` 후 `up -d --build`, deployment.md 참고).
+녹화는 녹화 기준일(가짜 시계)로 볼륨을 새로 만든 뒤 이 스크립트로 시연 사이사이를 되돌린다.
+
+시드 상태(2차 시드, 2026-10-03):
+  조치      기한 경과 1, 40, 41 / 기한 전 4, 5, 42, 43, 53, 54 / 나머지 이행 완료
+  작업 전 점검  승인 대기 38, 39 / 승인 40, 41 / 작업 보류 42(사고 6 후속, 승인 조건 있음) / 나머지 완료
+  수시평가   24(사고 6)만 작성 중, 나머지 확정
+  사고      조사표 제출 1, 5 / 대상 아님 2, 3, 4 / 작성 필요 6
 
 사용법:
   python reset_demo_data.py
@@ -47,6 +54,7 @@ MAX_WORK_PLAN = 42
 MAX_INCIDENT = 6
 
 HOLD_WARNING = "작업 보류: 수시평가 완료 전 작업 재개 금지"
+HOLD_NOTE = "훅 해지장치 교체 전까지 신호수가 줄걸이 상태를 확인한 뒤 인양"
 
 SQL = f"""
 BEGIN;
@@ -88,22 +96,34 @@ UPDATE action SET status = 'PENDING', completed_at = NULL WHERE id IN (4, 5, 42,
 UPDATE action SET status = 'DONE'
   WHERE id <= {MAX_ACTION} AND id NOT IN (1, 4, 5, 40, 41, 42, 43, 53, 54);
 UPDATE action SET content = '차양부 천장 작업 시 이동식 비계(안전난간) 사용' WHERE id = 1;
-UPDATE action SET content = '고소작업대 안전난간 보수 후 월 1회 점검(재발 방지)' WHERE id = 5;
+UPDATE action SET content = '고소작업대 안전난간 월 1회 점검' WHERE id = 5;
 
 -- 시드 평가 상태 복원. 사고 6(천장크레인)의 수시평가 24만 작성 중이다
 UPDATE assessment SET status = 'CONFIRMED' WHERE id < 24;
 UPDATE assessment SET status = 'DRAFT', inspector = NULL, participants = NULL WHERE id = 24;
+-- V16(사고 보고 항목)의 확정 시각, 제출일. 컬럼이 없는 DB에서도 돌게 한다
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'assessment' AND column_name = 'confirmed_at') THEN
+    UPDATE assessment SET confirmed_at = NULL WHERE id = 24;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'incident' AND column_name = 'report_submitted_on') THEN
+    UPDATE incident SET report_submitted_on = NULL WHERE id = 6;
+  END IF;
+END $$;
 
 -- 시드 작업 전 점검 상태 복원(승인, 작업 보류는 시연에서 바뀐다)
+-- 지난 작업일은 전부 완료다(2차 시드부터 조건부 승인, 승인 상태로 남은 지난 작업이 없다)
 UPDATE work_plan SET warning_note = NULL WHERE id <= {MAX_WORK_PLAN} AND id <> 42;
-UPDATE work_plan SET status = 'CONDITIONAL' WHERE id IN (1, 26, 35);
-UPDATE work_plan SET status = 'APPROVED' WHERE id IN (29, 33, 40, 41);
+UPDATE work_plan SET status = 'APPROVED' WHERE id IN (40, 41);
 UPDATE work_plan SET status = 'CLOSED'
-  WHERE id <= {MAX_WORK_PLAN} AND id NOT IN (1, 26, 29, 33, 35, 38, 39, 40, 41, 42);
+  WHERE id <= {MAX_WORK_PLAN} AND id NOT IN (38, 39, 40, 41, 42);
 UPDATE work_plan SET status = 'SUBMITTED', approved_by = NULL, approved_at = NULL, approval_note = NULL,
                      briefing_ack_at = NULL WHERE id IN (38, 39);
-UPDATE work_plan SET briefing_ack_at = NULL WHERE id IN (40, 41, 42);
-UPDATE work_plan SET status = 'HOLD', warning_note = '{HOLD_WARNING}' WHERE id = 42;
+UPDATE work_plan SET briefing_ack_at = NULL, closed_at = NULL WHERE id IN (40, 41, 42);
+-- 작업 보류 해제(수시평가 확정)가 승인 정보를 지웠을 수 있다. 사고 전날 오후 승인으로 되돌린다
+UPDATE work_plan SET status = 'HOLD', warning_note = '{HOLD_WARNING}', approval_note = '{HOLD_NOTE}',
+                     approved_by = '정민준', approved_at = COALESCE(approved_at, created_at + INTERVAL '95 minutes')
+ WHERE id = 42;
 
 -- 시드 사고의 조사표 상태 복원
 UPDATE incident SET report_status = 'SUBMITTED' WHERE id IN (1, 5);

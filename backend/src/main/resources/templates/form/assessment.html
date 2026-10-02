@@ -10,7 +10,7 @@
 <body>
 <main class="sheet">
   <style>.grid td, .grid th { font-size: 9pt; padding: 4px 5px; word-break: keep-all; overflow-wrap: anywhere; } .grid th { white-space: normal; }</style>
-  <h1>위 험 성 평 가 표</h1>
+  <h1>위험성평가표</h1>
   <p class="subtitle" th:text="${form.basis}">근거</p>
 
   <table>
@@ -22,7 +22,7 @@
     </tr>
     <tr>
       <td class="label">실시 시기</td>
-      <td th:text="${form.assessedOn}">-</td>
+      <td class="d" th:text="${form.assessedOn}">-</td>
       <td class="label">평가 방법</td>
       <td th:text="${form.method}">-</td>
     </tr>
@@ -100,7 +100,7 @@
       </td>
       <td style="word-break:keep-all">
         <span th:text="${row.owner} ?: '-'">-</span><br>
-        <span th:text="${row.dueDate} ?: '-'">-</span>
+        <span class="nowrap" th:text="${row.dueDate} ?: '-'">-</span>
       </td>
       <td style="text-align:center; word-break:keep-all" th:text="${row.result}">-</td>
     </tr>

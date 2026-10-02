@@ -360,6 +360,56 @@ class TodayServiceTest {
                 .isEqualTo("담당 생산반장 김철수, 잠정조치 필요");
     }
 
+    @Test
+    @DisplayName("OVERDUE_ACTION — 조치 등록 뒤 잠정조치를 달고 승인된 점검이 있으면 '잠정조치 중'")
+    void overdueAction_withApprovedInterim_showsInterimInProgress() {
+        Action action = actionRepository.save(Action.builder()
+                .hazardId(1L).content("[TEST] 잠정조치 중").owner("생산반장 김철수").status(ActionStatus.PENDING)
+                .dueDate(today().minusDays(3)).build());
+        WorkPlan plan = workPlanRepository.save(WorkPlan.builder()
+                .siteId(SITE).equipmentId(1L).workName("[TEST] 잠정조치 승인")
+                .workDate(today()).status(WorkPlanStatus.SUBMITTED).build());
+        plan.approve("김철수", "이동식 비계 설치 전까지 2인 1조로 사다리 고정");
+        workPlanRepository.save(plan);
+
+        Optional<TodayDtos.TodayItem> item = findByKindAndRef(todayService.today(), "OVERDUE_ACTION", action.getId());
+
+        assertThat(item).get().extracting(TodayDtos.TodayItem::detail)
+                .isEqualTo("담당 생산반장 김철수, 잠정조치 중");
+    }
+
+    @Test
+    @DisplayName("REPORT_DUE — 보조 줄은 휴업일수만(기한은 날짜 칸)")
+    void reportDue_detailIsLeaveDaysOnly() {
+        Incident incident = incidentRepository.save(Incident.builder()
+                .siteId(SITE).equipmentId(1L)
+                .occurredAt(OffsetDateTime.now().minusDays(5))
+                .accidentType(AccidentType.FALL).leaveDays(14).severity(IncidentSeverity.LOST_TIME)
+                .reportDueDate(today().plusDays(25)).reportStatus(ReportStatus.REQUIRED).build());
+
+        assertThat(findByKindAndRef(todayService.today(), "REPORT_DUE", incident.getId()))
+                .get().extracting(TodayDtos.TodayItem::detail).isEqualTo("휴업 14일");
+    }
+
+    @Test
+    @DisplayName("WORK_HOLD — 같은 설비 사고가 만든 가장 최근 수시평가 id를 싣는다")
+    void workHold_carriesFollowUpAssessmentId() {
+        Assessment followUp = assessmentRepository.save(Assessment.builder()
+                .siteId(SITE).kind(AssessmentKind.OCCASIONAL).assessedOn(today()).status("DRAFT").build());
+        incidentRepository.save(Incident.builder()
+                .siteId(SITE).equipmentId(1L)
+                .occurredAt(OffsetDateTime.now().minusHours(1))
+                .accidentType(AccidentType.FALL).leaveDays(5).severity(IncidentSeverity.LOST_TIME)
+                .reportDueDate(today().plusMonths(1)).reportStatus(ReportStatus.REQUIRED)
+                .followUpAssessmentId(followUp.getId()).build());
+        WorkPlan plan = workPlanRepository.save(WorkPlan.builder()
+                .siteId(SITE).equipmentId(1L).workName("[TEST] 보류 해제 대상")
+                .workDate(today().plusDays(1)).status(WorkPlanStatus.HOLD).build());
+
+        assertThat(findByKindAndRef(todayService.today(), "WORK_HOLD", plan.getId()))
+                .get().extracting(TodayDtos.TodayItem::assessmentId).isEqualTo(followUp.getId());
+    }
+
     private void removeThisYearInitialOrRegular() {
         entityManager.createNativeQuery(
                 "DELETE FROM assessment_hazard WHERE assessment_id IN "

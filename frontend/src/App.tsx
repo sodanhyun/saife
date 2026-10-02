@@ -14,6 +14,7 @@ const EquipmentDetailPage = lazy(() => import("@/pages/Equipment"));
 const WorkPlanPage = lazy(() => import("@/pages/WorkPlan"));
 const VisionPage = lazy(() => import("@/pages/Vision"));
 const IncidentPage = lazy(() => import("@/pages/Incident"));
+const AssessmentPage = lazy(() => import("@/pages/Assessment"));
 const TimelinePage = lazy(() => import("@/pages/Timeline"));
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
                 <Route path="/work-plan" element={<WorkPlanPage />} />
                 <Route path="/vision" element={<VisionPage />} />
                 <Route path="/incident" element={<IncidentPage />} />
+                <Route path="/assessment/:assessmentId" element={<AssessmentPage />} />
                 <Route path="/timeline" element={<TimelinePage />} />
                 <Route path="*" element={<Navigate to={LANDING_PATH} replace />} />
               </Routes>

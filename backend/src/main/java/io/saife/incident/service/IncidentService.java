@@ -10,9 +10,13 @@ import io.saife.core.service.EquipmentMatcher;
 import io.saife.dashboard.dto.TimelineDtos;
 import io.saife.evidence.Evidence;
 import io.saife.incident.domain.Incident;
+import io.saife.incident.domain.IncidentSeverity;
+import io.saife.incident.domain.IncidentType;
 import io.saife.incident.domain.ReportStatus;
+import io.saife.incident.repository.FollowUpRecordStore;
 import io.saife.incident.dto.IncidentDtos;
 import io.saife.incident.repository.IncidentRepository;
+import io.saife.common.error.ApiExceptions.ConflictException;
 import io.saife.common.error.ApiExceptions.InvalidRequestException;
 import io.saife.common.error.ApiExceptions.NotFoundException;
 import io.saife.workplan.domain.WorkPlan;
@@ -28,6 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,6 +69,8 @@ public class IncidentService {
     private final IncidentEvidenceCollector evidenceCollector;
     private final WorkPlanRepository workPlanRepository;
     private final ProcessRepository processRepository;
+    private final FollowUpRecordStore followUpRecords;
+    private final io.saife.core.repository.AssessmentRepository assessmentRepository;
 
     // 자기 호출로 @Transactional 경계를 새로 열려면 프록시를 거쳐야 한다(VisionAssessmentService와 동일 패턴).
     // register()는 트랜잭션 밖에서 근거 수집을 해야 해서 그 자체는 @Transactional이 아니다 —
@@ -72,8 +80,13 @@ public class IncidentService {
     private static final String DISCLAIMER =
             "작성 보조 결과입니다. 법률 자문이 아니며 최종 확정과 제출은 담당자가 합니다.";
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     /** 시행규칙 제37조제2항제3호: 산업재해가 발생한 경우 관련 작업을 시작하기 전까지 수시평가 */
-    private static final String FOLLOW_UP_LEGAL_BASIS = "시행규칙 제37조제2항제3호";
+    public static final String FOLLOW_UP_LEGAL_BASIS = "시행규칙 제37조제2항제3호";
+
+    /** 발생 일시 입력의 시계 오차 허용폭. 이보다 미래면 받지 않는다 */
+    private static final long FUTURE_TOLERANCE_MINUTES = 5;
 
     /** 작업 보류 문구. 작업계획서 warningNote에 남고, 홈 "오늘 할 일"이 이 상태를 읽는다 */
     public static final String HOLD_WARNING = "작업 보류: 수시평가 완료 전 작업 재개 금지";
@@ -106,7 +119,7 @@ public class IncidentService {
 
         String caseQuery = caseQueryText(core.recall(), core.incident());
         IncidentEvidenceCollector.Collected collected =
-                safeCollectEvidence(caseQuery, core.incident().getAccidentType());
+                safeCollectEvidence(caseQuery, core.incident().getIncidentType());
 
         IncidentReportDrafter.Draft draft = drafter.draft(core.incident(), core.recall(), collected.all());
         Incident incident = safeAttachDraft(core.incident(), draft);
@@ -156,9 +169,12 @@ public class IncidentService {
                 .occurredAt(occurredAt)
                 .victimName(request.victimName())
                 .severity(request.severity())
-                .leaveDays(request.leaveDays())
-                .accidentType(request.accidentType())
-                .description(request.description())
+                .leaveDays(request.severity() == IncidentSeverity.LOST_TIME ? request.leaveDays()
+                        : request.severity() == IncidentSeverity.NEAR_MISS ? null : request.leaveDays())
+                .incidentType(request.incidentType())
+                .description(trimToNull(request.description()))
+                .injuryType(request.severity() == IncidentSeverity.NEAR_MISS ? null : trimToNull(request.injuryType()))
+                .injuryPart(request.severity() == IncidentSeverity.NEAR_MISS ? null : trimToNull(request.injuryPart()))
                 .build();
 
         incident.decideReportDuty();
@@ -167,15 +183,15 @@ public class IncidentService {
         // knownAsOf = 사고가 기록된 시각. 이후에 생기는 수시평가를
         // "사고 전에 알고 있었다"의 근거로 쓰면 순환 논증이 된다
         EquipmentHistoryRecaller.Recall recall = recaller.recall(
-                equipmentId, request.accidentType(), occurredAt, incident.getCreatedAt(),
+                equipmentId, incident.getAccidentType(), occurredAt, incident.getCreatedAt(),
                 EquipmentHistoryRecaller.Purpose.POST_INCIDENT);
 
         // 평가일은 사고보다 앞설 수 없다. 수시평가는 재해 발생 뒤,
         // 작업 재개 전에 하는 것이다. today를 그대로 쓰면 UC4 타임라인에서
         // 수시평가가 그걸 만든 사고보다 앞에 놀이고 화살표가 거꾸로 간다.
-        LocalDate today = LocalDate.now();
-        LocalDate assessedOn = today.isBefore(occurredAt.toLocalDate())
-                ? occurredAt.toLocalDate() : today;
+        LocalDate today = LocalDate.now(KST);
+        LocalDate occurredOn = occurredAt.atZoneSameInstant(KST).toLocalDate();
+        LocalDate assessedOn = today.isBefore(occurredOn) ? occurredOn : today;
 
         FollowUpAssessmentService.Result followUp =
                 followUpAssessmentService.create(incident, assessedOn);
@@ -189,7 +205,7 @@ public class IncidentService {
         TimelineDtos.RecallView recallView = TimelineDtos.RecallView.from(recall, processNameOf(incident.getEquipmentId()));
         IncidentDtos.ReportDuty reportDuty = reportDuty(incident, today);
         IncidentDtos.FollowUpView followUpView = new IncidentDtos.FollowUpView(followUp.assessmentId(), "수시",
-                FOLLOW_UP_LEGAL_BASIS, followUp.regraded(), followUp.newHazardId());
+                FOLLOW_UP_LEGAL_BASIS, followUp.regraded(), followUp.newHazardId(), "DRAFT", null);
 
         return new RegisterCore(incident, recall, recallView, reportDuty, followUpView, affectedWorkPlans);
     }
@@ -201,7 +217,7 @@ public class IncidentService {
     @Transactional
     public Incident attachDraft(Long incidentId, IncidentReportDrafter.Draft draft) {
         Incident incident = incidentRepository.findById(incidentId).orElseThrow(
-                () -> new NotFoundException("사고를 찾을 수 없습니다: " + incidentId));
+                () -> new NotFoundException("사고를 찾을 수 없습니다."));
         incident.attachDraft(draft.cause(), draft.prevention());
         return incidentRepository.save(incident);
     }
@@ -252,9 +268,9 @@ public class IncidentService {
      * 근거 수집기가 이미 각 검색을 개별 try/catch로 흡수하지만, 여기서 한 번 더 감싼다 —
      * 근거 때문에 등록 자체가 실패하는 경로를 원천적으로 남기지 않기 위해서다.
      */
-    private IncidentEvidenceCollector.Collected safeCollectEvidence(String queryText, AccidentType axis) {
+    private IncidentEvidenceCollector.Collected safeCollectEvidence(String queryText, IncidentType type) {
         try {
-            return evidenceCollector.collect(queryText, axis);
+            return evidenceCollector.collect(queryText, type);
         } catch (Exception e) {
             log.warn("[UC2] 근거 수집 실패 — 등록은 그대로 진행한다: {}", e.getMessage());
             return new IncidentEvidenceCollector.Collected(List.of(), List.of());
@@ -269,13 +285,57 @@ public class IncidentService {
      * 있을 수 없는 값은 기록 단계에서 막는다 (2026-09-21 QA 실측).
      */
     private void validate(IncidentDtos.RegisterRequest request) {
+        if (request.incidentType() == null) {
+            throw new InvalidRequestException("발생형태를 선택하십시오.");
+        }
+        if (request.severity() == null) {
+            throw new InvalidRequestException("재해 정도를 선택하십시오.");
+        }
+        if (request.severity() == IncidentSeverity.LOST_TIME
+                && (request.leaveDays() == null || request.leaveDays() < 1)) {
+            throw new InvalidRequestException("휴업이면 휴업예상일수를 입력하십시오.");
+        }
+        if (request.occurredAt() != null
+                && request.occurredAt().isAfter(OffsetDateTime.now().plusMinutes(FUTURE_TOLERANCE_MINUTES))) {
+            throw new InvalidRequestException("발생 일시는 지금보다 늦을 수 없습니다.");
+        }
+        if (tooLong(request.injuryType()) || tooLong(request.injuryPart())) {
+            throw new InvalidRequestException("상해 종류와 부위는 100자 이하로 입력하십시오.");
+        }
         Integer days = request.leaveDays();
         if (days != null && days < 0) {
-            throw new InvalidRequestException("휴업일수는 0 이상이어야 합니다: " + days);
+            throw new InvalidRequestException("휴업예상일수는 0 이상이어야 합니다.");
         }
         if (days != null && days > 3650) {
-            throw new InvalidRequestException("휴업일수가 비현실적입니다: " + days);
+            throw new InvalidRequestException("휴업예상일수를 다시 확인하십시오.");
         }
+    }
+
+    private static boolean tooLong(String v) {
+        return v != null && v.strip().length() > 100;
+    }
+
+    private static String trimToNull(String v) {
+        return v == null || v.isBlank() ? null : v.strip();
+    }
+
+    /**
+     * 산업재해조사표 제출 완료 처리. 제출 의무가 있는 건(제출 필요, 기한 경과)만 바꾼다.
+     * 제출일은 오늘이다. 이미 제출 완료면 그대로 돌려준다(멱등).
+     */
+    @Transactional
+    public IncidentDtos.IncidentListItem markSubmitted(Long incidentId) {
+        Incident incident = incidentRepository.findById(incidentId).orElseThrow(
+                () -> new NotFoundException("사고를 찾을 수 없습니다."));
+        if (incident.getReportStatus() != ReportStatus.SUBMITTED) {
+            if (incident.getReportStatus() != ReportStatus.REQUIRED
+                    && incident.getReportStatus() != ReportStatus.OVERDUE) {
+                throw new ConflictException("산업재해조사표 제출 대상이 아닙니다.");
+            }
+            incident.markSubmitted(LocalDate.now(KST));
+            incident = incidentRepository.save(incident);
+        }
+        return listItem(incident, LocalDate.now(KST));
     }
 
     /**
@@ -288,7 +348,7 @@ public class IncidentService {
     @Transactional(readOnly = true)
     public IncidentDtos.RegisterResponse detail(Long incidentId) {
         Incident incident = incidentRepository.findById(incidentId).orElseThrow(
-                () -> new NotFoundException("사고를 찾을 수 없습니다: " + incidentId));
+                () -> new NotFoundException("사고를 찾을 수 없습니다."));
 
         EquipmentHistoryRecaller.Recall recall = recaller.recall(
                 incident.getEquipmentId(), incident.getAccidentType(),
@@ -301,17 +361,15 @@ public class IncidentService {
 
         String caseQuery = caseQueryText(recall, incident);
         IncidentEvidenceCollector.Collected collected =
-                safeCollectEvidence(caseQuery, incident.getAccidentType());
+                safeCollectEvidence(caseQuery, incident.getIncidentType());
 
         TimelineDtos.RecallView recallView = TimelineDtos.RecallView.from(recall, processNameOf(incident.getEquipmentId()));
-        IncidentDtos.ReportDuty reportDuty = reportDuty(incident, LocalDate.now());
+        IncidentDtos.ReportDuty reportDuty = reportDuty(incident, LocalDate.now(KST));
         // 최종 리뷰 F9: 재조회에서도 2단계(수시평가)가 "재평가 대상 위험요인이 없습니다"로 틀리게 나오지 않도록
         // 저장된 assessment_hazard에서 등급 변화를 다시 읽는다(새로 채점하지 않는다)
         FollowUpAssessmentService.Result followUp =
                 followUpAssessmentService.reconstruct(incident.getFollowUpAssessmentId());
-        IncidentDtos.FollowUpView followUpView = new IncidentDtos.FollowUpView(
-                incident.getFollowUpAssessmentId(), "수시", FOLLOW_UP_LEGAL_BASIS,
-                followUp.regraded(), followUp.newHazardId());
+        IncidentDtos.FollowUpView followUpView = followUpView(incident.getFollowUpAssessmentId(), followUp);
         List<IncidentDtos.CascadeStep> cascade =
                 buildCascade(incident, recallView, followUpView, reportDuty, affectedWorkPlans, collected.similarCases());
 
@@ -320,7 +378,11 @@ public class IncidentService {
                 reportDuty,
                 recallView,
                 followUpView,
-                new IncidentDtos.DraftView(incident.getCause(), incident.getPrevention(),
+                // 예전 기록(시드 포함)의 "기한 작업 재개 전", "MM-DD" 같은 기한도 화면에서는 날짜로 맞춰 보인다
+                new IncidentDtos.DraftView(incident.getCause(),
+                        PreventionFormat.normalize(incident.getPrevention(),
+                                incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate(),
+                                IncidentReportDrafter.SAFETY_MANAGER),
                         false, DISCLAIMER),
                 cascade,
                 affectedWorkPlans,
@@ -336,7 +398,7 @@ public class IncidentService {
      */
     @Transactional
     public Page<IncidentDtos.IncidentListItem> list(Long siteId, Pageable pageable) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(KST);
         return incidentRepository.findBySiteIdOrderByOccurredAtDesc(siteId, pageable)
                 .map(incident -> {
                     ReportStatus before = incident.getReportStatus();
@@ -377,8 +439,10 @@ public class IncidentService {
         return new IncidentDtos.IncidentSummary(
                 incident.getId(), incident.getSiteId(), incident.getEquipmentId(), equipmentName,
                 incident.getWorkPlanId(), incident.getOccurredAt(), incident.getVictimName(),
-                incident.getSeverity(), incident.getLeaveDays(), incident.getAccidentType(),
-                incident.getDescription(), incident.getFollowUpAssessmentId());
+                incident.getSeverity(), incident.getLeaveDays(), incident.getIncidentType(),
+                incident.getIncidentType() == null ? null : incident.getIncidentType().getLabel(),
+                incident.getAccidentType(), incident.getDescription(),
+                incident.getInjuryType(), incident.getInjuryPart(), incident.getFollowUpAssessmentId());
     }
 
     /**
@@ -388,13 +452,27 @@ public class IncidentService {
      * 등급과 마찬가지로, 근거를 화면에 띄울 수 없는 자동 판정은 만들지 않는다.
      */
     private IncidentDtos.ReportDuty reportDuty(Incident incident, LocalDate today) {
-        Integer leaveDays = incident.getLeaveDays();
-        String basis;
-
         return new IncidentDtos.ReportDuty(
                 incident.getReportStatus(), incident.getReportStatus().getLabel(),
                 incident.getReportDueDate(), incident.daysUntilDue(today), reportBasis(incident),
-                incident.isSeriousAccidentPossible());
+                incident.isSeriousAccidentPossible(), incident.getReportSubmittedOn());
+    }
+
+    /** 재조회 경로의 수시평가 뷰: 저장된 등급 변화 + 지금 상태(작성 중, 확정일) */
+    private IncidentDtos.FollowUpView followUpView(Long assessmentId, FollowUpAssessmentService.Result followUp) {
+        String status = "DRAFT";
+        LocalDate confirmedOn = null;
+        if (assessmentId != null) {
+            io.saife.core.domain.Assessment a = assessmentRepository.findById(assessmentId).orElse(null);
+            if (a != null && "CONFIRMED".equals(a.getStatus())) {
+                status = "CONFIRMED";
+                confirmedOn = followUpRecords.confirmedAt(assessmentId)
+                        .map(t -> t.atZoneSameInstant(KST).toLocalDate())
+                        .orElse(a.getAssessedOn());
+            }
+        }
+        return new IncidentDtos.FollowUpView(assessmentId, "수시", FOLLOW_UP_LEGAL_BASIS,
+                followUp.regraded(), followUp.newHazardId(), status, confirmedOn);
     }
 
     /**
@@ -403,8 +481,11 @@ public class IncidentService {
      */
     public static String reportBasis(Incident incident) {
         Integer leaveDays = incident.getLeaveDays();
-        if (incident.getSeverity() == io.saife.incident.domain.IncidentSeverity.FATALITY) {
+        if (incident.getSeverity() == IncidentSeverity.FATALITY) {
             return "사망 재해, 발생일부터 1개월 이내 제출 (시행규칙 제73조)";
+        }
+        if (incident.getSeverity() == IncidentSeverity.NEAR_MISS) {
+            return "아차사고, 조사표 제출 대상 아님";
         }
         if (leaveDays == null) {
             return "휴업예상일수 미입력, 제출 대상 판단 보류";
@@ -423,10 +504,12 @@ public class IncidentService {
 
         return new IncidentDtos.IncidentListItem(
                 incident.getId(), incident.getEquipmentId(), equipmentName,
-                incident.getOccurredAt(), incident.getAccidentType(), incident.getSeverity(),
+                incident.getOccurredAt(), incident.getIncidentType(),
+                incident.getIncidentType() == null ? null : incident.getIncidentType().getLabel(),
+                incident.getSeverity(),
                 incident.getLeaveDays(), incident.getReportStatus(),
                 incident.getReportStatus().getLabel(), incident.getReportDueDate(),
-                incident.daysUntilDue(today), incident.getFollowUpAssessmentId());
+                incident.daysUntilDue(today), incident.getReportSubmittedOn(), incident.getFollowUpAssessmentId());
     }
 
     // ────────────────────────── 사고 연쇄 (2-2) ──────────────────────────
@@ -444,7 +527,7 @@ public class IncidentService {
         if (incident.getEquipmentId() == null) {
             return List.of();
         }
-        LocalDate incidentDate = incident.getOccurredAt().toLocalDate();
+        LocalDate incidentDate = incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate();
         List<WorkPlan> plans = workPlanRepository
                 .findBySiteIdAndEquipmentIdAndStatusInAndWorkDateGreaterThanEqualOrderByWorkDateAsc(
                         incident.getSiteId(), incident.getEquipmentId(),
@@ -476,7 +559,10 @@ public class IncidentService {
                 .orElse(null);
     }
 
-    /** {@code detail()} 재구성 경로: 새로 보류하지 않고, 사고일 이후 작업일의 보류 중인 계획서만 읽는다 */
+    /**
+     * {@code detail()} 재구성 경로: 새로 보류하지 않고, 이 사고가 보류 문구를 붙인 계획서를 읽는다.
+     * 수시평가 확정으로 보류가 풀린 것(재승인 대기 등)도 담는다. {@code status}가 지금 상태다.
+     */
     private List<IncidentDtos.AffectedWorkPlan> readAffectedWorkPlans(Incident incident) {
         if (incident.getEquipmentId() == null) {
             return List.of();
@@ -484,10 +570,11 @@ public class IncidentService {
         return workPlanRepository
                 .findBySiteIdAndEquipmentIdAndStatusInAndWorkDateGreaterThanEqualOrderByWorkDateAsc(
                         incident.getSiteId(), incident.getEquipmentId(),
-                        List.of(WorkPlanStatus.HOLD), incident.getOccurredAt().toLocalDate())
+                        Arrays.asList(WorkPlanStatus.values()),
+                        incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate())
                 .stream()
                 // 최종 리뷰 F9: 사고 뒤에 새로 만든(보류 문구가 없는) 계획서는 대상이 아니다
-                .filter(plan -> plan.getWarningNote() != null && plan.getWarningNote().contains(HOLD_WARNING))
+                .filter(FollowUpConfirmService::heldByIncident)
                 .map(plan -> new IncidentDtos.AffectedWorkPlan(plan.getId(), plan.getWorkName(),
                         plan.getWorkDate(), plan.getStatus().name(), HOLD_WARNING))
                 .toList();
@@ -526,10 +613,13 @@ public class IncidentService {
                 detail, emphasis, recall.equipmentId(), "EQUIPMENT");
     }
 
-    /** 2단계: 수시평가(작업 재개 전). 등급 변화 요약을 붙인다 */
+    /** 2단계: 수시평가(작업 재개 전). 등급 변화 요약을 붙인다. 확정했으면 NORMAL */
     private IncidentDtos.CascadeStep followUpStep(IncidentDtos.FollowUpView followUp) {
-        return new IncidentDtos.CascadeStep(2, "FOLLOW_UP", "수시평가",
-                regradeSummary(followUp.regraded()), TimelineDtos.Emphasis.WARNING,
+        boolean confirmed = "CONFIRMED".equals(followUp.status());
+        return new IncidentDtos.CascadeStep(2, "FOLLOW_UP",
+                confirmed ? "수시평가 확정 %s".formatted(followUp.confirmedOn()) : "수시평가 작성 중",
+                regradeSummary(followUp.regraded()),
+                confirmed ? TimelineDtos.Emphasis.NORMAL : TimelineDtos.Emphasis.WARNING,
                 followUp.assessmentId(), "ASSESSMENT");
     }
 
@@ -537,7 +627,10 @@ public class IncidentService {
     private IncidentDtos.CascadeStep reportStep(IncidentDtos.ReportDuty reportDuty, Long incidentId) {
         String detail;
         TimelineDtos.Emphasis emphasis;
-        if (reportDuty.dueDate() != null) {
+        if (reportDuty.status() == ReportStatus.SUBMITTED) {
+            detail = reportDuty.submittedOn() == null ? "제출 완료" : "제출 완료 %s".formatted(reportDuty.submittedOn());
+            emphasis = TimelineDtos.Emphasis.NORMAL;
+        } else if (reportDuty.dueDate() != null) {
             detail = "기한 %s (발생일부터 1개월)".formatted(reportDuty.dueDate());
             emphasis = reportDuty.daysRemaining() != null && reportDuty.daysRemaining() <= 3
                     ? TimelineDtos.Emphasis.CRITICAL : TimelineDtos.Emphasis.WARNING;
@@ -549,15 +642,18 @@ public class IncidentService {
                 detail, emphasis, incidentId, "INCIDENT");
     }
 
-    /** 4단계: 작업 보류. 0건이면 "해당 없음", NORMAL */
+    /** 4단계: 작업 보류. 0건이면 "해당 없음", NORMAL. 수시평가 확정으로 모두 풀렸으면 "보류 해제 n건" */
     private IncidentDtos.CascadeStep workPlanStep(List<IncidentDtos.AffectedWorkPlan> affectedWorkPlans) {
-        String title = "작업 보류 %d건".formatted(affectedWorkPlans.size());
+        long held = affectedWorkPlans.stream().filter(p -> WorkPlanStatus.HOLD.name().equals(p.status())).count();
+        String title = held == 0 && !affectedWorkPlans.isEmpty()
+                ? "보류 해제 %d건".formatted(affectedWorkPlans.size())
+                : "작업 보류 %d건".formatted(held);
         String detail = affectedWorkPlans.isEmpty()
                 ? "해당 없음"
                 : affectedWorkPlans.stream()
                         .map(p -> "%s(%s)".formatted(p.workName(), p.workDate()))
                         .collect(Collectors.joining(", "));
-        TimelineDtos.Emphasis emphasis = affectedWorkPlans.isEmpty()
+        TimelineDtos.Emphasis emphasis = held == 0
                 ? TimelineDtos.Emphasis.NORMAL : TimelineDtos.Emphasis.WARNING;
         Long refId = affectedWorkPlans.isEmpty() ? null : affectedWorkPlans.get(0).workPlanId();
         return new IncidentDtos.CascadeStep(4, "WORK_PLAN", title, detail, emphasis, refId, "WORK_PLAN");

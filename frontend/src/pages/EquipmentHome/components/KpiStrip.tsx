@@ -1,4 +1,4 @@
-// KpiStrip.tsx — 홈 최상단 숫자 다섯 개. 누르면 아래 "오늘 할 일"이 그 종류로 좁혀진다.
+// KpiStrip.tsx — 홈 최상단 숫자 다섯 개. 누르면 아래 "오늘 할 일"이 그 종류로 좁혀진다(고위험 설비는 설비 목록을 좁힌다).
 // 0은 흐리게 둔다. 눈은 0이 아닌 숫자에만 가야 한다.
 import { ChevronRight } from "lucide-react";
 
@@ -8,7 +8,8 @@ import { toneColor } from "@/utils/statusColors";
 
 interface Props {
   kpis: KpiModel[];
-  active: KpiKey | null;
+  /** 켜져 있는 KPI. 오늘 할 일 필터 하나와 고위험 설비 필터가 함께 켜질 수 있다 */
+  active: KpiKey[];
   onSelect: (key: KpiKey) => void;
 }
 
@@ -17,7 +18,7 @@ export default function KpiStrip({ kpis, active, onSelect }: Props) {
     <section aria-label="요약" className="mb-5 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card sm:grid-cols-3 xl:grid-cols-5">
       {kpis.map((k, i) => {
         const zero = k.value === 0;
-        const selected = active === k.key;
+        const selected = active.includes(k.key);
         return (
           <button key={k.key} type="button" aria-pressed={selected} onClick={() => onSelect(k.key)}
             className={cn("group relative min-w-0 cursor-pointer px-5 py-4 text-left transition-colors animate-rise-in",

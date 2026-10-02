@@ -39,9 +39,11 @@ public final class TodayDtos {
      *                      없는 항목(예: 설비 단위가 아닌 정기점검류)은 null
      * @param linkType EQUIPMENT / WORK_PLAN / INCIDENT / ASSESSMENT — 프론트 라우팅 표의 키
      * @param refId linkType이 가리키는 레코드의 id. 없으면 null(프론트는 그러면 설비 상세로 접는다)
+     * @param assessmentId 작업 보류(WORK_HOLD) 항목에서 보류를 푸는 수시평가 id(그 설비 사고가 만든 가장 최근
+     *                     수시평가). 다른 항목은 null
      */
     public record TodayItem(String kind, Emphasis emphasis, String title, String detail,
                             Long equipmentId, String equipmentName,
                             LocalDate dueDate, Long daysRemaining,
-                            String linkType, Long refId) {}
+                            String linkType, Long refId, Long assessmentId) {}
 }

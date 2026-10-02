@@ -11,13 +11,14 @@ const base: Evidence = {
 };
 
 describe("EvidenceCard", () => {
-  it("번호, 제목(옛 발생형태 머리표 제거), 발췌, 사진을 그리고 출처 상태와 유사도는 보이지 않는다", () => {
+  it("제목(원문 머리표 제거), 발췌, 사진을 그리고 내부 번호, 출처 상태, 유사도는 보이지 않는다", () => {
     render(<EvidenceCard e={base} scope="chat" />);
-    expect(screen.getByText("#3")).toBeInTheDocument();
+    expect(screen.queryByText("#3")).toBeNull();
+    expect(screen.queryByText(/#\d/)).toBeNull();
     expect(screen.getByText("스크류에 끼임")).toBeInTheDocument();
     expect(screen.queryByText(/유사도/)).toBeNull();
     expect(screen.queryByText(/캐시/)).toBeNull();
-    expect(screen.getByRole("img", { name: "[협착] 스크류에 끼임" })).toHaveAttribute("src", "/api/media/case/1/photo?w=320");
+    expect(screen.getByRole("img", { name: "스크류에 끼임" })).toHaveAttribute("src", "/api/media/case/1/photo?w=320");
     expect(document.getElementById("evidence-chat-3")).not.toBeNull();
   });
 
@@ -34,6 +35,20 @@ describe("EvidenceCard", () => {
     render(<EvidenceCard e={base} scope="chat" onOpenPhoto={onOpen} />);
     fireEvent.click(screen.getByRole("button", { name: /사진 크게 보기/ }));
     expect(onOpen).toHaveBeenCalledWith(base);
+  });
+
+  it("사례 제목의 지역 날짜 머리표와 연월 코드, 발췌 끝 null을 지운다", () => {
+    render(<EvidenceCard e={{ ...base, title: "[추락] [6/19, 경남 거제시] 사다리에서 떨어짐 (200903)", snippet: "사다리에서 떨어짐 null" }} scope="chat" />);
+    expect(screen.getByText("사다리에서 떨어짐", { selector: "p.text-stage" })).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).toBeNull();
+    expect(screen.queryByText(/거제시/)).toBeNull();
+  });
+
+  it("조문 카드는 인용한 항호를 발췌로 보이고 그 표시를 단다", () => {
+    render(<EvidenceCard e={{ ...base, kind: "LAW", mediaUrl: null, thumbnailUrl: null, title: "시행규칙 제37조: 위험성평가의 방법, 절차 및 시기", snippet: "② 사업주는 다음 각 호의 구분에 따라 위험성평가를 실시해야 한다.\n3. 수시평가: 산업재해가 발생한 경우 관련 작업을 시작하기 전까지", sourceUrl: null, meta: { focus: "제2항제3호", fullText: "① …\n② …" } }} scope="incident" />);
+    expect(screen.getByText("제2항제3호")).toBeInTheDocument();
+    expect(screen.getByText(/관련 작업을 시작하기 전까지/)).toBeInTheDocument();
+    expect(screen.queryByText(/#3/)).toBeNull();
   });
 
   it("법 조문은 LawArticleCard로", () => {

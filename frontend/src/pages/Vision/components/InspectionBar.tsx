@@ -49,7 +49,7 @@ export default function InspectionBar({
       <label className="min-w-0">
         <span className={LABEL}>설비</span>
         <Select aria-label="설비" value={equipmentId ?? ""} disabled={equipmentLocked} onChange={(e) => onEquipmentChange(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">(설비 지정 없음)</option>
+          <option value="">설비 선택</option>
           {equipment.map((e) => <option key={e.id} value={e.id}>{e.locationTag ? `${e.name} (${e.locationTag})` : e.name}</option>)}
         </Select>
       </label>
@@ -76,7 +76,7 @@ export default function InspectionBar({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onKeyDown}
             onBlur={commitDraft}
-            placeholder={participants.length === 0 ? "이름 입력 후 Enter" : ""}
+            placeholder={participants.length === 0 ? "참여 근로자 추가" : ""}
             className="min-w-[8rem] flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-slate-400"
           />
         </div>

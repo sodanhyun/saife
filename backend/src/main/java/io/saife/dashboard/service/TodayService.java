@@ -98,8 +98,9 @@ public class TodayService {
         Site site = siteRepository.findById(DEMO_SITE_ID).orElse(null);
 
         List<TodayDtos.TodayItem> items = new ArrayList<>();
-        items.addAll(heldWorkPlans(workPlans, equipmentById));
-        items.addAll(overdueActions(actions, hazardById, equipmentById, today));
+        items.addAll(heldWorkPlans(workPlans, equipmentById,
+                incidentRepository.findBySiteIdOrderByOccurredAtDesc(DEMO_SITE_ID, Pageable.unpaged()).getContent()));
+        items.addAll(overdueActions(actions, hazardById, equipmentById, workPlans, today));
         items.addAll(dueActions(actions, hazardById, equipmentById, today));
         items.addAll(riskyWorkPlans(workPlans, equipmentById, today));
         items.addAll(pendingApprovals(workPlans, equipmentById, today));
@@ -130,7 +131,8 @@ public class TodayService {
 
     /** status=OVERDUE 또는 (기한이 지났는데 아직 DONE이 아님). CRITICAL 고정 */
     private List<TodayDtos.TodayItem> overdueActions(List<Action> actions, Map<Long, Hazard> hazardById,
-                                                      Map<Long, Equipment> equipmentById, LocalDate today) {
+                                                      Map<Long, Equipment> equipmentById,
+                                                      List<WorkPlan> workPlans, LocalDate today) {
         List<TodayDtos.TodayItem> out = new ArrayList<>();
         for (Action action : actions) {
             if (action.getDueDate() == null) {
@@ -145,15 +147,30 @@ public class TodayService {
             long daysRemaining = ChronoUnit.DAYS.between(today, action.getDueDate());
             Equipment equipment = equipmentOf(action, hazardById, equipmentById);
             // 제목은 조치 내용 그대로. 종류와 경과일은 화면이 kind/daysRemaining으로 붙인다.
-            // 미이행이 길어지면 잠정조치가 필요하다(고시 제12조제4항)
+            // 미이행이 길어지면 잠정조치가 필요하다(고시 제12조제4항). 이미 잠정조치를 정해 승인받았으면 "잠정조치 중"
             String title = action.getContent();
+            String interim = hasInterimMeasure(action, equipment, workPlans) ? "잠정조치 중" : "잠정조치 필요";
             out.add(new TodayDtos.TodayItem(KIND_OVERDUE_ACTION, Emphasis.CRITICAL, title,
-                    joinDetail(ownerOf(action), "잠정조치 필요"),
+                    joinDetail(ownerOf(action), interim),
                     equipment == null ? null : equipment.getId(),
                     equipment == null ? null : equipment.getName(),
-                    action.getDueDate(), daysRemaining, LINK_EQUIPMENT, action.getId()));
+                    action.getDueDate(), daysRemaining, LINK_EQUIPMENT, action.getId(), null));
         }
         return out;
+    }
+
+    /**
+     * 이 조치에 잠정조치가 걸려 있는가. 같은 설비의 작업 전 점검이 조치 등록 뒤에 잠정조치(승인 조건)를 달고
+     * 승인됐으면 잠정조치 중으로 본다. 잠정조치는 승인 조건(approval_note)으로만 입력된다.
+     */
+    private static boolean hasInterimMeasure(Action action, Equipment equipment, List<WorkPlan> workPlans) {
+        if (equipment == null) {
+            return false;
+        }
+        return workPlans.stream().anyMatch(p -> equipment.getId().equals(p.getEquipmentId())
+                && p.getApprovalNote() != null && !p.getApprovalNote().isBlank()
+                && p.getApprovedAt() != null
+                && (action.getCreatedAt() == null || p.getApprovedAt().isAfter(action.getCreatedAt())));
     }
 
     // ---------- 규칙 2: DUE_ACTION ----------
@@ -178,7 +195,7 @@ public class TodayService {
                     joinDetail(ownerOf(action), "기한 " + monthDay(due)),
                     equipment == null ? null : equipment.getId(),
                     equipment == null ? null : equipment.getName(),
-                    due, daysRemaining, LINK_EQUIPMENT, action.getId()));
+                    due, daysRemaining, LINK_EQUIPMENT, action.getId(), null));
         }
         return out;
     }
@@ -219,7 +236,7 @@ public class TodayService {
             Equipment equipment = equipmentById.get(plan.getEquipmentId());
             out.add(new TodayDtos.TodayItem(KIND_RISKY_WORK_PLAN, Emphasis.CRITICAL, title, qualifier,
                     plan.getEquipmentId(), equipment == null ? null : equipment.getName(),
-                    workDate, daysRemaining, LINK_WORK_PLAN, plan.getId()));
+                    workDate, daysRemaining, LINK_WORK_PLAN, plan.getId(), null));
         }
         return out;
     }
@@ -242,7 +259,7 @@ public class TodayService {
             out.add(new TodayDtos.TodayItem(KIND_PENDING_APPROVAL, Emphasis.WARNING, title,
                     plan.getWorkDate() == null ? "" : "작업일 " + monthDay(plan.getWorkDate()),
                     plan.getEquipmentId(), equipment == null ? null : equipment.getName(),
-                    plan.getWorkDate(), daysRemaining, LINK_WORK_PLAN, plan.getId()));
+                    plan.getWorkDate(), daysRemaining, LINK_WORK_PLAN, plan.getId(), null));
         }
         return out;
     }
@@ -269,15 +286,14 @@ public class TodayService {
             Emphasis emphasis = daysRemaining <= REPORT_DUE_CRITICAL_DAYS ? Emphasis.CRITICAL : Emphasis.WARNING;
             Equipment equipment = incident.getEquipmentId() == null ? null
                     : equipmentById.get(incident.getEquipmentId());
-            String axisLabel = incident.getAccidentType() == null ? "재해" : incident.getAccidentType().getLabel();
+            String axisLabel = incident.getIncidentType() == null ? "재해" : incident.getIncidentType().getLabel();
             String title = "%s 사고 %s".formatted(axisLabel,
                     monthDay(incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate()));
-            String detail = joinDetail(
-                    incident.getLeaveDays() == null ? null : "휴업 %d일".formatted(incident.getLeaveDays()),
-                    "기한 %s (발생일부터 1개월)".formatted(monthDay(incident.getReportDueDate())));
+            // 기한은 날짜 칸이 말한다. 보조 줄은 휴업일수만
+            String detail = incident.getLeaveDays() == null ? "" : "휴업 %d일".formatted(incident.getLeaveDays());
             out.add(new TodayDtos.TodayItem(KIND_REPORT_DUE, emphasis, title, detail,
                     incident.getEquipmentId(), equipment == null ? null : equipment.getName(),
-                    incident.getReportDueDate(), daysRemaining, LINK_INCIDENT, incident.getId()));
+                    incident.getReportDueDate(), daysRemaining, LINK_INCIDENT, incident.getId(), null));
         }
         return out;
     }
@@ -304,7 +320,7 @@ public class TodayService {
         String title = "이번 달 순회점검 미실시";
         String detail = "근로자 참여 (시행규칙 제37조의2)";
         return List.of(new TodayDtos.TodayItem(KIND_PATROL_DUE, Emphasis.WARNING, title, detail,
-                null, null, dueDate, daysRemaining, LINK_ASSESSMENT, null));
+                null, null, dueDate, daysRemaining, LINK_ASSESSMENT, null, null));
     }
 
     // ---------- 규칙 7: PERIODIC_DUE ----------
@@ -328,7 +344,7 @@ public class TodayService {
         String title = "올해 정기평가 미실시";
         String detail = "최근 %s평가 %s".formatted(latest.getKind().getLabel(), latest.getAssessedOn());
         return List.of(new TodayDtos.TodayItem(KIND_PERIODIC_DUE, emphasis, title, detail,
-                null, null, dueDate, daysRemaining, LINK_ASSESSMENT, latest.getId()));
+                null, null, dueDate, daysRemaining, LINK_ASSESSMENT, latest.getId(), null));
     }
 
     // ---------- 규칙 8: WORK_HOLD ----------
@@ -338,7 +354,8 @@ public class TodayService {
      * 작업을 재개할 수 없다(시행규칙 제37조제2항제3호). 기한이 아니라 금지라 daysRemaining은 null,
      * 정렬은 긴급 맨 위.
      */
-    private List<TodayDtos.TodayItem> heldWorkPlans(List<WorkPlan> workPlans, Map<Long, Equipment> equipmentById) {
+    private List<TodayDtos.TodayItem> heldWorkPlans(List<WorkPlan> workPlans, Map<Long, Equipment> equipmentById,
+                                                    List<Incident> incidents) {
         List<TodayDtos.TodayItem> out = new ArrayList<>();
         for (WorkPlan plan : workPlans) {
             if (plan.getStatus() != WorkPlanStatus.HOLD) {
@@ -348,12 +365,25 @@ public class TodayService {
             out.add(new TodayDtos.TodayItem(KIND_WORK_HOLD, Emphasis.CRITICAL, plan.getWorkName(),
                     "수시평가 완료 전 작업 재개 금지",
                     plan.getEquipmentId(), equipment == null ? null : equipment.getName(),
-                    plan.getWorkDate(), null, LINK_WORK_PLAN, plan.getId()));
+                    plan.getWorkDate(), null, LINK_WORK_PLAN, plan.getId(),
+                    followUpAssessmentOf(plan.getEquipmentId(), incidents)));
         }
         return out;
     }
 
     // ---------- 보조 ----------
+
+    /** 이 설비 사고가 만든 수시평가 중 가장 최근 것. 작업 보류를 푸는 화면이 이 평가다. 없으면 null */
+    private static Long followUpAssessmentOf(Long equipmentId, List<Incident> incidents) {
+        if (equipmentId == null) {
+            return null;
+        }
+        return incidents.stream()
+                .filter(i -> equipmentId.equals(i.getEquipmentId()) && i.getFollowUpAssessmentId() != null)
+                .max(Comparator.comparing(Incident::getOccurredAt))
+                .map(Incident::getFollowUpAssessmentId)
+                .orElse(null);
+    }
 
     private Equipment equipmentOf(Action action, Map<Long, Hazard> hazardById, Map<Long, Equipment> equipmentById) {
         Hazard hazard = hazardById.get(action.getHazardId());

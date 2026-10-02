@@ -33,7 +33,7 @@ class IncidentServiceEvidenceTest {
         LawArticleService laws = mock(LawArticleService.class);
         when(laws.get(anyString(), anyInt(), anyInt())).thenReturn(Fetched.empty("x"));
         IncidentEvidenceCollector collector = new IncidentEvidenceCollector(search, laws);
-        var out = collector.collect("스크류에 끼임", io.saife.core.domain.AccidentType.CAUGHT);
+        var out = collector.collect("스크류에 끼임", io.saife.incident.domain.IncidentType.CAUGHT);
         assertThat(out.similarCases()).isEmpty();
         assertThat(out.all()).isEmpty();
     }
@@ -46,7 +46,7 @@ class IncidentServiceEvidenceTest {
         LawArticleService laws = mock(LawArticleService.class);
         io.saife.evidence.domain.LawArticle a = io.saife.evidence.domain.LawArticle.builder().id(3L).lawId("L").lawName("산업안전보건법 시행규칙").articleNo(73).articleSub(0).paragraphNo(1).title("산업재해 발생 보고").text("① …").build();
         when(laws.get(anyString(), anyInt(), anyInt())).thenReturn(new Fetched<>(List.of(a), io.saife.evidence.live.Origin.CACHE, java.time.OffsetDateTime.now(), null));
-        var out = new IncidentEvidenceCollector(search, laws).collect("끼임", io.saife.core.domain.AccidentType.CAUGHT);
+        var out = new IncidentEvidenceCollector(search, laws).collect("끼임", io.saife.incident.domain.IncidentType.CAUGHT);
         assertThat(out.all()).extracting(io.saife.evidence.Evidence::no).containsExactly(1, 2, 3);
         assertThat(out.similarCases()).hasSize(1);
     }
@@ -91,7 +91,9 @@ class IncidentServiceEvidenceTest {
 
         IncidentService plain = new IncidentService(incidentRepository, equipmentRepository, equipmentMatcher,
                 recaller, followUpAssessmentService, drafter, evidenceCollector, workPlanRepository,
-                mock(io.saife.core.repository.ProcessRepository.class), self);
+                mock(io.saife.core.repository.ProcessRepository.class),
+                mock(io.saife.incident.repository.FollowUpRecordStore.class),
+                mock(io.saife.core.repository.AssessmentRepository.class), self);
         IncidentService service = spy(plain);
         when(self.getObject()).thenReturn(service);
 
@@ -106,13 +108,14 @@ class IncidentServiceEvidenceTest {
                 List.of(), List.of(), List.of(), List.of(), false, null, "사고 전 같은 발생형태의 위험요인 기록 없음");
         TimelineDtos.RecallView recallView = TimelineDtos.RecallView.from(recall);
         IncidentDtos.ReportDuty reportDuty = new IncidentDtos.ReportDuty(
-                ReportStatus.REQUIRED, "제출 필요", LocalDate.now().plusMonths(1), 30L, "근거", false);
-        IncidentDtos.FollowUpView followUpView = new IncidentDtos.FollowUpView(9L, "수시", "근거", List.of(), null);
+                ReportStatus.REQUIRED, "제출 필요", LocalDate.now().plusMonths(1), 30L, "근거", false, null);
+        IncidentDtos.FollowUpView followUpView = new IncidentDtos.FollowUpView(9L, "수시", "근거", List.of(), null, "DRAFT", null);
         IncidentService.RegisterCore core = new IncidentService.RegisterCore(
                 committed, recall, recallView, reportDuty, followUpView, List.of());
 
         IncidentDtos.RegisterRequest request = new IncidentDtos.RegisterRequest(4L, null, null,
-                committed.getOccurredAt(), "홍OO", IncidentSeverity.LOST_TIME, 5, AccidentType.CAUGHT, "스크류에 끼임");
+                committed.getOccurredAt(), "홍OO", IncidentSeverity.LOST_TIME, 5,
+                io.saife.incident.domain.IncidentType.CAUGHT, "스크류에 끼임", null, null);
 
         doReturn(core).when(service).registerTransactional(eq(1L), eq(request));
         when(evidenceCollector.collect(anyString(), any()))

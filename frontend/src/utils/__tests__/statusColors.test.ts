@@ -17,10 +17,12 @@ describe("statusColors — 색 매핑 SSOT", () => {
     expect(toneColor("neutral").chip).toBe("bg-slate-100 text-slate-700 border-slate-200");
   });
 
-  it("승인 대기는 pending, 반려는 high, 승인은 neutral", () => {
+  it("승인 초록, 조건부 주황, 승인 대기 pending, 보류 빨강, 완료 회색", () => {
+    expect(workPlanStatusTone("APPROVED")).toBe("low");
+    expect(workPlanStatusTone("CONDITIONAL")).toBe("medium");
     expect(workPlanStatusTone("SUBMITTED")).toBe("pending");
-    expect(workPlanStatusTone("REJECTED")).toBe("high");
-    expect(workPlanStatusTone("APPROVED")).toBe("neutral");
+    expect(workPlanStatusTone("HOLD")).toBe("high");
+    expect(workPlanStatusTone("CLOSED")).toBe("neutral");
   });
 
   it("타임라인 강조도 CRITICAL→high, WARNING→pending", () => {

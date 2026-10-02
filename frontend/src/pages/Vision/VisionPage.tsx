@@ -2,8 +2,10 @@ import { formUrl } from "@/api/formUrl";
 import { StatusBadge } from "@/components/ui/Badge";
 import Callout from "@/components/ui/Callout";
 import LinkButton from "@/components/ui/LinkButton";
+import LoadErrorCallout from "@/components/ui/LoadErrorCallout";
 import PageHeader from "@/components/ui/PageHeader";
 import PageLayout from "@/components/ui/PageLayout";
+import SectionTitle from "@/components/ui/SectionTitle";
 import Skeleton from "@/components/ui/Skeleton";
 import CandidateCard from "@/pages/Vision/components/CandidateCard";
 import InspectionBar from "@/pages/Vision/components/InspectionBar";
@@ -35,7 +37,7 @@ export default function VisionPage() {
           </>
         )}
       />
-      {v.loadError && <Callout tone="high" className="mb-4">데이터를 불러오지 못했습니다. 새로고침하십시오.</Callout>}
+      {v.loadError && <LoadErrorCallout className="mb-4" onRetry={v.refetch} />}
 
       <InspectionBar
         equipment={v.equipment}
@@ -56,7 +58,6 @@ export default function VisionPage() {
 
         <section aria-label="위험요인" className="min-w-0 space-y-4">
           {error && <Callout tone="high">{error}</Callout>}
-          {result?.demoMode && <Callout tone="neutral">데모 모드(고정 응답)</Callout>}
 
           {!started && <RecentInspections items={v.recent} />}
 
@@ -74,7 +75,7 @@ export default function VisionPage() {
           )}
 
           {result && (
-            <h2 className="text-base font-semibold text-slate-900">위험요인 {candidates.length}건</h2>
+            <SectionTitle>위험요인 {candidates.length}건</SectionTitle>
           )}
           {result && candidates.length === 0 && (
             <div className="rounded-xl border border-slate-200 bg-white px-6 py-8 text-center shadow-card">

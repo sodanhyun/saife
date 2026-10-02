@@ -1,4 +1,5 @@
-// CandidateCard.tsx — 위험요인 한 건. 반영/제외 → 허용 가능 여부 → 개선대책 → 이행 결과가 한 카드 안에서 이어진다.
+// CandidateCard.tsx — 위험요인 한 건. 반영/제외, 허용 가능 여부, 개선대책, 이행 결과가 한 카드 안에서 이어진다.
+// 개선대책 초안은 기준표(ActionSuggestionTable) 1순위 문안이다. 기존 조치가 기한을 넘겼어도 같은 구체 대책을 다시 세운다.
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
@@ -13,7 +14,6 @@ import { ActionForm, ActionStatusRow } from "@/pages/Vision/components/ActionPan
 import type { ActionInput } from "@/pages/Vision/hooks/useVision";
 import { daysUntil, dueLabel, shortDate } from "@/pages/Vision/utils/dates";
 import { isOverdue } from "@/pages/Vision/utils/inspection";
-import type { SuggestedAction } from "@/types/action";
 import type { Evidence } from "@/types/evidence";
 import type { VisionCandidate } from "@/types/vision";
 
@@ -27,15 +27,6 @@ interface Props {
   /** 등장 순서 지연(ms) */
   delay?: number;
 }
-
-/** 기한 지난 기존 조치가 있을 때의 초안. 고시 제12조④: 미이행이 길어지면 잠정조치를 둔다 */
-const INTERIM: SuggestedAction = {
-  content: "잠정조치: 기존 대책 이행 전까지 해당 작업 중지",
-  lawRef: "고시 제12조제4항",
-  lawTitle: "잠정조치",
-  guideRef: null,
-  priority: "ADMINISTRATIVE",
-};
 
 function decisionChip(adopted: boolean | null) {
   if (adopted === null) return <StatusBadge tone="pending">검토 필요</StatusBadge>;
@@ -150,7 +141,7 @@ export default function CandidateCard({ c, busy, onDecide, onAcceptable, onCreat
             {!c.acceptable && c.action === null && (
               formOpen ? (
                 <div className="border-t border-slate-100 bg-white">
-                  <ActionForm suggested={priorOverdue ? INTERIM : c.suggestedAction} busy={busy} onSubmit={(input) => onCreateAction(c, input)} onCancel={prior && !priorOverdue ? () => setFormOpen(false) : undefined} />
+                  <ActionForm suggested={c.suggestedAction} busy={busy} onSubmit={(input) => onCreateAction(c, input)} onCancel={prior && !priorOverdue ? () => setFormOpen(false) : undefined} />
                 </div>
               ) : (
                 <div className="flex items-center gap-3 border-t border-slate-100 px-5 py-3">

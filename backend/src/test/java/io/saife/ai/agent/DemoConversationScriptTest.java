@@ -77,8 +77,8 @@ class DemoConversationScriptTest {
     void 사다리_시연_입력에서_되묻기_슬롯과_작업자를_뽑는다() {
         java.util.Map<String, String> slots = new java.util.HashMap<>();
         script.collect(slots, "내일 공장동 후면 차양부에서 사다리 놓고 천장 페인트 칠할 건데요. "
-                + "노루 유성페인트 쓰고, 김철수 반장이랑 이영호 둘이 합니다.");
-        assertThat(slots).containsEntry("product_name", "노루 유성페인트");
+                + "유성 에나멜 페인트 쓰고, 김철수 반장이랑 이영호 둘이 합니다.");
+        assertThat(slots).containsEntry("product_name", "유성 에나멜 페인트");
         assertThat(slots).containsEntry("workers", "김철수/반장, 이영호");
         assertThat(slots).doesNotContainKey("work_height").doesNotContainKey("top_step").doesNotContainKey("tip_guard");
 
@@ -106,7 +106,7 @@ class DemoConversationScriptTest {
         when(equipmentTimelineService.recall(1L)).thenReturn(recallView);
         // 2턴에서 workDate까지 채워지면 extractWorkPlan까지 이어진다 — NPE 방지용 스텁
         // (이 테스트의 관심사는 회상 문장 중복 여부이지 이후 흐름이 아니다)
-        when(workPlanTools.extractWorkPlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+        when(workPlanTools.extractWorkPlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(ToolContext.class))).thenReturn("{\"result\":\"ok\"}");
 
         // 1턴 — 설비 확인
@@ -134,7 +134,7 @@ class DemoConversationScriptTest {
                 1L, "이동식 사다리 A", "공장동 후면 차양부", "최근 평가 '상'",
                 false, null, List.of(), List.of(), List.of(), List.of(), List.of("장소", "설비"));
         when(equipmentTimelineService.recall(1L)).thenReturn(recallView);
-        when(workPlanTools.extractWorkPlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+        when(workPlanTools.extractWorkPlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(ToolContext.class))).thenReturn("{\"result\":\"ok\"}");
         when(hazardAnalysisTools.analyzeHazards(any(), any(), any(), any(), any(ToolContext.class)))
                 .thenReturn("{\"result\":\"ok\"}");
@@ -167,7 +167,7 @@ class DemoConversationScriptTest {
                 1L, "이동식 사다리 A", "공장동 후면 차양부", "최근 평가 '상'",
                 false, null, List.of(), List.of(), List.of(), List.of(), List.of("장소", "설비"));
         when(equipmentTimelineService.recall(1L)).thenReturn(recallView);
-        when(workPlanTools.extractWorkPlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+        when(workPlanTools.extractWorkPlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(ToolContext.class))).thenReturn("{\"result\":\"ok\"}");
         when(hazardAnalysisTools.analyzeHazards(any(), any(), any(), any(), any(ToolContext.class)))
                 .thenReturn("{\"result\":\"ok\"}");
@@ -201,7 +201,7 @@ class DemoConversationScriptTest {
                 1L, "이동식 사다리 A", "공장동 후면 차양부", "최근 평가 '상'",
                 false, null, List.of(), List.of(), List.of(), List.of(), List.of("장소", "설비"));
         when(equipmentTimelineService.recall(1L)).thenReturn(recallView);
-        when(workPlanTools.extractWorkPlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+        when(workPlanTools.extractWorkPlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(ToolContext.class))).thenReturn("{\"result\":\"INCOMPLETE\"}");
 
         script.respond("conv-6", 1L, "공장동 후면 차양부 천장 페인트 작업", new ToolContext(Map.of()));
@@ -209,7 +209,7 @@ class DemoConversationScriptTest {
 
         ArgumentCaptor<String> placeCap = ArgumentCaptor.forClass(String.class);
         verify(workPlanTools).extractWorkPlan(any(), placeCap.capture(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(ToolContext.class));
+                any(), any(), any(), any(), any(), any(), any(), any(ToolContext.class));
         assertThat(placeCap.getValue()).isEqualTo("공장동 후면 차양부");
     }
 

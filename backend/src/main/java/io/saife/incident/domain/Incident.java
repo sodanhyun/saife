@@ -58,9 +58,18 @@ public class Incident {
     @Column(name = "leave_days")
     private Integer leaveDays;
 
-    @Enumerated(EnumType.STRING)
+    /** 사고 발생형태(공단 분류). 열 이름은 예전 그대로 accident_type이다 */
+    @Convert(converter = IncidentTypeConverter.class)
     @Column(name = "accident_type", length = 30)
-    private AccidentType accidentType;
+    private IncidentType incidentType;
+
+    /** 상해 종류(질병명). 산업재해조사표 항목 */
+    @Column(name = "injury_type", length = 100)
+    private String injuryType;
+
+    /** 상해 부위(질병 부위). 산업재해조사표 항목 */
+    @Column(name = "injury_part", length = 100)
+    private String injuryPart;
 
     @Column(columnDefinition = "text")
     private String description;
@@ -79,6 +88,10 @@ public class Incident {
     @Enumerated(EnumType.STRING)
     @Column(name = "report_status", nullable = false, length = 20)
     private ReportStatus reportStatus;
+
+    /** 조사표 제출일. 제출 완료 처리한 날 */
+    @Column(name = "report_submitted_on")
+    private LocalDate reportSubmittedOn;
 
     /** 자동 생성된 수시평가. 재해 발생 작업은 재개 전 수시평가 대상이다 */
     @Column(name = "follow_up_assessment_id")
@@ -105,6 +118,12 @@ public class Incident {
         if (severity == IncidentSeverity.FATALITY) {
             this.reportDueDate = occurredAt.toLocalDate().plusMonths(1);
             this.reportStatus = ReportStatus.REQUIRED;
+            return;
+        }
+        if (severity == IncidentSeverity.NEAR_MISS) {
+            // 아차사고는 상해가 없다. 조사표 대상이 아니다
+            this.reportDueDate = null;
+            this.reportStatus = ReportStatus.NOT_REQUIRED;
             return;
         }
         if (leaveDays == null) {
@@ -159,7 +178,30 @@ public class Incident {
         this.prevention = prevention;
     }
 
-    public void markSubmitted() {
+    /** 조사표 제출 완료. 제출 의무가 있는 건만 바꾼다 */
+    public void markSubmitted(LocalDate submittedOn) {
         this.reportStatus = ReportStatus.SUBMITTED;
+        this.reportSubmittedOn = submittedOn;
+    }
+
+    /**
+     * 위험요인 6축으로 본 발생형태. 같은 설비의 위험요인과 잇는 데만 쓴다. 대응 축이 없으면 null.
+     * 화면 표기는 {@link #getIncidentType()}의 라벨을 쓴다.
+     */
+    public AccidentType getAccidentType() {
+        return incidentType == null ? null : incidentType.axis();
+    }
+
+    /** 아차사고(상해 없음). 조사표 대상이 아니고 화면 제목도 "아차사고"로 쓴다 */
+    public boolean isNearMiss() {
+        return severity == IncidentSeverity.NEAR_MISS;
+    }
+
+    /** Lombok 빌더에 6축 값으로 만드는 경로를 남긴다(예전 호출부 호환) */
+    public static class IncidentBuilder {
+        public IncidentBuilder accidentType(AccidentType axis) {
+            this.incidentType = IncidentType.fromAxis(axis);
+            return this;
+        }
     }
 }

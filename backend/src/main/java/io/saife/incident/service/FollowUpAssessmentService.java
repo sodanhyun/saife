@@ -71,20 +71,24 @@ public class FollowUpAssessmentService {
                 .status("DRAFT")
                 .build());
 
+        // 순회점검에서 제외한 후보는 이 설비의 위험요인이 아니다. 수시평가에 올리지 않는다
         List<Hazard> hazards = incident.getEquipmentId() == null ? List.of()
-                : hazardRepository.findByEquipmentIdOrderByCreatedAtDesc(incident.getEquipmentId());
+                : hazardRepository.findByEquipmentIdOrderByCreatedAtDesc(incident.getEquipmentId()).stream()
+                        .filter(h -> !(h.isAiSuggested() && Boolean.FALSE.equals(h.getAiAdopted())))
+                        .toList();
 
         List<Regrade> regraded = new ArrayList<>();
         boolean axisCovered = false;
 
         for (Hazard h : hazards) {
-            RiskLevel before = lastRiskLevel(h.getId());
+            AssessmentHazard last = lastAssessment(h.getId());
+            RiskLevel before = last == null ? null : last.getRiskLevel();
             boolean sameAxis = incident.getAccidentType() != null
                     && incident.getAccidentType() == h.getAccidentType();
 
             RiskRuleEngine.Decision decision = sameAxis
                     ? afterIncident(before, incident)
-                    : carryForward(before);
+                    : carryForward(last);
 
             axisCovered |= sameAxis;
             regraded.add(persist(assessment.getId(), h, before, decision));
@@ -99,9 +103,9 @@ public class FollowUpAssessmentService {
                     .equipmentId(incident.getEquipmentId())
                     .accidentType(incident.getAccidentType())
                     .missingControl(incident.getAccidentType().getMissingControlHint())
-                    .description("%s 사고로 확인된 위험요인: %s".formatted(
-                            incident.getAccidentType().getLabel(),
-                            nvl(incident.getDescription(), "사고 서술 없음")))
+                    .description(nvl(incident.getDescription(),
+                            incident.getIncidentType() == null ? "사고로 확인된 위험요인"
+                                    : incident.getIncidentType().getLabel() + " 사고로 확인된 위험요인"))
                     .source(HazardSource.INCIDENT)
                     // 사고 사실에서 도출한 것이지 모델이 제안한 게 아니다.
                     // 여기를 true로 두면 채택률 지표가 오염된다.
@@ -125,7 +129,7 @@ public class FollowUpAssessmentService {
      * 이미 만들어진 수시평가의 재평가 결과를 다시 읽는다 — {@code IncidentService.detail()} 재조회 경로용
      * (최종 리뷰 F9). 새로 채점하지 않는다: 등급·근거는 저장된 {@code assessment_hazard} 그대로이고,
      * "이전 등급"은 그 위험요인이 이 수시평가보다 <b>앞서</b> 받은 가장 최근 등급이다
-     * ({@link #create}가 채점 직전에 {@link #lastRiskLevel}로 읽은 값과 같은 정의). 이후에 있었던
+     * ({@link #create}가 채점 직전에 {@link #lastAssessment}로 읽은 값과 같은 정의). 이후에 있었던
      * 재평가(예: 조치 완료 뒤 상시평가)는 제외한다 — 넣으면 사고 당시의 등급 변화가 아니라 현재
      * 등급과 비교하게 된다.
      *
@@ -189,27 +193,41 @@ public class FollowUpAssessmentService {
 
     static String incidentTrace(RiskLevel before, Incident incident) {
         List<String> parts = new ArrayList<>();
-        String axis = incident.getAccidentType() == null ? "" : incident.getAccidentType().getLabel() + " ";
-        parts.add(axis + "사고 발생");
+        String axis = incident.getIncidentType() == null ? "" : incident.getIncidentType().getLabel() + " ";
         Integer leave = incident.getLeaveDays();
-        if (incident.getSeverity() == IncidentSeverity.FATALITY) {
-            parts.add("사망");
-        } else if (leave != null) {
-            parts.add("휴업예상 %d일".formatted(leave));
+        if (incident.getSeverity() == IncidentSeverity.NEAR_MISS) {
+            // 아차사고는 상해가 없어 휴업 표기를 쓰지 않는다(시드 문구 "부딪힘 아차사고, 사고 전 평가 없음"과 같은 형식)
+            parts.add(axis + "아차사고");
         } else {
-            parts.add("휴업예상일수 미입력");
+            parts.add(axis + "사고 발생");
+            if (incident.getSeverity() == IncidentSeverity.FATALITY) {
+                parts.add("사망");
+            } else if (leave != null) {
+                parts.add("휴업예상 %d일".formatted(leave));
+            } else {
+                parts.add("휴업예상일수 미입력");
+            }
         }
         parts.add(before == null ? "사고 전 평가 없음" : "사고 전 " + before.getLabel());
         return String.join(", ", parts);
     }
 
-    /** 사고와 다른 발생형태는 등급을 바꾸지 않는다. 사고가 그 축의 빈도를 말해주지 않는다 */
-    private RiskRuleEngine.Decision carryForward(RiskLevel before) {
-        RiskLevel level = before != null ? before : RiskLevel.MEDIUM;
-        return new RiskRuleEngine.Decision(level, (short) 2, (short) 2,
-                before != null
-                        ? "사고와 다른 발생형태, 종전 등급 유지"
-                        : "사고와 다른 발생형태, 평가 이력 없음 (잠정 중)");
+    /**
+     * 사고와 다른 발생형태는 등급을 바꾸지 않는다. 사고가 그 축의 빈도를 말해주지 않는다.
+     *
+     * <p>등급 근거 칸에는 처리 메모("종전 등급 유지")가 아니라 <b>그 등급의 근거</b>를 남긴다. 종전 평가의
+     * 근거를 그대로 옮긴다. 종전 평가가 없으면 3단계 판단법의 기본값(중)과 그 사유를 쓴다.
+     */
+    private RiskRuleEngine.Decision carryForward(AssessmentHazard last) {
+        if (last == null) {
+            return new RiskRuleEngine.Decision(RiskLevel.MEDIUM, (short) 2, (short) 2,
+                    "평가 이력 없음, 현장 확인 전 중");
+        }
+        short frequency = last.getFrequency() == null ? 2 : last.getFrequency();
+        short severity = last.getSeverity() == null ? 2 : last.getSeverity();
+        String trace = last.getRuleTrace() == null || last.getRuleTrace().isBlank()
+                ? "종전 평가 등급" : last.getRuleTrace();
+        return new RiskRuleEngine.Decision(last.getRiskLevel(), frequency, severity, trace);
     }
 
     private Regrade persist(Long assessmentId, Hazard hazard, RiskLevel before,
@@ -260,9 +278,9 @@ public class FollowUpAssessmentService {
         }
     }
 
-    private RiskLevel lastRiskLevel(Long hazardId) {
+    private AssessmentHazard lastAssessment(Long hazardId) {
         List<AssessmentHazard> history = assessmentHazardRepository.findHistoryByHazardId(hazardId);
-        return history.isEmpty() ? null : history.get(0).getRiskLevel();
+        return history.isEmpty() ? null : history.get(0);
     }
 
     private String nvl(String v, String fallback) {

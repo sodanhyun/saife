@@ -23,6 +23,7 @@ const card = (over: Partial<EquipmentCardType> = {}): EquipmentCardType => ({
   overdueActionCount: 1,
   upcomingWorkPlanCount: 0,
   incidentCount: 0,
+  nearMissCount: 0,
   lastEventOn: "2026-08-01",
   emphasis: "CRITICAL",
   headline: "기한 경과 1",
@@ -45,6 +46,19 @@ describe("EquipmentCard", () => {
     expect(screen.getByLabelText("위험성 상")).toBeInTheDocument();
     expect(container.querySelector("span.bg-risk-high")).not.toBeNull();
     expect(screen.getByText("기한 경과 1").className).toContain("text-risk-high-text");
+  });
+
+  it("우상단은 '최근 평가 떨어짐 08-01' 한 줄이고, 아차사고는 사고 수와 따로 보인다", () => {
+    renderCard(card({ incidentCount: 0, nearMissCount: 1 }));
+    expect(screen.getByText("최근 평가 떨어짐 08-01")).toBeInTheDocument();
+    expect(screen.getByText("아차사고 1")).toBeInTheDocument();
+  });
+
+  it("바로가기 줄은 칩과 날짜 줄과 겹치지 않는 자기 줄이다(절대 위치로 덮지 않는다)", () => {
+    renderCard(card());
+    const bar = screen.getByRole("button", { name: "작업 전 점검" }).parentElement!;
+    expect(bar.className).not.toContain("absolute");
+    expect(screen.getByText("기한 경과 1")).toBeVisible();
   });
 
   it("평가 기록이 없으면 등급 상자는 '미평가', 칩은 '최초 평가 필요'다", () => {

@@ -6,8 +6,11 @@ import io.saife.core.repository.EquipmentRepository;
 import io.saife.core.service.RiskRuleEngine;
 import io.saife.evidence.Evidence;
 import io.saife.evidence.repository.WorkPlanEvidenceRepository;
+import io.saife.incident.domain.Incident;
+import io.saife.incident.repository.IncidentRepository;
 import io.saife.workplan.domain.WorkPlan;
 import io.saife.workplan.domain.WorkPlanStatus;
+import io.saife.workplan.domain.WorkPlanWorker;
 import io.saife.workplan.dto.WorkPlanDtos;
 import io.saife.workplan.repository.WorkPlanRepository;
 import io.saife.workplan.repository.WorkPlanSlotRepository;
@@ -22,19 +25,32 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * 작업 전 점검(점검표) 조회, 관리감독자 승인, TBM 실시 확인.
+ * 작업 전 점검(점검표) 조회, 관리감독자 승인, 작업 보류, TBM 실시 확인.
  *
  * <p>작성은 에이전트 도구가 한다({@code WorkPlanTools}). 여기는 그 뒤의 수명주기다.
+ * 순서는 승인 대기, 승인(또는 조건부 승인), 작업 당일 TBM 실시다. 승인 전에는 TBM을 기록하지 않는다.
+ *
+ * <p>화면에 그대로 뜨는 오류 문구에는 내부 ID와 상태 코드를 넣지 않는다.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class WorkPlanService {
+
+    /** 잠정조치가 이 말을 담고 있으면 그 작업은 하지 않는다는 뜻이다. 승인이 아니라 보류다 */
+    private static final String STOP_WORK = "(?s).*(작업\\s*금지|작업\\s*중지|작업\\s*중단).*";
+    /** 관리감독자(작업지휘자)로 보는 직책 */
+    private static final String SUPERVISOR_POSITION = ".*(반장|관리감독자|작업지휘자|조장|팀장).*";
+    /** TBM을 기록할 수 있는 상태(승인 후) */
+    private static final Set<WorkPlanStatus> ACK_ALLOWED = EnumSet.of(WorkPlanStatus.APPROVED, WorkPlanStatus.CONDITIONAL);
 
     private final WorkPlanRepository workPlanRepository;
     private final WorkPlanSlotRepository workPlanSlotRepository;
@@ -43,14 +59,32 @@ public class WorkPlanService {
     private final WorkPlanEvidenceRepository workPlanEvidenceRepository;
     private final ObjectMapper objectMapper;
     private final BriefingViewBuilder briefingViewBuilder;
+    private final IncidentRepository incidentRepository;
 
     @Transactional(readOnly = true)
     public Page<WorkPlanDtos.ListItem> list(Long siteId, Pageable pageable) {
-        return workPlanRepository.findBySiteIdOrderByWorkDateDesc(siteId, pageable)
-                .map(plan -> new WorkPlanDtos.ListItem(
-                        plan.getId(), plan.getEquipmentId(), equipmentName(plan.getEquipmentId()),
-                        plan.getWorkName(), plan.getWorkPlace(), plan.getWorkDate(),
-                        plan.getStatus(), plan.getBriefingAckAt() != null, plan.getBriefingAckAt()));
+        return list(siteId, null, null, pageable);
+    }
+
+    /**
+     * 점검 기록 목록. 작업명 또는 설비명 검색, 상태 필터.
+     *
+     * @param keyword 검색어. 비우면 전체
+     * @param status  상태. null이면 전체
+     */
+    @Transactional(readOnly = true)
+    public Page<WorkPlanDtos.ListItem> list(Long siteId, String keyword, WorkPlanStatus status, Pageable pageable) {
+        String pattern = keyword == null || keyword.isBlank() ? "%" : "%" + keyword.strip().toLowerCase() + "%";
+        List<WorkPlanStatus> statuses = status == null ? Arrays.asList(WorkPlanStatus.values()) : List.of(status);
+        return workPlanRepository.search(siteId, pattern, statuses, pageable)
+                .map(plan -> {
+                    String equipmentName = equipmentName(plan.getEquipmentId());
+                    return new WorkPlanDtos.ListItem(
+                            plan.getId(), plan.getEquipmentId(), equipmentName,
+                            plan.getWorkName(), plan.getWorkPlace(), plan.getWorkDate(),
+                            plan.getStatus(), plan.getBriefingAckAt() != null, plan.getBriefingAckAt(),
+                            WorkDocument.of(plan.getWorkName(), equipmentName).type());
+                });
     }
 
     @Transactional(readOnly = true)
@@ -59,10 +93,10 @@ public class WorkPlanService {
     }
 
     /**
-     * 작업자가 브리핑을 확인했다.
+     * TBM 실시 확인. 승인된 점검표만 기록한다(승인 후 작업 당일 TBM).
      *
      * <p>이 시각이 상시평가 트랙의 TBM 이행 증빙이고, 사고가 나면 UC2가
-     * "경고는 전달됐다"의 근거로 소환한다. <b>확인을 두 번 눌러도 최초 시각을 유지한다</b> —
+     * "경고는 전달됐다"의 근거로 소환한다. <b>확인을 두 번 눌러도 최초 시각을 유지한다</b>.
      * 덮어쓰면 "언제 알렸나"가 사라진다.
      */
     @Transactional
@@ -70,17 +104,19 @@ public class WorkPlanService {
         WorkPlan plan = load(workPlanId);
 
         if (plan.getBriefing() == null || plan.getBriefing().isBlank()) {
-            throw new IllegalStateException(
-                    "TBM 내용이 아직 없습니다. 점검표를 먼저 제출하십시오 [id=%d]".formatted(workPlanId));
+            throw new IllegalStateException("TBM 내용이 없는 점검 기록입니다.");
         }
         if (plan.getBriefingAckAt() != null) {
             log.debug("[UC3] 이미 확인된 TBM workPlanId={} at={}", workPlanId, plan.getBriefingAckAt());
             return toDetail(plan);
         }
+        if (!ACK_ALLOWED.contains(plan.getStatus())) {
+            throw new IllegalStateException("승인 후 TBM을 실시합니다.");
+        }
 
         plan.acknowledgeBriefing();
         workPlanRepository.save(plan);
-        log.info("[UC3] 브리핑 확인 기록 workPlanId={} at={}", workPlanId, plan.getBriefingAckAt());
+        log.info("[UC3] TBM 실시 기록 workPlanId={} at={}", workPlanId, plan.getBriefingAckAt());
         return toDetail(plan);
     }
 
@@ -88,31 +124,100 @@ public class WorkPlanService {
      * 관리감독자 승인. 조건(잠정조치)을 달면 CONDITIONAL이 된다.
      *
      * <p>판정에 상이 있고 대책이 아직 이행되지 않았으면 잠정조치 없이는 승인하지 않는다
-     * (고시 제12조④: 감소대책 이행이 늦어지면 잠정조치를 정해 작업한다). 화면도 같은 값
+     * (고시 제12조제4항: 감소대책 이행이 늦어지면 잠정조치를 정해 작업한다). 화면도 같은 값
      * ({@code briefingView.interimRequired})으로 입력란과 "조건부 승인" 버튼을 그린다.
+     *
+     * <p>잠정조치가 "작업 금지", "작업 중지"면 그 작업을 하지 않는다는 뜻이라 승인할 수 없다. 보류로 둔다.
+     *
+     * @param approver 승인자. 비우면 이 점검표의 관리감독자(작업 담당 반장)
      */
     @Transactional
     public WorkPlanDtos.Detail approve(Long workPlanId, String approver, String condition) {
         WorkPlan plan = load(workPlanId);
 
         if (plan.getStatus() != WorkPlanStatus.SUBMITTED) {
-            throw new IllegalStateException(
-                    "승인 대기 상태가 아닙니다 [id=%d, 상태=%s]".formatted(workPlanId, plan.getStatus()));
+            throw new IllegalStateException("승인 대기 중인 점검 기록이 아닙니다.");
+        }
+        if (condition != null && condition.matches(STOP_WORK)) {
+            throw new InvalidRequestException("잠정조치가 작업 금지입니다. 승인하지 말고 작업 보류로 두십시오.");
         }
         if ((condition == null || condition.isBlank()) && briefingViewBuilder.compute(plan).interimRequired()) {
             throw new InvalidRequestException("상 판정의 감소대책이 이행되지 않았습니다. 잠정조치를 입력해야 승인할 수 있습니다.");
         }
 
-        plan.approve(approver == null || approver.isBlank() ? "관리감독자" : approver.trim(),
-                condition == null || condition.isBlank() ? null : condition.trim());
+        String by = approver == null || approver.isBlank() ? supervisorOf(plan.getId()) : approver.trim();
+        plan.approve(by == null ? "관리감독자" : by, condition == null || condition.isBlank() ? null : condition.trim());
         workPlanRepository.save(plan);
-        log.info("[UC3] 작업계획서 {} {} 승인", workPlanId, plan.getStatus());
+        log.info("[UC3] 점검표 {} {} ({})", workPlanId, plan.getStatus(), plan.getApprovedBy());
         return toDetail(plan);
+    }
+
+    /**
+     * 작업 보류. 승인 대기 중인 점검표를 승인하지 않고 멈춘다. 사유는 경고로 남아 화면, 서식, 오늘 할 일에 보인다.
+     */
+    @Transactional
+    public WorkPlanDtos.Detail hold(Long workPlanId, String reason) {
+        WorkPlan plan = load(workPlanId);
+        if (plan.getStatus() != WorkPlanStatus.SUBMITTED) {
+            throw new IllegalStateException("승인 대기 중인 점검 기록만 보류할 수 있습니다.");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new InvalidRequestException("보류 사유를 입력하십시오.");
+        }
+        plan.hold();
+        plan.appendWarning("작업 보류: " + reason.strip());
+        workPlanRepository.save(plan);
+        log.info("[UC3] 점검표 {} 작업 보류", workPlanId);
+        return toDetail(plan);
+    }
+
+    /**
+     * 수시평가 확정 후 같은 설비의 보류를 푼다(UC2 수시평가 화면이 부른다). 보류된 점검표는 승인 대기로 돌아가
+     * 관리감독자가 다시 승인한다.
+     *
+     * @return 보류를 푼 점검표 수
+     */
+    @Transactional
+    public int releaseHolds(Long equipmentId) {
+        if (equipmentId == null) {
+            return 0;
+        }
+        int released = 0;
+        for (WorkPlan plan : workPlanRepository.findByEquipmentIdOrderByWorkDateDesc(equipmentId)) {
+            if (plan.getStatus() == WorkPlanStatus.HOLD) {
+                plan.releaseHold();
+                workPlanRepository.save(plan);
+                released++;
+            }
+        }
+        if (released > 0) log.info("[UC3] 설비 {} 작업 보류 해제 {}건", equipmentId, released);
+        return released;
     }
 
     private WorkPlan load(Long workPlanId) {
         return workPlanRepository.findById(workPlanId).orElseThrow(
-                () -> new NotFoundException("작업계획서를 찾을 수 없습니다: " + workPlanId));
+                () -> new NotFoundException("점검 기록을 찾을 수 없습니다."));
+    }
+
+    /** 작업자 중 반장(관리감독자) 실명. 없으면 null */
+    private String supervisorOf(Long workPlanId) {
+        return workPlanWorkerRepository.findByWorkPlanId(workPlanId).stream()
+                .filter(w -> w.getPosition() != null && w.getPosition().matches(SUPERVISOR_POSITION))
+                .map(WorkPlanWorker::getName)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** 보류를 푸는 수시평가: 같은 설비의 가장 최근 사고가 만든 평가 */
+    private Long holdAssessmentId(WorkPlan plan) {
+        if (plan.getStatus() != WorkPlanStatus.HOLD || plan.getEquipmentId() == null) {
+            return null;
+        }
+        return incidentRepository.findByEquipmentIdOrderByOccurredAtDesc(plan.getEquipmentId()).stream()
+                .map(Incident::getFollowUpAssessmentId)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     private WorkPlanDtos.Detail toDetail(WorkPlan plan) {
@@ -139,7 +244,7 @@ public class WorkPlanService {
                 .toList();
 
         // createWorkPlan 시점에 원장 스냅샷으로 저장된 근거. "참고 자료" 그리드가 이걸 읽는다.
-        // payload 디코딩 실패는 그 한 건만 건너뛴다 — 근거 한 장 복원 실패로 상세 조회 전체가 깨지면 안 된다.
+        // payload 디코딩 실패는 그 한 건만 건너뛴다. 근거 한 장 복원 실패로 상세 조회 전체가 깨지면 안 된다.
         List<Evidence> evidence = workPlanEvidenceRepository.findByWorkPlanIdOrderByEvidenceNo(plan.getId())
                 .stream()
                 .map(r -> {
@@ -160,7 +265,7 @@ public class WorkPlanService {
                 plan.getMethod(), plan.getNotes(), plan.getBriefing(), plan.getBriefingAckAt(),
                 plan.getStatus(), plan.getApprovalNote(), plan.getApprovedBy(), plan.getApprovedAt(),
                 slots, workers, evidence, plan.getWarningNote(), briefingViewBuilder.build(plan),
-                document.type(), document.title());
+                document.type(), document.title(), supervisorOf(plan.getId()), holdAssessmentId(plan));
     }
 
     private String equipmentName(Long equipmentId) {

@@ -1,15 +1,19 @@
-// WorkPlanResultCard.tsx — 작업 전 안전점검표. 대화의 끝에서 무엇이 만들어졌는지 한 장으로 보인다.
+// WorkPlanResultCard.tsx — 작업 전 안전점검표(또는 제38조 작업계획서). 대화의 끝에서 무엇이 만들어졌는지 한 장으로 보인다.
 // 등급은 판정 기준(briefingView.decisions)에서 오고, 근거와 개선대책을 평문으로 옆에 둔다.
 import { useState } from "react";
+
+import { Link } from "react-router-dom";
 
 import { formUrl } from "@/api/formUrl";
 import PhotoLightbox from "@/components/evidence/PhotoLightbox";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import { buttonClassName } from "@/components/ui/buttonStyles";
 import LinkButton from "@/components/ui/LinkButton";
 import RiskGradeMark from "@/components/ui/RiskGradeMark";
 import cn from "@/lib/cn";
-import { caseTitle, formatShortDateTime } from "@/pages/WorkPlan/utils/format";
+import { assessmentHref } from "@/pages/WorkPlan/utils/approval";
+import { caseTitle, formatShortDate, formatShortDateTime } from "@/pages/WorkPlan/utils/format";
 import { WORK_PLAN_STATUS_LABEL } from "@/types/domain";
 import type { Evidence } from "@/types/evidence";
 import type { WorkPlanDetail } from "@/types/workPlan";
@@ -51,18 +55,26 @@ function Points({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+/** 머리 오른쪽 승인 줄. 보류된 점검표의 승인 시각은 "보류 전 승인"으로 따로 말한다 */
+function approvalLine(detail: WorkPlanDetail): string | null {
+  if (!detail.approvedAt || !detail.approvedBy) return null;
+  const when = formatShortDateTime(detail.approvedAt);
+  if (detail.status === "HOLD") return `보류 전 승인 ${detail.approvedBy}, ${when}`;
+  return `${detail.status === "CONDITIONAL" ? "조건부 승인" : "승인"} ${detail.approvedBy}, ${when}`;
+}
+
 export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, variant = "result" }: Props) {
   const approval = variant === "approval";
   const [photo, setPhoto] = useState<Evidence | null>(null);
   const view = detail.briefingView;
+  const isWorkPlan = detail.documentType === "WORK_PLAN";
   const cases = evidence.filter((e) => e.kind.startsWith("CASE_")).slice(0, 3);
   const photoCases = cases.filter((e) => e.thumbnailUrl);
   const textCases = cases.filter((e) => !e.thumbnailUrl);
   const workers = detail.workers.map((w) => (w.position ? `${w.name} ${w.position}` : w.name)).join(", ");
   const meta = [formatDate(detail.workDate), detail.workPlace, detail.equipmentName, workers].filter(Boolean) as string[];
-  const approvedLine = detail.approvedAt && detail.approvedBy
-    ? `${detail.status === "CONDITIONAL" ? "조건부 승인" : "승인"} ${detail.approvedBy}, ${formatShortDateTime(detail.approvedAt)}`
-    : null;
+  const approvedLine = approvalLine(detail);
+  const preSurvey = view?.preSurvey ?? [];
 
   return (
     <article aria-label={`${detail.documentTitle} ${detail.workName}`}
@@ -75,16 +87,28 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
         </div>
         <h3 className="mt-1.5 text-headline text-slate-900">{detail.workName}</h3>
         <p className="mt-1 text-sm text-slate-600">{meta.join("  /  ")}</p>
-        {detail.warningNote && (
-          <p className="mt-3 rounded-md border border-risk-high-border bg-risk-high-bg px-3 py-2 text-sm font-medium text-risk-high-text">{detail.warningNote}</p>
+        {isWorkPlan && detail.supervisor && (
+          <p className="mt-1 text-sm text-slate-700"><span className="mr-2 text-xs font-bold text-slate-500">작업지휘자</span>{detail.supervisor}</p>
         )}
-        {detail.approvalNote && (
+        {detail.warningNote && (
+          <p className={cn("mt-3 whitespace-pre-line rounded-md border px-3 py-2 text-sm font-medium",
+            detail.status === "HOLD" ? "border-risk-high-border bg-risk-high-bg text-risk-high-text" : "border-slate-200 bg-slate-50 text-slate-700")}>{detail.warningNote}</p>
+        )}
+        {detail.approvalNote && detail.status !== "HOLD" && (
           <p className="mt-3 text-sm text-slate-700"><span className="mr-2 text-xs font-bold text-slate-500">잠정조치</span>{detail.approvalNote}</p>
         )}
       </header>
 
+      {isWorkPlan && preSurvey.length > 0 && (
+        <Section title="사전조사">
+          <ul className="grid gap-1.5 sm:grid-cols-3">
+            {preSurvey.map((p) => <li key={p} className="text-sm text-slate-700">{p}</li>)}
+          </ul>
+        </Section>
+      )}
+
       {view && view.decisions.length > 0 && (
-        <Section title="위험성">
+        <Section title="위험성" className={cn(isWorkPlan && preSurvey.length > 0 && "border-t border-slate-100")}>
           <ul className="space-y-3.5">
             {view.decisions.map((d, i) => (
               <li key={d.accidentType} className="flex items-start gap-4 animate-rise-in" style={{ animationDelay: `${120 + i * 110}ms` }}>
@@ -105,6 +129,7 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
                 <p key={a.content} className="text-sm text-slate-800">
                   <span className="mr-2 text-xs font-bold text-risk-high-text">미이행 조치</span>
                   {a.content}
+                  {a.dueDate && <span className="ml-2 tabular-nums text-slate-600">기한 {formatShortDate(a.dueDate)}</span>}
                   {a.overdueDays !== null && a.overdueDays > 0 && <span className="ml-2 font-semibold text-risk-high-text">{a.overdueDays}일 경과</span>}
                 </p>
               ))}
@@ -151,7 +176,7 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
                   {photoCases.map((e) => (
                     <button key={e.no} type="button" aria-label="사진 크게 보기" onClick={() => setPhoto(e)}
                       className="shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-line">
-                      <img src={e.thumbnailUrl ?? undefined} alt={e.title} className="h-16 w-24 rounded object-cover" />
+                      <img src={e.thumbnailUrl ?? undefined} alt={caseTitle(e.title)} className="h-16 w-24 rounded object-cover" />
                     </button>
                   ))}
                 </div>
@@ -181,11 +206,24 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
 
       {!approval && (
         <footer className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50 px-6 py-3.5">
-          {onOpenDetail && <Button size="sm" onClick={() => onOpenDetail(detail.id)}>검토 및 승인</Button>}
+          <ResultActions detail={detail} onOpenDetail={onOpenDetail} />
           <LinkButton href={formUrl.workPlan(detail.id)} external>서식 출력</LinkButton>
         </footer>
       )}
       {photo && <PhotoLightbox e={photo} onClose={() => setPhoto(null)} />}
     </article>
   );
+}
+
+/** 바닥 주 버튼은 상태가 정한다: 승인 대기는 검토, 승인 후 TBM 전이면 TBM, 보류면 수시평가 */
+function ResultActions({ detail, onOpenDetail }: { detail: WorkPlanDetail; onOpenDetail?: (id: number) => void }) {
+  if (detail.status === "HOLD") {
+    return <Link to={assessmentHref(detail.holdAssessmentId)} className={buttonClassName("primary", "sm")}>수시평가</Link>;
+  }
+  if (!onOpenDetail) return null;
+  if (detail.status === "SUBMITTED") return <Button size="sm" onClick={() => onOpenDetail(detail.id)}>검토 및 승인</Button>;
+  if ((detail.status === "APPROVED" || detail.status === "CONDITIONAL") && !detail.briefingAckAt) {
+    return <Button size="sm" onClick={() => onOpenDetail(detail.id)}>TBM 실시</Button>;
+  }
+  return <Button size="sm" variant="secondary" onClick={() => onOpenDetail(detail.id)}>열기</Button>;
 }

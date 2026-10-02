@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import TimelineList from "@/components/timeline/TimelineList";
 import { linkedIds } from "@/components/timeline/linkedIds";
-import { buildStory, cleanTrace, gradeHistory, storyLinkedIds } from "@/components/timeline/storyModel";
+import { buildStory, cleanTrace, gradeHistory, storyLinkedIds, yearMarks } from "@/components/timeline/storyModel";
 import type { TimelineEvent } from "@/types/timeline";
 
 const ev = (id: string, linked: string[] = [], over: Partial<TimelineEvent> = {}): TimelineEvent => ({
@@ -71,6 +71,11 @@ describe("storyModel", () => {
     expect(sameDay.map((h) => h.ev.id)).toEqual(["y"]);
   });
 
+  it("등급 이력 연도 표기는 올해가 아닌 첫 칩과 연도가 바뀌는 칩에만 붙는다", () => {
+    expect(yearMarks(["2025-11-02", "2025-12-01", "2026-03-02"], "2026")).toEqual(["2025", null, "2026"]);
+    expect(yearMarks(["2026-03-02", "2026-09-01"], "2026")).toEqual([null, null]);
+  });
+
   it("포커스 연결은 양방향이고 사전 경고 대상도 포함한다", () => {
     const s = buildStory(story6);
     expect([...storyLinkedIds(s, "incident-1")].sort()).toEqual(["assessment-4", "assessment-5", "workplan-1"]);
@@ -115,6 +120,22 @@ describe("TimelineList", () => {
     render(<TimelineList events={[ev("a", [], { title: "상시 위험성평가" }), ev("b", [], { type: "INCIDENT", title: "떨어짐 사고" })]} focusId={null} onFocus={vi.fn()} />);
     expect(screen.getAllByText("09-21")).toHaveLength(2);
     expect(screen.getByText("상시평가")).toBeInTheDocument();
+  });
+
+  it("최근 사건이 위에 온다", () => {
+    render(<TimelineList events={[ev("a", [], { at: "2026-07-01" }), ev("b", [], { at: "2026-09-01" })]} focusId={null} onFocus={vi.fn()} />);
+    const titles = screen.getAllByText(/^사건 /).map((n) => n.textContent);
+    expect(titles).toEqual(["사건 b", "사건 a"]);
+  });
+
+  it("기한 경과 조치 표식은 사고 표식과 다르고, 근거는 지침명으로 보인다", () => {
+    const { container } = render(<TimelineList events={[
+      ev("action-1", [], { type: "ACTION", status: "OVERDUE", title: "비계 설치", detail: "기한 경과, 미이행 (근거 이동식 사다리 안전작업 지침)" }),
+      ev("incident-1", [], { type: "INCIDENT", title: "떨어짐 사고", at: "2026-09-22" }),
+    ]} focusId={null} onFocus={vi.fn()} />);
+    expect(screen.getByText("근거 이동식 사다리 안전작업 지침")).toBeInTheDocument();
+    expect(container.querySelector(".lucide-calendar-x")).not.toBeNull();
+    expect(container.querySelectorAll(".lucide-triangle-alert, .lucide-alert-triangle")).toHaveLength(1);
   });
 
   it("서식 출력 링크는 role=button 카드 밖 형제 요소이고, 눌러도 카드 포커스를 바꾸지 않는다", () => {

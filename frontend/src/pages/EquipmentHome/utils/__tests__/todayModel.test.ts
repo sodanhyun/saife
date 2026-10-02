@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { buildKpis, buildTodayRows, filterRows, sortCards } from "@/pages/EquipmentHome/utils/todayModel";
+import { buildKpis, buildTodayRows, cardChip, filterHighRisk, filterRows, sortCards } from "@/pages/EquipmentHome/utils/todayModel";
 import type { EquipmentCard, TodayItem } from "@/types/timeline";
 
 const item = (o: Partial<TodayItem>): TodayItem => ({
   kind: "OVERDUE_ACTION", emphasis: "CRITICAL", title: "조치", detail: "", equipmentId: 1, equipmentName: "사다리",
-  dueDate: "2026-10-03", daysRemaining: 1, linkType: "EQUIPMENT", refId: 1, ...o,
+  dueDate: "2026-10-03", daysRemaining: 1, linkType: "EQUIPMENT", refId: 1, assessmentId: null, ...o,
 });
 
 const card = (o: Partial<EquipmentCard>): EquipmentCard => ({
   id: 1, name: "설비", locationTag: null, processName: null, currentRiskLevel: null, currentRiskAxis: null,
-  lastAssessedOn: null, unfinishedActionCount: 0, overdueActionCount: 0, upcomingWorkPlanCount: 0, incidentCount: 0,
+  lastAssessedOn: null, unfinishedActionCount: 0, overdueActionCount: 0, upcomingWorkPlanCount: 0, incidentCount: 0, nearMissCount: 0,
   lastEventOn: null, emphasis: "NORMAL", headline: "", ...o,
 });
 
@@ -51,7 +51,7 @@ describe("buildKpis / filterRows", () => {
   ];
 
   it("숫자는 서버 항목에서만 센다", () => {
-    const kpis = buildKpis(items, [card({ currentRiskLevel: "HIGH", name: "사다리" })]);
+    const kpis = buildKpis(buildTodayRows(items), [card({ currentRiskLevel: "HIGH", name: "사다리" })]);
     const byKey = Object.fromEntries(kpis.map((k) => [k.key, k]));
     expect(byKey.overdue.value).toBe(2);
     expect(byKey.overdue.note).toBe("최장 42일");
@@ -63,11 +63,37 @@ describe("buildKpis / filterRows", () => {
     expect(kpis.map((k) => k.label)).toEqual(["기한 경과 조치", "7일 내 마감", "승인 대기", "조사표 미제출", "고위험 설비"]);
   });
 
+  it("7일 내 마감 KPI 숫자와 목록 필터 결과는 같은 규칙이다(접힌 행 기준)", () => {
+    const week = [
+      item({ kind: "DUE_ACTION", emphasis: "WARNING", daysRemaining: 3, refId: 4 }),
+      item({ kind: "DUE_ACTION", emphasis: "WARNING", daysRemaining: 10, refId: 5 }),
+      item({ kind: "RISKY_WORK_PLAN", linkType: "WORK_PLAN", refId: 30, daysRemaining: 2, dueDate: "2026-10-05" }),
+      item({ kind: "RISKY_WORK_PLAN", linkType: "WORK_PLAN", refId: 31, daysRemaining: 2, dueDate: "2026-10-05" }),
+    ];
+    const rows = buildTodayRows(week);
+    const kpi = buildKpis(rows, []).find((k) => k.key === "week")!;
+    expect(kpi.value).toBe(filterRows(rows, "week").length);
+    expect(kpi.value).toBe(2);
+  });
+
+  it("고위험 설비 필터는 등급 상 설비만 남긴다", () => {
+    const cards = [card({ id: 1, currentRiskLevel: "HIGH" }), card({ id: 2, currentRiskLevel: "MEDIUM" })];
+    expect(filterHighRisk(cards, true).map((c) => c.id)).toEqual([1]);
+    expect(filterHighRisk(cards, false)).toHaveLength(2);
+  });
+
   it("KPI를 누르면 그 종류만 남긴다", () => {
     const rows = buildTodayRows(items);
     expect(filterRows(rows, "overdue")).toHaveLength(2);
     expect(filterRows(rows, "approval")).toHaveLength(1);
     expect(filterRows(rows, null)).toHaveLength(rows.length);
+  });
+});
+
+describe("cardChip", () => {
+  it("아차사고는 사고 칩이 아니라 '아차사고 n'이다", () => {
+    expect(cardChip(card({ currentRiskLevel: "LOW", incidentCount: 0, nearMissCount: 1 }))).toEqual({ text: "아차사고 1", tone: "pending" });
+    expect(cardChip(card({ currentRiskLevel: "LOW", incidentCount: 1, nearMissCount: 1 }))!.text).toBe("사고 1");
   });
 });
 

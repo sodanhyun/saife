@@ -2,16 +2,28 @@
 import DraftCard from "@/pages/Incident/components/DraftCard";
 import FollowUpCards from "@/pages/Incident/components/FollowUpCards";
 import IncidentHero from "@/pages/Incident/components/IncidentHero";
+import { reportRequired } from "@/pages/Incident/utils/priorRecord";
 import type { IncidentRegisterResponse } from "@/types/incident";
 
-export default function IncidentResult({ r }: { r: IncidentRegisterResponse }) {
+interface Props {
+  r: IncidentRegisterResponse;
+  /** 조사표 제출 완료 처리 */
+  onMarkSubmitted?: () => void;
+  submitting?: boolean;
+}
+
+export default function IncidentResult({ r, onMarkSubmitted, submitting = false }: Props) {
+  // 조사표 초안은 제출 의무가 있는 재해에만 둔다. 아차사고와 제출 대상이 아닌 재해는 서식 초안이 없다
+  const showDraft = r.incident.severity !== "NEAR_MISS" && (reportRequired(r.reportDuty) || r.reportDuty.status === "SUBMITTED");
   return (
     <div className="space-y-6">
       <IncidentHero r={r} />
-      <FollowUpCards r={r} />
-      <div className="animate-fade-in" style={{ animationDelay: "400ms" }}>
-        <DraftCard r={r} />
-      </div>
+      <FollowUpCards r={r} onMarkSubmitted={onMarkSubmitted} submitting={submitting} />
+      {showDraft && (
+        <div className="animate-fade-in" style={{ animationDelay: "400ms" }}>
+          <DraftCard r={r} />
+        </div>
+      )}
     </div>
   );
 }

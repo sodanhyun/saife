@@ -28,7 +28,7 @@ export function useEquipmentTimeline(fixedEquipmentId?: number) {
     fetchFn: (s) => timelineApi.byEquipment(equipmentId!, s),
     deps: [equipmentId],
     enabled: equipmentId !== null && equipmentId !== undefined,
-    errorMessage: "타임라인을 불러오지 못했습니다",
+    errorMessage: "설비 이력을 불러오지 못했습니다",
     skipFirstSkeleton: true,
   });
   return {

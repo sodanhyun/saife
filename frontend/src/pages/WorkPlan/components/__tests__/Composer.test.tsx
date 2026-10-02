@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import Composer from "@/pages/WorkPlan/components/Composer";
 import { EXAMPLES } from "@/pages/WorkPlan/utils/examples";
 
-const PLACEHOLDER = "예: 내일 차양부 천장 도장, 사다리 사용, 김철수 반장 외 1명";
+const PLACEHOLDER = "작업 내용 입력";
 
 describe("Composer", () => {
   it("한글 IME 조합 중 Enter는 전송하지 않는다", () => {
@@ -28,6 +28,11 @@ describe("Composer", () => {
   it("입력창에 접근 가능한 이름(작업 내용)이 있다", () => {
     render(<Composer disabled={false} onSend={() => {}} />);
     expect(screen.getByLabelText("작업 내용").tagName).toBe("TEXTAREA");
+  });
+
+  it("플레이스홀더는 예시 칩과 같은 문장을 되풀이하지 않는다", () => {
+    render(<Composer disabled={false} onSend={() => {}} showExamples />);
+    expect(EXAMPLES).not.toContain(screen.getByLabelText("작업 내용").getAttribute("placeholder"));
   });
 
   it("빈 화면의 예시 칩을 누르면 입력창에 채운다", () => {

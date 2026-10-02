@@ -103,8 +103,9 @@ public class BriefingComposer {
         }
         for (WorkPlanDtos.PendingAction a : pending) {
             sb.append("미이행 조치: ").append(a.content());
-            if (a.overdueDays() != null && a.overdueDays() > 0) {
-                sb.append(" (").append(a.overdueDays()).append("일 경과)");
+            // 저장되는 문안이라 출력 시점에 따라 바뀌는 "n일 경과" 대신 기한 날짜를 쓴다
+            if (a.dueDate() != null) {
+                sb.append(" (기한 ").append(a.dueDate()).append(')');
             }
             sb.append('\n');
         }

@@ -25,7 +25,9 @@ public final class IncidentFormViews {
      * @param industry      업종
      * @param leaveDays     휴업예상일수. 미입력이면 빈 문자열
      * @param fatal         사망 여부
-     * @param occurredDate  "2026-10-02 (목)"
+     * @param injuryType    상해 종류(질병명). 미입력이면 빈 문자열(작성란)
+     * @param injuryPart    상해 부위(질병 부위). 미입력이면 빈 문자열(작성란)
+     * @param occurredDate  "2026-10-02"
      * @param occurredTime  "10:20"
      * @param place         발생장소 (위치, 설비)
      * @param workType      재해관련 작업유형. 연결된 작업 전 점검이 없으면 빈 문자열
@@ -40,6 +42,8 @@ public final class IncidentFormViews {
                              String siteAddress,
                              String leaveDays,
                              boolean fatal,
+                             String injuryType,
+                             String injuryPart,
                              String occurredDate,
                              String occurredTime,
                              String place,
@@ -57,8 +61,13 @@ public final class IncidentFormViews {
      */
     public record PlanRow(int no, String what, String who, String when, List<Integer> refs) {}
 
-    /** 사내 재발방지 검토서 (비제출) */
-    public record ReviewForm(String siteName,
+    /**
+     * 사내 재발방지 검토서 (비제출).
+     *
+     * @param title 서식 제목. 아차사고면 "아차사고 기록"
+     */
+    public record ReviewForm(String title,
+                             String siteName,
                              String equipmentName,
                              String place,
                              String occurredAt,

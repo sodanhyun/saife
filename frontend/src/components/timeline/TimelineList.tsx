@@ -1,6 +1,6 @@
-// TimelineList.tsx — 한 설비의 이력. 날짜는 왼쪽, 내용은 오른쪽, 사이에 사건 종류별 표식.
+// TimelineList.tsx — 한 설비의 이력. 최근 사건이 위. 날짜는 왼쪽, 내용은 오른쪽, 사이에 사건 종류별 표식.
 // 사고와 등급 변화만 강하게, 나머지는 절제한다. 사건을 누르면 이어진 기록만 밝고 나머지는 물러난다.
-import { AlertTriangle, Check, ClipboardList, Clock, CornerDownRight, Printer } from "lucide-react";
+import { AlertTriangle, CalendarX, Check, ClipboardList, Clock, CornerDownRight, Printer } from "lucide-react";
 
 import { formUrl } from "@/api/formUrl";
 import { buildStory, shortTitle, storyLinkedIds, type StoryEvent } from "@/components/timeline/storyModel";
@@ -43,7 +43,7 @@ function statusOf(ev: TimelineEvent): { label: string; tone: Tone } | null {
   return null;
 }
 
-/** 사건 종류별 표식. 평가는 등급 사각, 사고는 큰 원, 나머지는 작은 원 */
+/** 사건 종류별 표식. 평가는 등급 사각, 사고는 큰 원(경고 삼각), 기한 경과 조치는 작은 원(달력 엑스), 나머지는 작은 원 */
 function Marker({ ev }: { ev: TimelineEvent }) {
   if (ev.type === "ASSESSMENT") {
     return (
@@ -62,10 +62,11 @@ function Marker({ ev }: { ev: TimelineEvent }) {
   if (ev.type === "ACTION") {
     const done = ev.status === "DONE";
     const overdue = ev.status === "OVERDUE";
-    const Icon = done ? Check : overdue ? AlertTriangle : Clock;
+    // 기한 경과는 사고(채운 원과 경고 삼각)와 다른 모양으로: 흰 원에 빨간 테두리와 달력 표식
+    const Icon = done ? Check : overdue ? CalendarX : Clock;
     return (
       <span className={cn("grid h-6 w-6 place-items-center rounded-full border-2 bg-white ring-4 ring-page",
-        done ? "border-risk-low text-risk-low" : overdue ? "border-risk-high bg-risk-high text-white" : "border-slate-300 text-slate-400")}>
+        done ? "border-risk-low text-risk-low" : overdue ? "border-risk-high text-risk-high" : "border-slate-300 text-slate-400")}>
         <Icon className="h-3.5 w-3.5" strokeWidth={2.6} aria-hidden />
       </span>
     );
@@ -77,10 +78,10 @@ function Marker({ ev }: { ev: TimelineEvent }) {
   );
 }
 
-/** "이행 완료 (근거 C-11-2020)" → "근거 C-11-2020". 상태 문구만 있으면 비운다(배지가 이미 말한다) */
+/** "이행 완료 (근거 이동식 사다리 안전작업 지침)"에서 근거만 남긴다. 상태 문구만 있으면 비운다(배지가 이미 말한다) */
 function actionBody(detail: string): string | null {
-  const ref = detail.match(/근거\s+[^\s)]+/);
-  return ref ? ref[0] : null;
+  const ref = detail.match(/\(근거\s+(.+)\)\s*$/);
+  return ref ? `근거 ${ref[1]}` : null;
 }
 
 function StoryCard({ story, focused, linked, dimmed, onToggle }: {
@@ -153,8 +154,10 @@ interface Props { events: TimelineEvent[]; focusId: string | null; onFocus: (id:
 
 export default function TimelineList({ events, focusId, onFocus }: Props) {
   if (events.length === 0) return <EmptyState message="기록 없음" />;
-  const story = buildStory(events);
-  const linked = storyLinkedIds(story, focusId);
+  // 연결과 등급 변화는 시간 순으로 계산하고, 보이기는 최근이 위로
+  const chronological = buildStory(events);
+  const linked = storyLinkedIds(chronological, focusId);
+  const story = [...chronological].reverse();
   return (
     <ol aria-label="이력" className="relative">
       {story.map((s, i) => {

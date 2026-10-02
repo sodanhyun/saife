@@ -5,8 +5,11 @@ import io.saife.workplan.domain.WorkPlanStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +18,23 @@ public interface WorkPlanRepository extends JpaRepository<WorkPlan, Long> {
     Page<WorkPlan> findBySiteIdOrderByWorkDateDesc(Long siteId, Pageable pageable);
 
     List<WorkPlan> findByEquipmentIdOrderByWorkDateDesc(Long equipmentId);
+
+    /**
+     * 점검 기록 목록 검색. 작업명 또는 설비명 부분 일치(ILIKE), 상태 필터. 작업일 최신순.
+     *
+     * @param keyword  소문자 LIKE 패턴(예: "%인양%"). 검색어가 없으면 "%"
+     * @param statuses 보여줄 상태. 필터가 없으면 전체 상태
+     */
+    @Query(value = """
+            select w from WorkPlan w
+            where w.siteId = :siteId
+              and w.status in :statuses
+              and (lower(w.workName) like :keyword
+                   or exists (select 1 from Equipment e where e.id = w.equipmentId and lower(e.name) like :keyword))
+            order by w.workDate desc, w.id desc
+            """)
+    Page<WorkPlan> search(@Param("siteId") Long siteId, @Param("keyword") String keyword,
+                          @Param("statuses") Collection<WorkPlanStatus> statuses, Pageable pageable);
 
     List<WorkPlan> findBySiteIdAndStatus(Long siteId, WorkPlanStatus status);
 

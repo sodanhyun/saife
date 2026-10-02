@@ -1,6 +1,6 @@
 package io.saife.form.service;
 
-import io.saife.core.domain.AccidentType;
+import io.saife.incident.domain.IncidentType;
 import io.saife.form.dto.IncidentFormViews;
 import io.saife.incident.domain.IncidentSeverity;
 import io.saife.incident.dto.IncidentDtos;
@@ -39,8 +39,9 @@ class IncidentFormServiceTest {
 
     private Long registerLadderFall() {
         IncidentDtos.RegisterRequest req = new IncidentDtos.RegisterRequest(1L, null, null, OffsetDateTime.now(),
-                null, IncidentSeverity.LOST_TIME, 5, AccidentType.FALL,
-                "차양부 천장 도장 중 이동식 사다리 최상부 바로 아래 디딤대에서 중심을 잃고 약 2.5m 아래로 떨어짐");
+                null, IncidentSeverity.LOST_TIME, 5, IncidentType.FALL,
+                "차양부 천장 도장 중 이동식 사다리 최상부 바로 아래 디딤대에서 중심을 잃고 약 2.5m 아래로 떨어짐",
+                "골절", "왼쪽 발목");
         return incidentService.register(1L, req).incident().id();
     }
 
@@ -83,7 +84,12 @@ class IncidentFormServiceTest {
                 "주민등록번호", "국적", "체류자격", "같은 종류 업무 근속기간", "고용형태", "근무형태",
                 "상해종류", "상해부위", "휴업예상일수", "사망 여부", "재해관련 작업유형", "재해발생 당시 상황",
                 "재해발생 원인", "재발방지 계획", "근로자대표", "이동식 사다리 A");
-        assertThat(html).doesNotContain("예고", "사고 전 이 설비에", "미이행");
+        assertThat(html).doesNotContain("예고", "사고 전 이 설비에", "미이행", "작업 재개 전");
+        // 상해 종류와 부위가 조사표 칸에 들어간다. 발생일은 요일 없이 YYYY-MM-DD
+        assertThat(html).contains(">골절<", ">왼쪽 발목<");
+        assertThat(html).doesNotContainPattern("\\d{4}-\\d{2}-\\d{2} \\([월화수목금토일]\\)");
+        // 세로 절 라벨은 로마 숫자 없이 세워 쓴다
+        assertThat(html).contains("text-orientation: upright").doesNotContain("Ⅰ.");
     }
 
     @Test
@@ -95,7 +101,9 @@ class IncidentFormServiceTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 
-        assertThat(html).contains("재 발 방 지 검 토 서", "제출하지 않음", "사고 전 지적 사항 이행 현황",
-                "재발방지 대책", "수시평가 연결", "시행규칙 제37조제2항제3호", "일 경과");
+        assertThat(html).contains("재발방지 검토서", "제출하지 않음", "사고 전 지적 사항 이행 현황",
+                "재발방지 대책", "수시평가 연결", "시행규칙 제37조제2항제3호", "작성 중");
+        // 기한은 날짜로만 쓴다(출력 시점에 따라 바뀌는 값, 날짜 아닌 기한 없음)
+        assertThat(html).doesNotContain("작업 재개 전)").doesNotContain("기한 작업 재개 전");
     }
 }

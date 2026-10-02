@@ -14,7 +14,7 @@ import type { ControlPriority } from "@/types/action";
 import type { VisionCandidate } from "@/types/vision";
 
 /** 개선대책 등록 폼 입력 */
-/** guideRef: 폼을 채운 초안의 지침 번호(잠정조치처럼 지침이 없는 초안이면 null) */
+/** guideRef: 폼을 채운 초안의 지침 번호(지침이 없는 초안이면 null) */
 export interface ActionInput { content: string; owner: string; dueDate: string; priority: ControlPriority | null; guideRef: string | null }
 
 /** 진입 컨텍스트: 설비 홈, 상세에서 "순회점검"으로 들어오면 ?equipmentId=가 붙는다 */
@@ -28,11 +28,10 @@ export function useVision() {
   const [searchParams] = useSearchParams();
   const equipment = useApiData({ fetchFn: (s) => equipmentApi.list(s), deps: [], errorMessage: "설비 목록을 불러오지 못했습니다" });
   const recent = useApiData({ fetchFn: (s) => visionApi.recent(s), deps: [], skipFirstSkeleton: true });
-  // undefined = 아직 사람이 고르지 않음(첫 설비로 파생). null = "(설비 지정 없음)"을 직접 골랐다
-  const [selectedId, setSelectedId] = useState<number | null | undefined>(() =>
-    initialEquipmentIdFromQuery(searchParams.get("equipmentId")),
+  // 진입 컨텍스트가 없으면 설비를 고르지 않은 채 시작한다. 첫 설비를 대신 골라 두면 엉뚱한 설비에 기록된다
+  const [equipmentId, setEquipmentId] = useState<number | null>(() =>
+    initialEquipmentIdFromQuery(searchParams.get("equipmentId")) ?? null,
   );
-  const equipmentId = selectedId === undefined ? (equipment.data?.[0]?.id ?? null) : selectedId;
   const [inspector, setInspector] = useState<string>(CURRENT_USER.name);
   const [participants, setParticipants] = useState<string[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
@@ -138,8 +137,10 @@ export function useVision() {
     equipment: equipment.data ?? [],
     loading: equipment.loading,
     loadError: equipment.error,
+    /** 설비 목록과 최근 점검을 다시 읽는다(조회 실패 후 새로고침) */
+    refetch: () => { equipment.refetch(); recent.refetch(); },
     equipmentId,
-    setEquipmentId: setSelectedId,
+    setEquipmentId,
     inspector,
     setInspector,
     commitInspector,

@@ -13,6 +13,8 @@ export interface WorkPlanListItem {
   status: WorkPlanStatus;
   briefingAcknowledged: boolean;
   briefingAckAt: string | null;
+  /** TBM_CHECKLIST(작업 전 안전점검표) 또는 WORK_PLAN(제38조 작업계획서) */
+  documentType: "TBM_CHECKLIST" | "WORK_PLAN";
 }
 
 /** @property conflicted 대장 기록과 오늘 답변이 다르다. 그대로 보여준다 */
@@ -66,6 +68,10 @@ export interface WorkPlanDetail {
   documentType: "TBM_CHECKLIST" | "WORK_PLAN";
   /** 화면과 서식 제목 */
   documentTitle: string;
+  /** 관리감독자(작업 담당 반장 실명). 제38조 작업계획서면 작업지휘자(제39조). 없으면 null */
+  supervisor: string | null;
+  /** 작업 보류를 푸는 수시평가 ID(같은 설비 사고가 만든 평가). 없으면 null */
+  holdAssessmentId: number | null;
 }
 
 /** 백엔드 WorkPlanDtos.BriefingView와 1:1. 문장 브리핑과 같은 룰 엔진 판정에서 나온다 */
@@ -79,6 +85,8 @@ export interface BriefingView {
   keepPoints: string[];
   /** 상 판정에 대책 미이행: 잠정조치를 적어야 승인할 수 있다(조건부 승인) */
   interimRequired: boolean;
+  /** 제38조 작업계획서의 사전조사 항목. 작업 전 안전점검표면 빈 배열 */
+  preSurvey: string[];
 }
 
 export interface PendingActionView {
@@ -95,7 +103,7 @@ export interface HazardDecision {
   frequency: number;
   severity: number;
   ruleTrace: string;
-  /** 상일 때 먼저 검토할 개선대책. 없으면 null */
+  /** 판정에 맞춘 권고 개선대책(기준표). 상, 중, 하 모두 값이 있다 */
   recommendation: string | null;
 }
 

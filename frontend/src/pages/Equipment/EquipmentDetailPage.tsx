@@ -1,4 +1,4 @@
-// EquipmentDetailPage.tsx — 설비 하나. 머리(등급과 수치), 이력, 우측 상단의 행동 셋.
+// EquipmentDetailPage.tsx — 설비 하나. 머리(등급과 수치), 이력(최근이 위), 우측 상단의 행동 셋.
 import { useEffect, useState } from "react";
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -6,24 +6,26 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import TimelineList from "@/components/timeline/TimelineList";
 import TimelineSummary from "@/components/timeline/TimelineSummary";
 import Button from "@/components/ui/Button";
-import Callout from "@/components/ui/Callout";
+import EmptyState from "@/components/ui/EmptyState";
+import LoadErrorCallout from "@/components/ui/LoadErrorCallout";
 import PageHeader from "@/components/ui/PageHeader";
 import PageLayout from "@/components/ui/PageLayout";
-import { useEquipmentTimeline } from "@/hooks/useEquipmentTimeline";
+import SectionTitle from "@/components/ui/SectionTitle";
 import EquipmentDetailSkeleton from "@/pages/Equipment/EquipmentDetailSkeleton";
+import { useEquipmentDetail } from "@/pages/Equipment/hooks/useEquipmentDetail";
 
 export default function EquipmentDetailPage() {
   const { equipmentId: raw } = useParams<{ equipmentId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  // 파싱 실패(잘못된 경로)는 존재하지 않는 id로 취급한다. 백엔드가 404를 주고 아래 Callout으로 안내한다.
+  // 숫자가 아닌 경로는 요청하지 않고 "찾을 수 없음"으로 보인다
   const parsed = Number(raw);
-  const id = Number.isFinite(parsed) ? parsed : -1;
-  const { timeline, loading, loadError } = useEquipmentTimeline(id);
+  const id = raw && Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  const { timeline, notFound, loading, loadError, refetch } = useEquipmentDetail(id);
   // 홈 "조치 확인"처럼 특정 사건을 들고 들어오면(?focus=action-1) 그 사건을 강조한 채로 연다
   const [focusId, setFocusId] = useState<string | null>(() => searchParams.get("focus"));
 
-  const hasTimeline = timeline !== null && timeline !== undefined;
+  const hasTimeline = timeline !== null;
   useEffect(() => {
     const target = searchParams.get("focus");
     if (!hasTimeline || !target) return;
@@ -32,26 +34,34 @@ export default function EquipmentDetailPage() {
 
   if (loading) return <EquipmentDetailSkeleton />;
 
+  if (notFound) {
+    return (
+      <PageLayout>
+        <PageHeader title="설비" />
+        <EmptyState message="설비를 찾을 수 없습니다" className="py-16"
+          action={<Button onClick={() => navigate("/")}>설비 현황</Button>} />
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout>
       <PageHeader
         title={timeline?.equipment.name ?? "설비"}
-        actions={
+        actions={id !== null && (
           <>
             <Button size="sm" onClick={() => navigate(`/work-plan?equipmentId=${id}`)}>작업 전 점검</Button>
             <Button size="sm" variant="secondary" onClick={() => navigate(`/vision?equipmentId=${id}`)}>순회점검</Button>
             <Button size="sm" variant="secondary" onClick={() => navigate(`/incident?equipmentId=${id}`)}>사고 보고</Button>
           </>
-        }
+        )}
       />
-      {loadError && (
-        <Callout tone="high">데이터를 불러오지 못했습니다. 새로고침하세요.</Callout>
-      )}
-      {timeline && (
+      {loadError && <LoadErrorCallout onRetry={refetch} />}
+      {timeline && !loadError && (
         <div className="space-y-6">
           <TimelineSummary timeline={timeline} />
           <section aria-label="이력">
-            <h2 className="mb-3 text-base font-semibold text-slate-900">이력</h2>
+            <SectionTitle className="mb-3">이력</SectionTitle>
             <TimelineList events={timeline.events} focusId={focusId} onFocus={setFocusId} />
           </section>
         </div>

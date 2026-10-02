@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { originLabel, originTone, scoreLabel } from "@/components/evidence/evidenceMeta";
+import { cleanEvidenceSnippet, cleanEvidenceTitle, originLabel, originTone, scoreLabel } from "@/components/evidence/evidenceMeta";
 import type { Evidence } from "@/types/evidence";
 
 function ev(overrides: Partial<Evidence> = {}): Evidence {
@@ -43,9 +43,10 @@ describe("evidenceMeta.scoreLabel", () => {
 });
 
 describe("evidenceMeta.originLabel/originTone", () => {
-  it("LIVE는 조회 시각을, CACHE는 캐시 날짜를 보여준다", () => {
-    expect(originLabel(ev({ origin: "LIVE", fetchedAt: "2026-09-28T14:02:00+09:00" }))).toBe("실시간 조회 14:02");
-    expect(originLabel(ev({ origin: "CACHE", fetchedAt: "2026-09-21T10:00:00+09:00" }))).toBe("캐시 09-21");
+  it("LIVE는 조회 시각을, CACHE는 기준일을 보여주고 개발 용어(캐시, 실시간)를 쓰지 않는다", () => {
+    expect(originLabel(ev({ origin: "LIVE", fetchedAt: "2026-09-28T14:02:00+09:00" }))).toBe("14:02 조회");
+    expect(originLabel(ev({ origin: "CACHE", fetchedAt: "2026-09-21T10:00:00+09:00" }))).toBe("09-21 기준");
+    expect(originLabel(ev({ origin: "CACHE" }))).not.toMatch(/캐시|실시간/);
   });
 
   it("KEYWORD_FALLBACK은 고정 문구다", () => {
@@ -56,5 +57,21 @@ describe("evidenceMeta.originLabel/originTone", () => {
     expect(originTone(ev({ origin: "LIVE" }))).toBe("progress");
     expect(originTone(ev({ origin: "CACHE" }))).toBe("neutral");
     expect(originTone(ev({ origin: "KEYWORD_FALLBACK" }))).toBe("pending");
+  });
+});
+
+describe("evidenceMeta.cleanEvidenceTitle/cleanEvidenceSnippet", () => {
+  it("원문 머리표, 지역 날짜 머리표, 사망자 수, 연월 코드를 떼고 표기를 고친다", () => {
+    expect(cleanEvidenceTitle("[추락] [제조업] [6/19, 경남 거제시] 사다리에서 떨어짐 (200903)")).toBe("사다리에서 떨어짐");
+    expect(cleanEvidenceTitle("[사망 1명] 작업중 알콜 증기 화재")).toBe("작업 중 알코올 증기 화재");
+  });
+
+  it("머리표뿐인 제목은 원문을 그대로 둔다", () => {
+    expect(cleanEvidenceTitle("[추락]")).toBe("[추락]");
+  });
+
+  it("발췌 끝의 null 흔적을 지운다", () => {
+    expect(cleanEvidenceSnippet("스크류 콘베이어를 점검하던중 협착 null")).toBe("스크류 콘베이어를 점검하던중 협착");
+    expect(cleanEvidenceSnippet(null)).toBe("");
   });
 });

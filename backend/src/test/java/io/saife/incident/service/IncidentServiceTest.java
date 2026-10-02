@@ -1,6 +1,7 @@
 package io.saife.incident.service;
 
 import io.saife.core.domain.AccidentType;
+import io.saife.incident.domain.IncidentType;
 import io.saife.dashboard.dto.TimelineDtos;
 import io.saife.incident.domain.IncidentSeverity;
 import io.saife.incident.dto.IncidentDtos;
@@ -42,9 +43,9 @@ class IncidentServiceTest {
     private static final Long SITE_ID = 1L;
 
     private IncidentDtos.RegisterRequest request(Long equipmentId, OffsetDateTime occurredAt,
-                                                 Integer leaveDays, AccidentType accidentType) {
+                                                 Integer leaveDays, IncidentType incidentType) {
         return new IncidentDtos.RegisterRequest(equipmentId, null, null, occurredAt,
-                "홍OO", IncidentSeverity.LOST_TIME, leaveDays, accidentType, "테스트용 사고 서술");
+                "홍OO", IncidentSeverity.LOST_TIME, leaveDays, incidentType, "테스트용 사고 서술", null, null);
     }
 
     private WorkPlan savePlan(Long equipmentId, LocalDate workDate, WorkPlanStatus status, String existingWarning) {
@@ -72,7 +73,7 @@ class IncidentServiceTest {
         WorkPlan wrongEquipment = savePlan(5L, incidentDate.plusDays(1), WorkPlanStatus.APPROVED, null);
 
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(4L, occurredAt, 5, AccidentType.STRUCK));
+                incidentService.register(SITE_ID, request(4L, occurredAt, 5, IncidentType.STRUCK));
 
         assertThat(response.affectedWorkPlans()).hasSize(1);
         assertThat(response.affectedWorkPlans().get(0).workPlanId()).isEqualTo(sameDay.getId());
@@ -97,7 +98,7 @@ class IncidentServiceTest {
         workPlanRepository.save(plan);
 
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(4L, occurredAt, 5, AccidentType.CAUGHT));
+                incidentService.register(SITE_ID, request(4L, occurredAt, 5, IncidentType.CAUGHT));
 
         IncidentDtos.AffectedWorkPlan affected = response.affectedWorkPlans().get(0);
         assertThat(affected.warning()).isEqualTo(IncidentService.HOLD_WARNING);
@@ -119,7 +120,7 @@ class IncidentServiceTest {
         OffsetDateTime occurredAt = OffsetDateTime.now();
 
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(1L, occurredAt, 14, AccidentType.FALL));
+                incidentService.register(SITE_ID, request(1L, occurredAt, 14, IncidentType.FALL));
 
         List<IncidentDtos.CascadeStep> cascade = response.cascade();
         assertThat(cascade).hasSize(4);
@@ -143,7 +144,7 @@ class IncidentServiceTest {
 
         IncidentDtos.CascadeStep followUpStep = cascade.get(1);
         assertThat(followUpStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.WARNING);
-        assertThat(followUpStep.title()).isEqualTo("수시평가");
+        assertThat(followUpStep.title()).isEqualTo("수시평가 작성 중");
         assertThat(followUpStep.refId()).isEqualTo(response.followUp().assessmentId());
         assertThat(followUpStep.refType()).isEqualTo("ASSESSMENT");
 
@@ -168,11 +169,11 @@ class IncidentServiceTest {
     @DisplayName("cascade RECALL — 예고되진 않았지만 미이행 조치가 있으면 WARNING")
     void cascadeRecallIsWarningWhenUnfinishedActionsExistButNotPredicted() {
         // 설비 6(고소작업대): hazard7(FALL)에 미이행 조치(action5, PENDING)가 있다.
-        // 사고 축을 PPE로 줘서 predicted는 false가 되게 한다.
+        // 사고 발생형태를 넘어짐(6축 대응 없음)으로 줘서 predicted는 false가 되게 한다.
         OffsetDateTime occurredAt = OffsetDateTime.now();
 
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(6L, occurredAt, 5, AccidentType.PPE));
+                incidentService.register(SITE_ID, request(6L, occurredAt, 5, IncidentType.TRIP));
 
         assertThat(response.recall().predicted()).isFalse();
         assertThat(response.cascade().get(0).emphasis()).isEqualTo(TimelineDtos.Emphasis.WARNING);
@@ -186,7 +187,7 @@ class IncidentServiceTest {
         OffsetDateTime occurredAt = OffsetDateTime.now();
 
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(4L, occurredAt, 5, AccidentType.STRUCK));
+                incidentService.register(SITE_ID, request(4L, occurredAt, 5, IncidentType.STRUCK));
 
         assertThat(response.recall().predicted()).isFalse();
         assertThat(response.recall().unfinishedActions()).isEmpty();
@@ -200,7 +201,7 @@ class IncidentServiceTest {
         OffsetDateTime occurredAt = OffsetDateTime.now().minusMonths(1).plusDays(2);
 
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(4L, occurredAt, 5, AccidentType.STRUCK));
+                incidentService.register(SITE_ID, request(4L, occurredAt, 5, IncidentType.STRUCK));
 
         assertThat(response.reportDuty().daysRemaining()).isLessThanOrEqualTo(3L);
         IncidentDtos.CascadeStep reportStep = response.cascade().get(2);
@@ -214,7 +215,7 @@ class IncidentServiceTest {
         OffsetDateTime occurredAt = OffsetDateTime.now();
 
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(4L, occurredAt, 1, AccidentType.STRUCK));
+                incidentService.register(SITE_ID, request(4L, occurredAt, 1, IncidentType.STRUCK));
 
         assertThat(response.reportDuty().dueDate()).isNull();
         IncidentDtos.CascadeStep reportStep = response.cascade().get(2);
@@ -231,7 +232,7 @@ class IncidentServiceTest {
         WorkPlan plan = savePlan(4L, incidentDate, WorkPlanStatus.SUBMITTED, null);
 
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(4L, occurredAt, 5, AccidentType.STRUCK));
+                incidentService.register(SITE_ID, request(4L, occurredAt, 5, IncidentType.STRUCK));
 
         IncidentDtos.CascadeStep workPlanStep = response.cascade().get(3);
         assertThat(workPlanStep.emphasis()).isEqualTo(TimelineDtos.Emphasis.WARNING);
@@ -251,7 +252,7 @@ class IncidentServiceTest {
         WorkPlan warned = savePlan(4L, incidentDate, WorkPlanStatus.SUBMITTED, null);
 
         IncidentDtos.RegisterResponse registered =
-                incidentService.register(SITE_ID, request(4L, occurredAt, 5, AccidentType.CAUGHT));
+                incidentService.register(SITE_ID, request(4L, occurredAt, 5, IncidentType.CAUGHT));
         // 사고 뒤에 새로 만든 계획서 — 경고가 붙은 적이 없다
         WorkPlan later = savePlan(4L, incidentDate.plusDays(1), WorkPlanStatus.SUBMITTED, null);
 
@@ -278,7 +279,7 @@ class IncidentServiceTest {
     void fatalityIsReportableAndFlagsSeriousAccident() {
         OffsetDateTime occurredAt = OffsetDateTime.now();
         IncidentDtos.RegisterRequest req = new IncidentDtos.RegisterRequest(4L, null, null, occurredAt,
-                null, IncidentSeverity.FATALITY, null, AccidentType.STRUCK, "테스트용 사고 서술");
+                null, IncidentSeverity.FATALITY, null, IncidentType.STRUCK, "테스트용 사고 서술", null, null);
 
         IncidentDtos.RegisterResponse response = incidentService.register(SITE_ID, req);
 
@@ -291,7 +292,7 @@ class IncidentServiceTest {
     @DisplayName("휴업 재해는 중대재해 안내를 붙이지 않고, 근거 문구에 화살표를 쓰지 않는다")
     void lostTimeIsNotFlaggedAndBasisIsPlain() {
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(4L, OffsetDateTime.now(), 5, AccidentType.STRUCK));
+                incidentService.register(SITE_ID, request(4L, OffsetDateTime.now(), 5, IncidentType.STRUCK));
 
         assertThat(response.reportDuty().seriousAccidentPossible()).isFalse();
         assertThat(response.reportDuty().basis()).contains("휴업예상일수 5일").doesNotContain("→");
@@ -302,7 +303,7 @@ class IncidentServiceTest {
     @DisplayName("수시평가 등급 근거는 평문이다(화살표, 따옴표 등급, 빈도 숫자 없음)")
     void followUpTraceIsPlain() {
         IncidentDtos.RegisterResponse response =
-                incidentService.register(SITE_ID, request(1L, OffsetDateTime.now(), 5, AccidentType.FALL));
+                incidentService.register(SITE_ID, request(1L, OffsetDateTime.now(), 5, IncidentType.FALL));
 
         assertThat(response.followUp().regraded()).isNotEmpty();
         for (FollowUpAssessmentService.Regrade g : response.followUp().regraded()) {
@@ -318,9 +319,9 @@ class IncidentServiceTest {
     void priorAssessmentIgnoresSameDayIncidentFollowUp() {
         OffsetDateTime occurredAt = OffsetDateTime.now();
         IncidentDtos.RegisterResponse first =
-                incidentService.register(SITE_ID, request(1L, occurredAt.minusMinutes(30), 5, AccidentType.FALL));
+                incidentService.register(SITE_ID, request(1L, occurredAt.minusMinutes(30), 5, IncidentType.FALL));
         IncidentDtos.RegisterResponse second =
-                incidentService.register(SITE_ID, request(1L, occurredAt, 5, AccidentType.FALL));
+                incidentService.register(SITE_ID, request(1L, occurredAt, 5, IncidentType.FALL));
 
         LocalDate firstPrior = first.recall().priorHazards().get(0).lastAssessedOn();
         LocalDate secondPrior = second.recall().priorHazards().get(0).lastAssessedOn();

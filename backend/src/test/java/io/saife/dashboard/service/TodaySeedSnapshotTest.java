@@ -13,6 +13,7 @@ import io.saife.incident.repository.IncidentRepository;
 import io.saife.workplan.domain.WorkPlan;
 import io.saife.workplan.domain.WorkPlanStatus;
 import io.saife.workplan.repository.WorkPlanRepository;
+import io.saife.workplan.repository.WorkPlanWorkerRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -34,8 +36,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p><b>왜 고정된 개수로 박지 않는가.</b> 시드 날짜는 마이그레이션이 적용된 날 기준 상대값이다.
  * 테스트 DB는 며칠 전에 마이그레이션됐을 수 있고, 그 사이 기한 7일 남은 조치가 기한 경과로 넘어간다.
  * 그래서 숫자 대신 <b>시드 행 자체와 KST "오늘"에서 매번 다시 계산한 불변식</b>으로 검증한다.
- * 새 볼륨에서 시드 당일 기준으로는 12건이다(작업 보류 1, 기한 경과 3, 14일 내 마감 3, 승인 대기 2,
- * 조사표 1, 월 순회점검 1, 정기평가 1).
+ * 녹화 기준일(2026-10-07 수, 그날 새 볼륨) 기준으로는 12건이다(작업 보류 1, 기한 경과 3, 14일 내 마감 3,
+ * 승인 대기 2, 조사표 1, 월 순회점검 1, 정기평가 1). 주말에 만든 볼륨은 다음 평일 작업과 기한이 밀려 11~12건이다.
+ *
+ * <p>시드 날짜는 평일로 보정된다(V14/V15의 pg_temp.saife_wd). 그래서 이 클래스는 "시드 날짜가 주말이 아니다",
+ * "지난 작업일은 완료, 승인 뒤 TBM", "사고 시점 미이행 조치는 사고 전에 생기고 기한이 지나 있다" 같은
+ * 서사 불변식도 본다.
  *
  * <p>규칙 자체의 경계값은 {@link TodayServiceTest}가 자체 주입 데이터로 검증한다. 이 클래스는
  * "시드가 실제로 그 불변식을 만족하는 상태로 있는가"만 본다.
@@ -61,6 +67,8 @@ class TodaySeedSnapshotTest {
     private WorkPlanRepository workPlanRepository;
     @Autowired
     private IncidentRepository incidentRepository;
+    @Autowired
+    private WorkPlanWorkerRepository workPlanWorkerRepository;
 
     @Test
     @DisplayName("시드 불변식: 기한 경과, 14일 내 마감, 승인 대기, 작업 보류, 조사표, 순회점검, 정기평가가 시드 행에서 그대로 따라 나온다")
@@ -140,6 +148,81 @@ class TodaySeedSnapshotTest {
         // 화면 문자열 규칙: 대시, 가운뎃점, 따옴표 등급을 쓰지 않는다
         view.items().forEach(i -> assertThat(i.title() + " " + i.detail())
                 .as("오늘 할 일 문자열").doesNotContain("—", "–", "·", "'상'", "상시평가 트랙"));
+    }
+
+    @Test
+    @DisplayName("시드 서사: 날짜는 평일, 지난 작업일은 완료, 승인 뒤 TBM, 승인자는 그 작업의 관리감독자, 크레인 사고 시점 미이행 조치")
+    void seedStoryInvariants() {
+        LocalDate today = LocalDate.now(KST);
+
+        // 날짜는 평일(주말에 평가, 작업, 사고, 기한을 두지 않는다)
+        assessmentRepository.findBySiteIdOrderByAssessedOnDesc(1L).stream().filter(a -> a.getId() <= 24)
+                .forEach(a -> assertWeekday("평가 " + a.getId(), a.getAssessedOn()));
+        actionRepository.findAll().stream().filter(a -> a.getId() <= 54).forEach(a -> {
+            assertWeekday("조치 기한 " + a.getId(), a.getDueDate());
+            assertWeekday("조치 생성 " + a.getId(), kst(a.getCreatedAt()));
+            if (a.getCompletedAt() != null) {
+                assertWeekday("조치 완료 " + a.getId(), kst(a.getCompletedAt()));
+                assertThat(a.getCompletedAt()).as("조치 %d 완료는 생성 뒤", a.getId()).isAfter(a.getCreatedAt());
+            }
+        });
+        incidentRepository.findAll().stream().filter(i -> i.getId() <= 6)
+                .forEach(i -> assertWeekday("사고 " + i.getId(), kst(i.getOccurredAt())));
+
+        for (WorkPlan p : workPlanRepository.findAll()) {
+            if (p.getId() > 42) {
+                continue;
+            }
+            assertWeekday("작업 " + p.getId(), p.getWorkDate());
+            if (p.getWorkDate().isBefore(today)) {
+                assertThat(p.getStatus()).as("지난 작업일 작업 %d는 완료", p.getId()).isEqualTo(WorkPlanStatus.CLOSED);
+            }
+            if (p.getApprovedAt() != null) {
+                assertThat(p.getApprovedAt()).as("작업 %d 승인은 작성 뒤", p.getId()).isAfter(p.getCreatedAt());
+                List<String> supervisors = workPlanWorkerRepository.findByWorkPlanId(p.getId()).stream()
+                        .filter(w -> "관리감독자".equals(w.getDuty()) || "작업지휘자".equals(w.getDuty()))
+                        .map(w -> w.getName()).toList();
+                assertThat(supervisors).as("작업 %d 승인자는 그 작업의 관리감독자", p.getId()).contains(p.getApprovedBy());
+            }
+            if (p.getBriefingAckAt() != null) {
+                assertThat(p.getApprovedAt()).as("작업 %d TBM은 승인 뒤", p.getId()).isNotNull();
+                assertThat(p.getBriefingAckAt()).isAfter(p.getApprovedAt());
+                assertThat(kst(p.getBriefingAckAt())).as("작업 %d TBM은 작업 당일", p.getId()).isEqualTo(p.getWorkDate());
+            }
+            assertThat(nvl(p.getApprovalNote())).as("승인 조건에 접두어를 쓰지 않는다").doesNotStartWith("잠정조치:");
+        }
+
+        // 크레인 사고 6: 훅 해지장치 교체(조치 44)는 사고 전에 지적됐고, 사고 때 기한이 지나 있었고, 사고 뒤에 이행됐다
+        Incident crane = incidentRepository.findById(CRANE_INCIDENT).orElseThrow();
+        Action hookLatch = actionRepository.findById(44L).orElseThrow();
+        assertThat(hookLatch.getCreatedAt()).isBefore(crane.getOccurredAt());
+        assertThat(hookLatch.getDueDate()).isBefore(kst(crane.getOccurredAt()));
+        assertThat(hookLatch.getCompletedAt()).isAfter(crane.getOccurredAt());
+        assertThat(crane.getLeaveDays()).isEqualTo(42);
+        assertThat(crane.getPrevention()).as("재발방지는 기한을 날짜로 쓴다")
+                .doesNotContain("작업 재개 전").containsPattern("기한 \\d{4}-\\d{2}-\\d{2}\\)");
+
+        // 고소작업대 사고 1(V10)은 시연 사고(이동식 사다리 A, 10:20, 휴업 5일)와 시각, 휴업일수가 겹치지 않는다
+        Incident aerial = incidentRepository.findById(1L).orElseThrow();
+        assertThat(aerial.getLeaveDays()).isNotEqualTo(5);
+        assertThat(aerial.getOccurredAt().atZoneSameInstant(KST).toLocalTime().toString()).isNotEqualTo("10:20");
+
+        // 이동식 사다리 A: 근로자 답변과 충돌하는 "2인 1조, 넘어짐 방지" 같은 이행 완료 조치가 없다
+        assertThat(actionRepository.findAll().stream()
+                .filter(a -> a.getHazardId() == 1L || a.getHazardId() == 2L)
+                .map(Action::getContent)).noneMatch(c -> c.contains("넘어짐 방지") || c.contains("2인 1조"));
+    }
+
+    private static void assertWeekday(String what, LocalDate d) {
+        assertThat(d.getDayOfWeek()).as("%s %s는 평일", what, d).isNotIn(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY);
+    }
+
+    private static LocalDate kst(java.time.OffsetDateTime t) {
+        return t.atZoneSameInstant(KST).toLocalDate();
+    }
+
+    private static String nvl(String s) {
+        return s == null ? "" : s;
     }
 
     private List<Long> refIdsOf(TodayDtos.TodayView view, String kind) {

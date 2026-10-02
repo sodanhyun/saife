@@ -8,14 +8,13 @@ import Button from "@/components/ui/Button";
 import Callout from "@/components/ui/Callout";
 import PageHeader from "@/components/ui/PageHeader";
 import PageLayout from "@/components/ui/PageLayout";
-import SectionTitle from "@/components/ui/SectionTitle";
 import Skeleton from "@/components/ui/Skeleton";
 import AgentFlowPanel from "@/pages/WorkPlan/components/AgentFlowPanel";
 import ChatThread from "@/pages/WorkPlan/components/ChatThread";
 import Composer from "@/pages/WorkPlan/components/Composer";
 import RecallCard from "@/pages/WorkPlan/components/RecallCard";
 import WorkPlanDetailModal from "@/pages/WorkPlan/components/WorkPlanDetailModal";
-import WorkPlanTable from "@/pages/WorkPlan/components/WorkPlanTable";
+import WorkPlanRecords from "@/pages/WorkPlan/components/WorkPlanRecords";
 import { useAgentStream } from "@/pages/WorkPlan/hooks/useAgentStream";
 import { useEntryEquipment } from "@/pages/WorkPlan/hooks/useEntryEquipment";
 import { useWorkPlans } from "@/pages/WorkPlan/hooks/useWorkPlans";
@@ -84,10 +83,11 @@ export default function WorkPlanPage() {
       ) : (
         conversation
       )}
-      {plans.loadError && <Callout tone="high" className="mt-4">점검 기록을 불러오지 못했습니다. 새로고침해 주세요.</Callout>}
-      <SectionTitle className="mt-10">점검 기록</SectionTitle>
-      <WorkPlanTable plans={plans.plans} onOpen={plans.openDetail} />
-      <WorkPlanDetailModal detail={plans.detail} busyAction={plans.busyAction} onClose={plans.closeDetail} onAcknowledge={plans.acknowledge} onApprove={plans.approve} />
+      <WorkPlanRecords plans={plans.plans} total={plans.total} hasMore={plans.hasMore} keyword={plans.keyword} status={plans.status}
+        loadError={plans.loadError} onKeyword={plans.setKeyword} onStatus={plans.setStatus} onMore={plans.loadMore}
+        onOpen={plans.openDetail} onRetry={plans.refetch} />
+      <WorkPlanDetailModal detail={plans.detail} busyAction={plans.busyAction} onClose={plans.closeDetail}
+        onAcknowledge={plans.acknowledge} onApprove={plans.approve} onHold={plans.hold} />
     </PageLayout>
   );
 }

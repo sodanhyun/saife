@@ -16,7 +16,7 @@ class PhotoRiskTableTest {
         RiskRuleEngine.Decision d = table.decide(AccidentType.FALL, "최상부 디딤대 사용");
 
         assertThat(d.riskLevel()).isEqualTo(RiskLevel.HIGH);
-        assertThat(d.ruleTrace()).startsWith("이동식 사다리 최상부 발판 및 그 하단 디딤대 사용 금지 (안전보건규칙 제42조제4항)");
+        assertThat(d.ruleTrace()).startsWith("이동식 사다리 최상부 발판 및 그 하단 디딤대 사용 금지 (제42조제4항)");
         assertThat(d.ruleTrace()).endsWith("사진 기준 잠정 등급, 작업높이와 빈도는 현장 확인 후 조정");
     }
 

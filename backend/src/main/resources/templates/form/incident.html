@@ -16,7 +16,9 @@
     table.f { table-layout: fixed; margin-bottom: 0; }
     table.f + table.f { border-top: 0; }
     table.f td { padding: 4px 6px; font-size: 9.5pt; height: 26px; vertical-align: middle; }
-    table.f td.sec { width: 26px; background: #eef1f5; font-weight: 700; text-align: center; writing-mode: vertical-rl; letter-spacing: 2px; padding: 6px 0; }
+    /* 세로 절 라벨: 한 글자씩 세워 쓴다(글자가 눕거나 괄호가 돌아가지 않게) */
+    table.f td.sec { width: 28px; background: #eef1f5; font-weight: 700; text-align: center; vertical-align: middle;
+      writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 1px; padding: 6px 0; white-space: nowrap; font-size: 9pt; }
     table.f td.k { background: #f7f8fa; font-weight: 600; white-space: normal; width: 128px; }
     table.f td.v { background: #fff; }
     table.f td.box { vertical-align: top; height: auto; min-height: 60px; }
@@ -34,14 +36,14 @@
 
   <p class="due no-print" th:text="${form.dueLabel}">제출 기한</p>
   <p class="form-no">산업안전보건법 시행규칙 [별지 제30호서식]</p>
-  <h1>산 업 재 해 조 사 표</h1>
+  <h1>산업재해조사표</h1>
   <p class="subtitle">사망 또는 3일 이상 휴업이 필요한 재해, 발생일부터 1개월 이내 관할 지방고용노동관서에 제출</p>
 
-  <!-- Ⅰ. 사업장 정보 -->
+  <!-- 1. 사업장 정보 -->
   <table class="f">
     <colgroup><col style="width:26px"><col style="width:128px"><col><col style="width:110px"><col></colgroup>
     <tr>
-      <td class="sec" rowspan="5">Ⅰ. 사업장 정보</td>
+      <td class="sec" rowspan="5">사업장 정보</td>
       <td class="k">산재관리번호 (사업개시번호)</td><td class="v"></td>
       <td class="k">사업자등록번호</td><td class="v"></td>
     </tr>
@@ -65,11 +67,11 @@
     </tr>
   </table>
 
-  <!-- Ⅱ. 재해 정보 -->
+  <!-- 2. 재해 정보 -->
   <table class="f">
     <colgroup><col style="width:26px"><col style="width:128px"><col><col style="width:110px"><col></colgroup>
     <tr>
-      <td class="sec" rowspan="8">Ⅱ. 재해 정보</td>
+      <td class="sec" rowspan="8">재해 정보</td>
       <td class="k">성명</td><td class="v"></td>
       <td class="k">주민등록번호 (외국인등록번호)</td><td class="v"></td>
     </tr>
@@ -96,8 +98,8 @@
       <td class="v" colspan="3"><span class="opt">□ 정상</span><span class="opt">□ 2교대</span><span class="opt">□ 3교대</span><span class="opt">□ 4교대</span><span class="opt">□ 시간제</span><span class="opt">□ 그 밖의 사항 <span class="blank"></span></span></td>
     </tr>
     <tr>
-      <td class="k">상해종류 (질병명)</td><td class="v"></td>
-      <td class="k">상해부위 (질병부위)</td><td class="v"></td>
+      <td class="k">상해종류 (질병명)</td><td class="v" th:text="${form.injuryType}"></td>
+      <td class="k">상해부위 (질병부위)</td><td class="v" th:text="${form.injuryPart}"></td>
     </tr>
     <tr>
       <td class="k">휴업예상일수</td>
@@ -107,14 +109,14 @@
     </tr>
   </table>
 
-  <!-- Ⅲ. 재해발생 개요 및 원인 -->
+  <!-- 3. 재해발생 개요 및 원인 -->
   <table class="f">
     <colgroup><col style="width:26px"><col style="width:128px"><col style="width:110px"><col></colgroup>
     <tr>
-      <td class="sec" rowspan="5">Ⅲ. 재해발생 개요 및 원인</td>
+      <td class="sec" rowspan="5">재해발생 개요 및 원인</td>
       <td class="k" rowspan="4">재해발생 개요</td>
       <td class="k">발생일시</td>
-      <td class="v"><span th:text="${form.occurredDate}">날짜</span>&nbsp; <span th:text="${form.occurredTime}">시각</span></td>
+      <td class="v nowrap"><span th:text="${form.occurredDate}">날짜</span>&nbsp; <span th:text="${form.occurredTime}">시각</span></td>
     </tr>
     <tr>
       <td class="k">발생장소</td><td class="v" th:text="${form.place}">장소</td>
@@ -131,17 +133,18 @@
     </tr>
   </table>
 
-  <!-- Ⅳ. 재발방지 계획 -->
+  <!-- 4. 재발방지 계획 -->
   <table class="f">
     <colgroup><col style="width:26px"><col></colgroup>
     <tr>
-      <td class="sec">Ⅳ. 재발방지 계획</td>
+      <td class="sec">재발방지 계획</td>
       <td class="v box" style="height:96px">
         <span class="sub">재발방지 계획</span>
         <ol class="plan" th:if="${!#lists.isEmpty(form.plans)}">
           <li th:each="p : ${form.plans}">
             <span th:text="${p.what}">대책</span><span th:if="${!#strings.isEmpty(p.who)}"
-              th:text="' (담당 ' + ${p.who} + ', 기한 ' + ${p.when} + ')'"></span>
+              th:text="' (담당 ' + ${p.who} + ', 기한 '"></span><span class="nowrap" th:if="${!#strings.isEmpty(p.who)}"
+              th:text="${p.when} + ')'"></span>
           </li>
         </ol>
       </td>
@@ -150,13 +153,13 @@
 
   <p class="muted" style="margin-top:6px">※ 위 재발방지 계획 이행을 위한 안전보건교육 및 기술지원 서비스를 한국산업안전보건공단에서 무료로 제공하고 있으니 즉시 기술지원 서비스를 받고자 하는 경우 오른쪽에 표시하시기 바랍니다. &nbsp; □ 즉시 기술지원 서비스 요청</p>
 
-  <div class="signs">
+  <div class="signs keep">
     <div class="row">작성자 성명 <span class="line"></span> &nbsp; 작성자 전화번호 <span class="line" style="width:130px"></span></div>
     <div class="row">작성일 <span class="blank"></span> 년 <span class="blank"></span> 월 <span class="blank"></span> 일</div>
     <div class="row">사업주 <span class="line"></span> (서명 또는 인)</div>
     <div class="row">근로자대표 (재해자) <span class="line"></span> (서명 또는 인)</div>
   </div>
-  <p class="to">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ) 지방고용노동청장 (지청장) 귀하</p>
+  <p class="to keep">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ) 지방고용노동청장 (지청장) 귀하</p>
   <p class="printed">SAIFE에서 출력</p>
 </main>
 </body>

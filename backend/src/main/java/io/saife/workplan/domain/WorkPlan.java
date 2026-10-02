@@ -127,6 +127,21 @@ public class WorkPlan {
         this.status = WorkPlanStatus.HOLD;
     }
 
+    /**
+     * 수시평가가 확정되어 작업 보류를 푼다. 보류 전 승인은 사고 전 판단이므로 그대로 살리지 않고
+     * 승인 대기(SUBMITTED)로 되돌려 관리감독자가 다시 승인하게 한다. 보류 사유(경고)는 지운다.
+     */
+    public void releaseHold() {
+        if (this.status != WorkPlanStatus.HOLD) {
+            return;
+        }
+        this.status = WorkPlanStatus.SUBMITTED;
+        this.approvedBy = null;
+        this.approvedAt = null;
+        this.approvalNote = null;
+        this.warningNote = null;
+    }
+
     public void close() {
         this.status = WorkPlanStatus.CLOSED;
         this.closedAt = OffsetDateTime.now();

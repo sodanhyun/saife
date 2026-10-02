@@ -1,5 +1,6 @@
-// CitationChip.tsx — 모델 문장 속 [#n]. 원장에 있는 번호만 칩이 되고, 클릭하면
-// 해당 근거 카드(id="evidence-{scope}-{n}")로 스크롤·강조한다. 모르는 번호는 평문으로 남긴다.
+// CitationChip.tsx — 모델 문장 속 [#n]. 원장에 있는 번호만 각주 숫자 칩이 되고, 클릭하면
+// 해당 근거 카드(id="evidence-{scope}-{n}")로 스크롤·강조한다. 보이는 글자는 각주 숫자뿐이다("#" 없음).
+// 모르는 번호는 평문으로 남긴다(백엔드가 원장에 없는 번호를 이미 지우므로 실제로는 나오지 않는다).
 //
 // F3: 근거 그리드는 전부 접힌 채로 시작한다(collapsedByDefault) — 카드가 DOM에 없으면
 // getElementById가 조용히 실패한다. 그래서 먼저 evidence:reveal 이벤트로 그리드를 펼치라고
@@ -63,7 +64,7 @@ export default function CitationChip({ no, known, scope }: Props) {
       aria-label={`근거 #${no}`}
       className="mx-0.5 inline-flex items-center rounded border border-progress-border bg-progress-bg px-1 align-baseline font-mono text-xs text-progress-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border"
     >
-      #{no}
+      {no}
     </button>
   );
 }

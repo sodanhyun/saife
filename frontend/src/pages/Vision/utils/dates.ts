@@ -32,3 +32,8 @@ export function shortDate(value: string | null | undefined): string {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(value) ? dayjs(value) : dayjs(value).tz(SITE_TZ);
   return d.isValid() ? d.format("MM-DD") : "-";
 }
+
+/** 오늘(사업장 기준시) YYYY-MM-DD. 이행 완료 확인 줄에 완료일로 보인다 */
+export function todayLabel(): string {
+  return dayjs().tz(SITE_TZ).format("YYYY-MM-DD");
+}

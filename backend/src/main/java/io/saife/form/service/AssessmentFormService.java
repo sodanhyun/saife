@@ -39,6 +39,13 @@ public class AssessmentFormService {
     static final String BASIS = "산업안전보건법 제36조, 같은 법 시행규칙 제37조의4 (기록 및 보존, 3년)";
     static final String METHOD = "3단계 판단법 (고시 제7조)";
 
+    /** 개선대책이 없을 때의 표기. 대책 칸과 이행 결과 칸이 같은 글자를 쓴다 */
+    static final String NOT_PLANNED = "(미수립)";
+
+    /** 등급 근거가 아니라 처리 메모인 문구. 서식의 등급 근거 칸에 쓰지 않는다 */
+    private static final java.util.regex.Pattern MEMO = java.util.regex.Pattern.compile(
+            "종전 등급 유지|평가 이력 없음 \\(잠정|사고와 다른 발생형태");
+
     private final SiteRepository siteRepository;
     private final EquipmentRepository equipmentRepository;
     private final ProcessRepository processRepository;
@@ -69,7 +76,8 @@ public class AssessmentFormService {
      * @param acceptable    허용 가능 여부 "가능"/"불가"
      * @param improvement   개선대책. 허용 가능이면 "현 상태 유지"
      * @param priority      개선대책 우선순위 라벨(제거, 공학적, 관리적, 보호구). 없으면 null
-     * @param result        이행 결과. "완료 2026-10-02", "이행 예정", "기한 경과"
+     * @param result        이행 결과. "완료 2026-10-02", "완료 2026-10-02 (기한 경과)", "미완료", "(미수립)".
+     *                      출력 시점에 따라 바뀌는 값(경과일 등)은 쓰지 않는다. 기한은 담당/기한 칸의 날짜로 읽는다
      */
     public record Row(int no, String work, String hazard, String hazardDetail, String currentMeasure,
                       String riskLabel, String riskClass, String riskBasis, String acceptable,
@@ -113,13 +121,13 @@ public class AssessmentFormService {
                     currentMeasure(actions, assessmentId, assessment.getAssessedOn()),
                     risk,
                     switch (risk) { case "상" -> "risk-high"; case "중" -> "risk-medium"; default -> "risk-low"; },
-                    nvl(link.getRuleTrace(), "-"),
+                    riskBasis(link, hazard.getId(), assessmentId),
                     acceptable ? "가능" : "불가",
-                    acceptable && action == null ? "현 상태 유지" : action == null ? "(미수립)" : action.getContent(),
+                    acceptable && action == null ? "현 상태 유지" : action == null ? NOT_PLANNED : action.getContent(),
                     priority == null ? null : priority.getLabel(),
                     action == null ? null : action.getOwner(),
                     action == null || action.getDueDate() == null ? null : action.getDueDate().toString(),
-                    action == null ? (acceptable ? "-" : "미수립") : result(action),
+                    action == null ? (acceptable ? "-" : NOT_PLANNED) : result(action),
                     action == null ? null : action.getGuideRef()));
         }
 
@@ -161,15 +169,31 @@ public class AssessmentFormService {
         return done.isEmpty() ? "없음" : String.join(", ", done);
     }
 
-    private String result(Action action) {
+    /** 이행 결과. 기한을 넘겨 완료했으면 그 사실을 남긴다. 미완료는 출력일과 무관하게 "미완료"다 */
+    static String result(Action action) {
         if (action.getStatus() == ActionStatus.DONE && action.getCompletedAt() != null) {
-            return "완료 " + action.getCompletedAt().atZoneSameInstant(KST).toLocalDate();
+            LocalDate done = action.getCompletedAt().atZoneSameInstant(KST).toLocalDate();
+            boolean late = action.getDueDate() != null && done.isAfter(action.getDueDate());
+            return "완료 " + done + (late ? " (기한 경과)" : "");
         }
-        LocalDate today = LocalDate.now(KST);
-        if (action.getDueDate() != null && action.getDueDate().isBefore(today)) {
-            return "기한 경과";
+        return "미완료";
+    }
+
+    /**
+     * 등급 근거 칸. 처리 메모("종전 등급 유지" 등)가 들어 있으면 이 위험요인의 앞선 평가에서 근거를 찾아 쓴다.
+     * 찾지 못하면 "-"로 둔다.
+     */
+    private String riskBasis(AssessmentHazard link, Long hazardId, Long assessmentId) {
+        String trace = link.getRuleTrace();
+        if (trace != null && !trace.isBlank() && !MEMO.matcher(trace).find()) {
+            return trace;
         }
-        return "이행 예정";
+        return assessmentHazardRepository.findHistoryByHazardId(hazardId).stream()
+                .filter(h -> !assessmentId.equals(h.getAssessmentId()))
+                .map(AssessmentHazard::getRuleTrace)
+                .filter(t -> t != null && !t.isBlank() && !MEMO.matcher(t).find())
+                .findFirst()
+                .orElse("-");
     }
 
     private String work(Hazard hazard) {

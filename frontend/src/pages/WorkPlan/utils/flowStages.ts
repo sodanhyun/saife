@@ -21,6 +21,7 @@ export const SLOT_LABEL: Record<string, string> = {
   top_step: "최상부 디딤대",
   tip_guard: "넘어짐 방지",
   platform_guardrail: "작업대 안전난간",
+  caster_lock: "바퀴 고정",
   anchor_installed: "안전대 부착설비",
   guard_installed: "방호덮개",
   product_name: "제품명",

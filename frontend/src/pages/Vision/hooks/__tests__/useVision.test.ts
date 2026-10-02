@@ -95,6 +95,13 @@ describe("useVision", () => {
     expect(result.current.equipmentId).toBe(42);
   });
 
+  it("진입 컨텍스트가 없으면 설비를 고르지 않은 채 시작한다(첫 설비를 대신 고르지 않는다)", async () => {
+    mockEquipmentList.mockResolvedValue([{ id: 9, name: "다른 설비", locationTag: null, processName: null, introducedOn: null }]);
+    const { result } = renderHook(() => useVision(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.equipmentId).toBeNull();
+  });
+
   it("점검이 생긴 뒤 참여 근로자를 바꾸면 서버에 저장하고 결과를 서버 값으로 덮는다", async () => {
     mockFetch.mockResolvedValue(sseResponse([env("assess.done", 1, done)]));
     vi.mocked(visionApi.updateInspection).mockResolvedValue({ assessmentId: 40, inspector: "홍길동", participants: ["김철수"] });

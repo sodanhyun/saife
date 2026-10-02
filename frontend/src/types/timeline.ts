@@ -22,7 +22,12 @@ export interface EquipmentHead {
   introducedOn: string | null;
 }
 
-/** @property headline 상태 칩 하나("기한 경과 1", "사고 1", "최초 평가 필요", "미이행 1"). 해당 없으면 빈 문자열 */
+/**
+ * @property currentRiskLevel 발생형태마다 가장 최근 평가 등급을 보고 그중 가장 높은 등급
+ * @property incidentCount    사고 수(아차사고 제외)
+ * @property nearMissCount    아차사고 수
+ * @property headline 상태 칩 하나("기한 경과 1", "사고 1", "최초 평가 필요", "미이행 1", "아차사고 1"). 해당 없으면 빈 문자열
+ */
 export interface TimelineSummary {
   currentRiskLevel: RiskLevel | null;
   currentRiskAxis: AccidentType | null;
@@ -30,6 +35,7 @@ export interface TimelineSummary {
   assessmentCount: number;
   workPlanCount: number;
   incidentCount: number;
+  nearMissCount: number;
   unfinishedActionCount: number;
   overdueActionCount: number;
   headline: string;
@@ -83,7 +89,10 @@ export interface EquipmentCard {
   unfinishedActionCount: number;
   overdueActionCount: number;
   upcomingWorkPlanCount: number;
+  /** 사고 수(아차사고 제외) */
   incidentCount: number;
+  /** 아차사고 수 */
+  nearMissCount: number;
   lastEventOn: string | null;
   emphasis: Emphasis;
   headline: string;
@@ -135,6 +144,8 @@ export interface TodayItem {
   daysRemaining: number | null;
   linkType: TodayLinkType;
   refId: number | null;
+  /** 작업 보류(WORK_HOLD) 항목: 보류를 푸는 수시평가 id. 다른 항목은 null */
+  assessmentId: number | null;
 }
 
 export interface TodayView {

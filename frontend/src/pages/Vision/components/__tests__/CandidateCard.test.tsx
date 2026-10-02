@@ -128,11 +128,17 @@ describe("CandidateCard", () => {
     expect(screen.getByText("현 상태 유지")).toBeInTheDocument();
   });
 
-  it("개선대책이 등록되면 이행 대기와 이행 완료 버튼을 보인다", () => {
+  it("등록 직후에는 이행 완료가 주 버튼이 아니고, 이행 완료 기록 후 확인 줄에서 한 번 더 눌러야 기록된다", () => {
     const onCompleteAction = vi.fn();
     renderCard({ ...candidate, adopted: true, action }, { onCompleteAction });
     expect(screen.getByText("이행 대기")).toBeInTheDocument();
     expect(screen.getByText("공학적")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "이행 완료" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "이행 완료 기록" }));
+    expect(screen.getByRole("group", { name: "이행 완료 확인" })).toHaveTextContent(/완료일 \d{4}-\d{2}-\d{2}/);
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    expect(onCompleteAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "이행 완료 기록" }));
     fireEvent.click(screen.getByRole("button", { name: "이행 완료" }));
     expect(onCompleteAction).toHaveBeenCalledWith(1, 9);
   });
@@ -144,7 +150,7 @@ describe("CandidateCard", () => {
     expect(screen.queryByRole("button", { name: "이행 완료" })).toBeNull();
   });
 
-  it("기존 위험요인에 기한 지난 미이행 조치가 있으면 경과일을 띄우고 잠정조치 초안으로 폼을 연다", () => {
+  it("기존 위험요인에 기한 지난 미이행 조치가 있으면 경과일을 띄우고 기준표 1순위 대책 초안으로 폼을 연다", () => {
     renderCard({
       ...candidate, adopted: true, alreadyKnown: true,
       priorOpenAction: { ...action, id: 1, content: "차양부 천장 작업 시 이동식 비계(안전난간) 사용", dueDate: "2020-08-21", status: "OVERDUE" },
@@ -152,8 +158,15 @@ describe("CandidateCard", () => {
     expect(screen.getByText("기존 위험요인")).toBeInTheDocument();
     expect(screen.getByText("미이행 조치")).toBeInTheDocument();
     expect(screen.getByText(/^\d+일 경과$/)).toBeInTheDocument();
-    expect(screen.getByLabelText("개선대책 내용")).toHaveValue("잠정조치: 기존 대책 이행 전까지 해당 작업 중지");
-    expect(screen.getByRole("button", { name: "관리적" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("개선대책 내용")).toHaveValue("이동식 비계(안전난간) 또는 말비계로 작업발판 확보");
+    expect(screen.getByRole("button", { name: "공학적" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("초안이 없으면 내용 칸을 비우고 자리표시 문구만 둔다", () => {
+    renderCard({ ...candidate, adopted: true, suggestedAction: null });
+    const input = screen.getByLabelText("개선대책 내용");
+    expect(input).toHaveValue("");
+    expect(input).toHaveAttribute("placeholder", "개선대책 입력");
   });
 
   it("기한이 남은 기존 조치가 있으면 폼을 접어 두고 사람이 열 수 있다", () => {

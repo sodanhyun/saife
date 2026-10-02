@@ -125,6 +125,7 @@ public class DemoConversationScript {
                 slots.get(RiskRuleEngine.SlotKeys.TOP_STEP),
                 slots.get(RiskRuleEngine.SlotKeys.TIP_GUARD),
                 slots.get(RiskRuleEngine.SlotKeys.PLATFORM_GUARDRAIL),
+                slots.get(RiskRuleEngine.SlotKeys.CASTER_LOCK),
                 slots.get(RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED),
                 slots.get(RiskRuleEngine.SlotKeys.PRODUCT_NAME),
                 toolContext);
@@ -155,7 +156,7 @@ public class DemoConversationScript {
             return out.append("점검표 초안을 찾지 못했습니다. 새 대화로 다시 시작해 주세요.").toString();
         }
         workPlanTools.createWorkPlan(planId, toolContext);
-        out.append("작업 전 안전점검표를 작성해 관리감독자 승인 대기에 올렸습니다. 작업 전에 TBM으로 내용을 공유해 주세요.");
+        out.append("작업 전 안전점검표를 작성해 관리감독자 승인 대기에 올렸습니다. 승인 후 작업 당일 TBM으로 내용을 공유해 주세요.");
 
         // 상태를 지우지 않고 "완료"로 표시한다. 지우면 이어지는 발화가 처음부터 다시 시작한다
         slots.put("done", "true");
@@ -281,7 +282,7 @@ public class DemoConversationScript {
     /** 제품명만 뽑는다. 발화 전체를 제품명으로 넣으면 MSDS 조회와 서식이 망가진다 */
     private String specificProductName(String message) {
         // 유성/수성 같은 수식어가 붙었을 때만 제품명으로 본다
-        Matcher specific = Pattern.compile("([가-힣A-Za-z0-9]+[ ]*)?(유성|수성)[ ]*(페인트|도료|시너|락카|에나멜)")
+        Matcher specific = Pattern.compile("([가-힣A-Za-z0-9]+[ ]*)?(유성|수성)[ ]*(에나멜[ ]*페인트|페인트|도료|시너|락카|에나멜)")
                 .matcher(message);
         if (specific.find()) {
             return specific.group().trim();

@@ -2,6 +2,7 @@ package io.saife.ai.tools;
 
 import io.saife.ai.agent.AgentContextKeys;
 import io.saife.common.service.SseService;
+import io.saife.core.service.RiskRuleEngine;
 import io.saife.core.domain.AccidentType;
 import io.saife.evidence.Evidence;
 import io.saife.evidence.EvidenceKind;
@@ -84,9 +85,12 @@ public class HazardAnalysisTools {
                 sb.append("\n관련 기술지침:\n");
                 guides.forEach(g -> sb.append(line(g)).append('\n'));
             }
+            // 조문은 설비 종류에 맞는 것만 붙인다. 사다리 작업에 안전대 부착설비(제44조)를 붙이면 무관 조문이다
+            String kind = RiskRuleEngine.equipmentKind(equipment, combined);
+            boolean hotWork = combined.matches(HOT_WORK);
             List<Evidence> lawCards = new ArrayList<>();
             for (AccidentType axis : axes) {
-                for (LawCitationTable.Citation c : LawCitationTable.forAxis(axis).stream().limit(2).toList()) lawCards.addAll(LawEvidenceBuilder.build(laws, c));
+                for (LawCitationTable.Citation c : citationsFor(axis, kind, hotWork)) lawCards.addAll(LawEvidenceBuilder.build(laws, c));
             }
             for (LawCitationTable.Citation c : LawCitationTable.common()) lawCards.addAll(LawEvidenceBuilder.build(laws, c));
             List<Evidence> numberedLaws = registerSafely(cid, lawCards);
@@ -223,6 +227,43 @@ public class HazardAnalysisTools {
         return sb.append(')').toString();
     }
 
+    /** 용접, 용단 작업(화재위험작업, 제241조) */
+    private static final String HOT_WORK = "(?s).*(용접|용단|가스 ?절단|산소 ?절단).*";
+
+    /**
+     * 발생형태와 설비 종류에 맞는 조문. 판정 근거(RiskRuleEngine)와 같은 조문을 근거 카드로 붙인다.
+     * 모두 law_article 테이블에 있는 조문이다(안전보건규칙).
+     */
+    static List<LawCitationTable.Citation> citationsFor(AccidentType axis, String kind, boolean hotWork) {
+        String k = kind == null ? "" : kind;
+        String r = LawCitationTable.RULES;
+        return switch (axis) {
+            case FALL -> switch (k) {
+                case RiskRuleEngine.KIND_LADDER -> List.of(new LawCitationTable.Citation(r, 42, 0, "추락의 방지 (제4항 이동식 사다리 사용 기준)"));
+                case RiskRuleEngine.KIND_AERIAL_PLATFORM -> List.of(new LawCitationTable.Citation(r, 186, 0, "고소작업대 설치 등의 조치"));
+                case RiskRuleEngine.KIND_MOBILE_SCAFFOLD -> List.of(new LawCitationTable.Citation(r, 68, 0, "이동식비계 (안전난간, 바퀴 고정, 작업발판)"));
+                case RiskRuleEngine.KIND_TRESTLE -> List.of(new LawCitationTable.Citation(r, 67, 0, "말비계"));
+                case RiskRuleEngine.KIND_ROOF -> List.of(new LawCitationTable.Citation(r, 45, 0, "지붕 위에서의 위험 방지 (채광창)"),
+                        new LawCitationTable.Citation(r, 44, 0, "안전대의 부착설비 등"));
+                default -> LawCitationTable.forAxis(axis).stream().limit(2).toList();
+            };
+            case CAUGHT -> RiskRuleEngine.KIND_PRESS.equals(k)
+                    ? List.of(new LawCitationTable.Citation(r, 103, 0, "프레스 등의 위험 방지 (방호장치)"),
+                            new LawCitationTable.Citation(r, 104, 0, "금형조정작업의 위험 방지"))
+                    : LawCitationTable.forAxis(axis).stream().limit(2).toList();
+            case DROP -> RiskRuleEngine.KIND_CRANE.equals(k)
+                    ? List.of(new LawCitationTable.Citation(r, 146, 0, "크레인 작업 시의 조치"),
+                            new LawCitationTable.Citation(r, 137, 0, "해지장치의 사용"),
+                            new LawCitationTable.Citation(r, 163, 0, "와이어로프 등 달기구의 안전계수"))
+                    : LawCitationTable.forAxis(axis).stream().limit(2).toList();
+            case FIRE -> hotWork
+                    ? List.of(new LawCitationTable.Citation(r, 241, 0, "화재위험작업 시의 준수사항"),
+                            new LawCitationTable.Citation(r, 241, 2, "화재감시자"))
+                    : LawCitationTable.forAxis(axis).stream().limit(2).toList();
+            default -> LawCitationTable.forAxis(axis).stream().limit(2).toList();
+        };
+    }
+
     /** 이 사업장(제조업 소규모 사업장)과 무관한 건설 공종 지침을 가리키는 말 */
     private static final String UNRELATED_GUIDE =
             ".*(데크플레이트|철골|교량|터널|굴착|흙막이|거푸집|동바리|타워크레인|항타|해체공사|건설현장|건축물 신축|도로|궤도|선박|조선).*";
@@ -290,21 +331,21 @@ public class HazardAnalysisTools {
      *
      * <p>규칙 테이블이다. LLM에 맡기지 않는 이유는 무대에서 재현 가능해야 하기 때문이다.
      */
-    private Set<AccidentType> deriveAxes(String text) {
+    static Set<AccidentType> deriveAxes(String text) {
         Set<AccidentType> axes = new LinkedHashSet<>();
         if (text.matches("(?s).*(사다리|비계|고소|천장|지붕|옥상|단부|개구부).*")) {
             axes.add(AccidentType.FALL);
         }
-        if (text.matches("(?s).*(정비|점검|청소|컨베이어|롤러|회전|구동|프레스).*")) {
+        if (text.matches("(?s).*(정비|점검|청소|컨베이어|롤러|회전|구동|프레스|금형|선반|척).*")) {
             axes.add(AccidentType.CAUGHT);
         }
-        if (text.matches("(?s).*(인양|적재|하역|크레인|지게차|중량물).*")) {
+        if (text.matches("(?s).*(인양|적재|하역|크레인|호이스트|지게차|중량물).*")) {
             axes.add(AccidentType.DROP);
         }
         if (text.matches("(?s).*(지게차|차량|운반|대차|통로).*")) {
             axes.add(AccidentType.STRUCK);
         }
-        if (text.matches("(?s).*(페인트|도장|용제|시너|용접|화기|가연).*")) {
+        if (text.matches("(?s).*(페인트|도장|용제|시너|용접|용단|화기|가연).*")) {
             axes.add(AccidentType.FIRE);
         }
         // 보호구는 거의 모든 작업에 해당한다

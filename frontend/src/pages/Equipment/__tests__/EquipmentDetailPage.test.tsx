@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import type { EquipmentTimeline, TimelineEvent } from "@/types/timeline";
@@ -14,7 +14,7 @@ const timeline: EquipmentTimeline = {
   equipment: { id: 1, name: "이동식 사다리 A", locationTag: "공장동 후면 차양부", processName: "표면처리 라인", objectCode: "M-0412", introducedOn: "2023-04-11" },
   summary: {
     currentRiskLevel: "HIGH", currentRiskAxis: "FALL", lastAssessedOn: "2026-08-21", assessmentCount: 1, workPlanCount: 0,
-    incidentCount: 0, unfinishedActionCount: 1, overdueActionCount: 1, headline: "기한 경과 1",
+    incidentCount: 0, nearMissCount: 0, unfinishedActionCount: 1, overdueActionCount: 1, headline: "기한 경과 1",
   },
   events: [
     ev("assessment-1"),
@@ -22,8 +22,11 @@ const timeline: EquipmentTimeline = {
   ],
 };
 
-vi.mock("@/hooks/useEquipmentTimeline", () => ({
-  useEquipmentTimeline: () => ({ timeline, loading: false, loadError: null }),
+const state = { notFound: false };
+vi.mock("@/pages/Equipment/hooks/useEquipmentDetail", () => ({
+  useEquipmentDetail: () => ({
+    timeline: state.notFound ? null : timeline, notFound: state.notFound, loading: false, loadError: false, refetch: vi.fn(),
+  }),
 }));
 
 import EquipmentDetailPage from "@/pages/Equipment/EquipmentDetailPage";
@@ -39,6 +42,16 @@ function renderAt(url: string) {
 }
 
 describe("EquipmentDetailPage", () => {
+  beforeEach(() => { state.notFound = false; });
+
+  it("없는 설비는 '설비를 찾을 수 없습니다'와 설비 현황 버튼만 보인다", () => {
+    state.notFound = true;
+    renderAt("/equipment/999");
+    expect(screen.getByText("설비를 찾을 수 없습니다")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "설비 현황" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "작업 전 점검" })).toBeNull();
+  });
+
   it("제목은 설비명, 섹션은 '이력', 행동은 작업 전 점검/순회점검/사고 보고다", () => {
     renderAt("/equipment/1");
     expect(screen.getByRole("heading", { level: 1, name: "이동식 사다리 A" })).toBeInTheDocument();

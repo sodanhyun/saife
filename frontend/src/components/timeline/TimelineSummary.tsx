@@ -2,7 +2,7 @@
 // 화면의 주인공 면이라 shadow-lift를 쓴다.
 import { ChevronRight } from "lucide-react";
 
-import { buildStory, gradeHistory } from "@/components/timeline/storyModel";
+import { buildStory, gradeHistory, yearMarks } from "@/components/timeline/storyModel";
 import { StatusBadge } from "@/components/ui/Badge";
 import RiskGradeMark from "@/components/ui/RiskGradeMark";
 import cn from "@/lib/cn";
@@ -17,7 +17,7 @@ interface Props {
   showName?: boolean;
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: Tone }) {
+function Stat({ label, value, tone, extra }: { label: string; value: number; tone?: Tone; extra?: string | null }) {
   const active = value > 0 && tone;
   return (
     <div className="min-w-0 px-5 first:pl-0">
@@ -26,6 +26,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: Ton
       <p className="mt-1 text-display tabular-nums">
         <span className={cn(value === 0 ? "text-slate-300" : active ? toneColor(tone).text : "text-slate-900")}>{value}</span>
       </p>
+      {extra && <p className="whitespace-nowrap text-xs font-semibold text-pending-text">{extra}</p>}
     </div>
   );
 }
@@ -35,6 +36,7 @@ export default function TimelineSummary({ timeline, showName = false }: Props) {
   const story = buildStory(events);
   const history = gradeHistory(story);
   const latest = history.at(-1);
+  const years = yearMarks(history.map((s) => s.ev.at), String(new Date().getFullYear()));
   const level = summary.currentRiskLevel;
   const meta = [
     equipment.objectCode,
@@ -49,7 +51,8 @@ export default function TimelineSummary({ timeline, showName = false }: Props) {
         {showName && <span className="text-base font-semibold text-slate-900">{equipment.name}</span>}
         <span className="text-sm text-slate-500">{meta.join("  /  ")}</span>
       </div>
-      <div className="grid gap-6 px-6 py-5 lg:grid-cols-[minmax(0,1fr)_auto]">
+      {/* 좁은 화면(1280 폭 포함)에서는 한 열로 쌓는다. 수치 칸이 등급 근거를 좁히지 않게 */}
+      <div className="grid gap-6 px-6 py-5 2xl:grid-cols-[minmax(0,1fr)_auto]">
         <div className="flex min-w-0 items-start gap-4">
           {level ? (
             <RiskGradeMark level={level} size="lg" />
@@ -79,6 +82,7 @@ export default function TimelineSummary({ timeline, showName = false }: Props) {
                 {history.map((s, i) => (
                   <li key={s.ev.id} className="flex items-center gap-1">
                     {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-slate-300" aria-hidden />}
+                    {years[i] && <span className="mr-0.5 text-xs font-semibold tabular-nums text-slate-400">{years[i]}</span>}
                     <span className={cn("inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-xs", s.gradeChange ? riskColor(s.ev.riskLevel!).chip : "border-slate-200 text-slate-600")}>
                       <span className="tabular-nums text-slate-500">{monthDay(s.ev.at)}</span>
                       <span className={cn("font-bold", riskColor(s.ev.riskLevel!).text)}>{RISK_LABEL[s.ev.riskLevel!]}</span>
@@ -89,10 +93,11 @@ export default function TimelineSummary({ timeline, showName = false }: Props) {
             )}
           </div>
         </div>
-        <div className="flex items-start divide-x divide-slate-100 lg:border-l lg:border-slate-100 lg:pl-6">
+        <div className="flex items-start divide-x divide-slate-100 border-t border-slate-100 pt-4 2xl:border-l 2xl:border-t-0 2xl:pl-6 2xl:pt-0">
           <Stat label="위험성평가" value={summary.assessmentCount} />
           <Stat label="작업 전 점검" value={summary.workPlanCount} />
-          <Stat label="사고" value={summary.incidentCount} tone="high" />
+          <Stat label="사고" value={summary.incidentCount} tone="high"
+            extra={(summary.nearMissCount ?? 0) > 0 ? `아차사고 ${summary.nearMissCount}` : null} />
           <Stat label="미이행 조치" value={summary.unfinishedActionCount} tone="pending" />
           <Stat label="기한 경과" value={summary.overdueActionCount} tone="high" />
         </div>

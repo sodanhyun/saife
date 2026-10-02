@@ -63,12 +63,13 @@ public class WorkPlanFormService {
     private final EquipmentRepository equipmentRepository;
     private final ProcessRepository processRepository;
     private final BriefingViewBuilder briefingViewBuilder;
+    private final io.saife.workplan.service.WorkPlanService workPlanService;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public WorkPlanFormView build(Long workPlanId) {
         WorkPlan plan = workPlanRepository.findById(workPlanId).orElseThrow(
-                () -> new NotFoundException("점검표를 찾을 수 없습니다: " + workPlanId));
+                () -> new NotFoundException("점검 기록을 찾을 수 없습니다."));
         Site site = siteRepository.findById(plan.getSiteId()).orElse(null);
         Equipment equipment = plan.getEquipmentId() == null ? null
                 : equipmentRepository.findById(plan.getEquipmentId()).orElse(null);
@@ -93,10 +94,11 @@ public class WorkPlanFormService {
         WorkPlanDtos.BriefingView view = briefingViewBuilder.compute(plan);
         List<WorkPlanFormView.Decision> decisions = view.decisions().stream()
                 .map(d -> new WorkPlanFormView.Decision(d.label(), d.riskLevel().getLabel(), gradeClass(d.riskLevel()),
-                        d.ruleTrace(), nvl(d.recommendation(), "-")))
+                        d.ruleTrace(), nvl(d.recommendation(), "")))
                 .toList();
+        // 출력 시점에 따라 바뀌는 경과일은 쓰지 않는다. 기한 날짜로 적는다
         List<String> pending = view.pendingActions().stream()
-                .map(a -> a.content() + (a.overdueDays() != null && a.overdueDays() > 0 ? " (" + a.overdueDays() + "일 경과)" : ""))
+                .map(a -> a.content() + (a.dueDate() == null ? "" : " (기한 " + a.dueDate() + ")"))
                 .toList();
 
         List<WorkPlanFormView.Reference> references = workPlanEvidenceRepository
@@ -107,12 +109,19 @@ public class WorkPlanFormService {
         // 번호는 서식 안에서 1부터 다시 매긴다. 대화 원장 번호(#n)는 서식 독자에게 의미가 없다
         AtomicInteger refNo = new AtomicInteger(1);
         references = references.stream()
-                .map(r -> new WorkPlanFormView.Reference(refNo.getAndIncrement(), r.title(), r.sourceUrl(), r.linkText()))
+                .map(r -> new WorkPlanFormView.Reference(refNo.getAndIncrement(), r.title(), r.source(), r.sourceUrl()))
                 .toList();
+
+        boolean workPlanDoc = io.saife.workplan.domain.WorkDocument.WORK_PLAN.equals(document.type());
+        String supervisor = workPlanService.detail(workPlanId).supervisor();
+        List<String> preSurvey = view.preSurvey() == null ? List.of() : view.preSurvey();
 
         return new WorkPlanFormView(
                 document.title(),
                 document.basis(),
+                document.type(),
+                nvl(supervisor, ""),
+                workPlanDoc ? preSurvey : List.of(),
                 site == null ? "-" : site.getName(),
                 equipmentLabel(equipment),
                 plan.getWorkName(),
@@ -123,6 +132,7 @@ public class WorkPlanFormService {
                 statusLabel(plan.getStatus()),
                 nvl(plan.getApprovedBy(), ""),
                 plan.getApprovedAt() == null ? "" : format(plan.getApprovedAt()),
+                plan.getStatus() == WorkPlanStatus.HOLD ? "보류 전 승인" : "확인 시각",
                 nvl(plan.getApprovalNote(), "-"),
                 plan.getWarningNote(),
                 workers, checks, decisions,
@@ -150,17 +160,17 @@ public class WorkPlanFormService {
         return sb.toString();
     }
 
-    /** 원문 링크는 긴 URL을 찍지 않고 출처 이름으로 건다 */
+    /** 참고 자료는 출처 이름과 조문(제목)으로 적는다. 인쇄물에 링크 글자나 긴 URL을 찍지 않는다 */
     private WorkPlanFormView.Reference toReference(WorkPlanEvidence row) {
         try {
             Evidence e = objectMapper.readValue(row.getPayload(), Evidence.class);
-            String link = switch (e.kind()) {
-                case LAW -> "법제처 원문";
-                case GUIDE -> "KOSHA GUIDE 원문";
-                case MSDS -> "MSDS 원문";
-                case CASE_FATALITY, CASE_DISASTER -> "공단 사례 원문";
+            String source = switch (e.kind()) {
+                case LAW -> "법제처";
+                case GUIDE -> "KOSHA GUIDE";
+                case MSDS -> "MSDS";
+                case CASE_FATALITY, CASE_DISASTER -> "한국산업안전보건공단 재해사례";
             };
-            return new WorkPlanFormView.Reference(e.no(), cleanTitle(e), e.sourceUrl(), e.sourceUrl() != null ? link : null);
+            return new WorkPlanFormView.Reference(e.no(), cleanTitle(e), source, e.sourceUrl());
         } catch (Exception ex) {
             log.warn("[FORM] 근거 복원 실패 workPlanId={} no={}: {}", row.getWorkPlanId(), row.getEvidenceNo(), ex.getMessage());
             return null;
@@ -177,7 +187,8 @@ public class WorkPlanFormService {
             t = t.substring(0, t.indexOf(": "));
         }
         if (e.kind() != null && e.kind().isCase()) {
-            t = t.replaceFirst("^(\\s*\\[[^\\]]*\\]\\s*)+", "");
+            t = t.replaceFirst("^(\\s*\\[[^\\]]*\\]\\s*)+", "").replaceFirst("\\s*\\(\\d{4,8}\\)\\s*$", "");
+            t = t.replace("작업중", "작업 중").replace("알콜", "알코올");
         }
         return t.replace(" — ", ", ").replace("—", ", ").replace("–", ", ")
                 .replace("ㆍ", ", ").replace("·", ", ").replaceAll("\\s{2,}", " ").trim();
@@ -202,13 +213,12 @@ public class WorkPlanFormService {
 
     private static String statusLabel(WorkPlanStatus status) {
         return switch (status) {
-            case DRAFT -> "작성 중";
             case SUBMITTED -> "승인 대기";
             case APPROVED -> "승인";
             case CONDITIONAL -> "조건부 승인";
-            case REJECTED -> "반려";
             case HOLD -> "작업 보류";
             case CLOSED -> "완료";
+            default -> "작성 중";
         };
     }
 
