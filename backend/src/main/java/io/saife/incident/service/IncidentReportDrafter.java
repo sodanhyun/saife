@@ -66,6 +66,9 @@ public class IncidentReportDrafter {
                     .user(buildUserPrompt(incident, recall, evidence))
                     .options(GoogleGenAiChatOptions.builder()
                             .safetySettings(GeminiSafetySettings.SAFETY_SETTINGS_OFF)
+                            // 근거가 프롬프트에 다 있는 정리 작업이라 깊은 사고가 필요 없다. 기본 사고 단계에서는
+                            // 등록 응답이 25~110초 걸렸다(2026-10-02 실측). 사고 단계를 낮춰 화면이 기다리지 않게 한다
+                            .thinkingLevel(org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel.LOW)
                             .build())
                     .call()
                     .content();
@@ -98,7 +101,7 @@ public class IncidentReportDrafter {
             - 근거가 부족하면 "확인 필요"라고 쓰십시오. 추측을 단정형으로 쓰지 마십시오.
             - 재발방지 계획에는 이미 등록돼 있던 미이행 조치가 있으면 그것을 첫 항목으로 쓰십시오.
               새 대책을 나열하기 전에 하기로 했던 것부터 다루는 것이 조사표의 신뢰를 만듭니다.
-            - 한국어 공문 문체로 쓰십시오.
+            - 한국어 공문 문체로 쓰십시오. 가운뎃점(·)과 대시(—, –)는 쓰지 말고 쉼표나 괄호를 쓰십시오.
             - 재발방지 대책 문장 끝에 근거 번호를 [#n]으로 붙이세요. 목록에 없는 번호는 쓰지 마세요.
 
             출력 형식을 정확히 지키십시오. 다른 말을 덧붙이지 마십시오.

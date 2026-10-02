@@ -1,39 +1,38 @@
-// AffectedWorkPlans.tsx — 사고 연쇄 4단계(WORK_PLAN)가 가리키는 표.
-// 같은 설비의 진행 중 작업계획서에 경고가 붙었음을 보여준다. 0건이면 렌더하지 않는다
-// (스텝 4의 detail "해당 없음"이 이미 그 사실을 말하므로 여기 빈 표를 또 두지 않는다).
+// AffectedWorkPlans.tsx — 사고 연쇄 4단계(WORK_PLAN)의 상세. 같은 설비의 진행 중 작업계획서에 붙은 경고를 보인다.
 import { StatusBadge } from "@/components/ui/Badge";
-import DataTable, { type Column } from "@/components/ui/DataTable";
+import { DetailCard } from "@/pages/Incident/components/DetailCard";
+import { plain } from "@/pages/Incident/utils/premonition";
 import { WORK_PLAN_STATUS_LABEL } from "@/types/domain";
 import type { AffectedWorkPlan } from "@/types/incident";
 import { formatDate } from "@/utils/datetime";
 import { workPlanStatusTone } from "@/utils/statusColors";
 
-export default function AffectedWorkPlans({ workPlans }: { workPlans: AffectedWorkPlan[] }) {
-  if (workPlans.length === 0) return null;
-
-  const columns: Column<AffectedWorkPlan>[] = [
-    { key: "workName", header: "작업명", render: (p) => p.workName },
-    {
-      key: "workDate",
-      header: "작업일",
-      width: "w-28",
-      render: (p) => <span className="tabular-nums">{formatDate(p.workDate)}</span>,
-    },
-    {
-      key: "status",
-      header: "상태",
-      width: "w-24",
-      render: (p) => <StatusBadge tone={workPlanStatusTone(p.status)}>{WORK_PLAN_STATUS_LABEL[p.status]}</StatusBadge>,
-    },
-    { key: "warning", header: "경고", render: (p) => <span className="text-risk-high-text">{p.warning}</span> },
-  ];
-
+export default function AffectedWorkPlans({ workPlans, id }: { workPlans: AffectedWorkPlan[]; id?: string }) {
+  // 같은 사고가 붙인 경고는 문구가 같다. 한 번만 크게 보이고, 계획서마다 반복하지 않는다
+  const warnings = [...new Set(workPlans.map((p) => plain(p.warning)))];
   return (
-    <DataTable
-      columns={columns}
-      data={workPlans}
-      rowKey={(p) => p.workPlanId}
-      emptyMessage="영향받는 작업계획서가 없습니다"
-    />
+    <DetailCard id={id} label="작업계획서 경고" title={`진행 중 ${workPlans.length}건에 부착`}>
+      {workPlans.length === 0 ? (
+        <p className="text-sm text-slate-500">같은 설비에 진행 중인 작업계획서가 없습니다.</p>
+      ) : (
+        <>
+          {warnings.map((w) => (
+            <p key={w} className="rounded-md border border-risk-high-border bg-risk-high-bg px-3 py-2 text-sm font-medium text-risk-high-text">
+              {w}
+            </p>
+          ))}
+          <ul className="mt-3 divide-y divide-slate-100">
+            {workPlans.map((p) => (
+              <li key={p.workPlanId} className="flex items-center gap-3 py-2 text-sm">
+                <span className="w-10 shrink-0 text-xs tabular-nums text-slate-400">#{p.workPlanId}</span>
+                <span className="min-w-0 flex-1 truncate text-slate-800">{p.workName}</span>
+                <span className="shrink-0 text-xs tabular-nums text-slate-500">{formatDate(p.workDate)}</span>
+                <StatusBadge tone={workPlanStatusTone(p.status)}>{WORK_PLAN_STATUS_LABEL[p.status]}</StatusBadge>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </DetailCard>
   );
 }

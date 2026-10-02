@@ -19,7 +19,7 @@ export default function LawArticleCard({ e, scope }: { e: Evidence; scope: strin
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-xs text-slate-500">#{e.no}</span>
         <Scale size={14} className="text-slate-400" aria-hidden />
-        <span className="text-xs text-slate-500">법 조문{eff ? ` · 시행 ${eff}` : ""}</span>
+        <span className="text-xs text-slate-500">법 조문{eff ? `, 시행 ${eff}` : ""}</span>
         <StatusBadge tone={originTone(e)}>{originLabel(e)}</StatusBadge>
       </div>
       <p className="mt-1 text-stage font-semibold">{e.title}</p>

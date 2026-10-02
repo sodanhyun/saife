@@ -1,100 +1,91 @@
-// CascadeList.tsx — 사고 연쇄 4단계. "등록 한 번에 세 가지가 동시에 일어난다"가 아니라
-// "한 사건이 세 곳을 차례로 바꾼다"로 보이게 하는 세로 스텝.
-//
-// 카드 위에 얹히는 안내일 뿐이다. 기존 카드(회상·수시평가·조사표 KPI·작업계획서 표)의
-// 구조·문구는 건드리지 않고, 이 목록의 등장 애니메이션도 카드 높이에는 관여하지 않는다.
-import { useEffect, useMemo, useState } from "react";
-
+// CascadeList.tsx — 사고 연쇄 4단계를 가로 사슬로 보인다. "한 사건이 네 곳을 차례로 바꾼다".
+// 카드가 약 350ms 간격으로 차례로 떠오르고, 카드 사이 연결선이 앞 카드에서 뒤 카드로 채워진다.
+// 각 카드는 버튼이다: 누르면 아래 상세 카드로 이동한다(키보드 Enter/Space는 네이티브 버튼이 처리).
 import cn from "@/lib/cn";
 import { CASCADE_ANCHOR_BY_KIND } from "@/pages/Incident/utils/cascadeAnchor";
+import type { CascadeCard } from "@/pages/Incident/utils/premonition";
 import type { CascadeKind, CascadeStep } from "@/types/incident";
 import { emphasisTone, toneColor } from "@/utils/statusColors";
 
-const STEP_ENTER_INTERVAL_MS = 150;
+/** 카드 등장 간격. 첫 카드는 히어로가 자리 잡은 뒤 뜬다 */
+export const STEP_INTERVAL_MS = 350;
+const FIRST_DELAY_MS = 500;
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-interface CascadeListProps {
-  steps: CascadeStep[];
-  /**
-   * WORK_PLAN 스텝의 앵커를 스텝 자신에게 둘지 여부 — `AffectedWorkPlans` 표가 없을 때(0건)
-   * IncidentResult가 true를 넘긴다. 표가 있을 때는 표 쪽 래퍼가 같은 id(`cascade-workplans`)를
-   * 이미 갖고 있으므로 여기서는 달지 않는다(DOM에 같은 id 중복 방지).
-   */
-  workPlanAnchorOnSelf?: boolean;
+interface Props {
+  cards: CascadeCard[];
+  /** 백엔드 cascade — 단계별 강조(emphasis)만 가져다 쓴다 */
+  steps?: CascadeStep[];
 }
 
-/** 사고 연쇄 스텝 목록. cascade가 없거나 비어 있으면 아무것도 렌더하지 않는다 */
-export default function CascadeList({ steps, workPlanAnchorOnSelf = false }: CascadeListProps) {
-  const ordered = useMemo(() => [...steps].sort((a, b) => a.order - b.order), [steps]);
-  const reduced = useMemo(() => prefersReducedMotion(), []);
-
-  // 등장 애니메이션 진행도 — reduced가 아닐 때만 타이머가 이 값을 밀어 올린다.
-  // reduced일 때는 아예 건드리지 않고, 렌더 시점에 ordered.length로 대체해서 쓴다
-  // (effect 안에서 곧바로 setState하는 패턴을 피한다 — react-hooks/set-state-in-effect).
-  const [tick, setTick] = useState(0);
-  const visibleCount = reduced ? ordered.length : tick;
-
-  useEffect(() => {
-    if (reduced) return undefined;
-    const timers = ordered.map((_, i) =>
-      setTimeout(() => setTick((v) => Math.max(v, i + 1)), i * STEP_ENTER_INTERVAL_MS),
-    );
-    // 언마운트·재마운트 시 타이머를 반드시 정리한다 — 안 하면 이전 결과 화면에 걸어둔
-    // 타이머가 새 결과 화면의 상태를 건드린다.
-    return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [steps, reduced]);
-
-  if (ordered.length === 0) return null;
+export default function CascadeList({ cards, steps = [] }: Props) {
+  if (cards.length === 0) return null;
+  const reduced = prefersReducedMotion();
+  const emphasisOf = (kind: CascadeKind) => steps.find((s) => s.kind === kind)?.emphasis ?? "NORMAL";
 
   const jumpTo = (kind: CascadeKind) => {
     const el = document.getElementById(CASCADE_ANCHOR_BY_KIND[kind]);
-    if (!el) return;
-    el.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+    el?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
   };
 
   return (
-    <ol className="space-y-2" aria-label="사고 연쇄">
-      {ordered.map((step, i) => {
-        const tone = emphasisTone(step.emphasis);
-        const c = toneColor(tone);
-        const visible = i < visibleCount;
-        const selfAnchorId =
-          step.kind === "WORK_PLAN" && workPlanAnchorOnSelf ? CASCADE_ANCHOR_BY_KIND.WORK_PLAN : undefined;
-        return (
-          <li key={step.kind} id={selfAnchorId}>
-            <button
-              type="button"
-              onClick={() => jumpTo(step.kind)}
-              className={cn(
-                "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-all duration-300 ease-out",
-                c.bg,
-                c.border,
-                "hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-1",
-                c.ring,
-                visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
-              )}
-            >
-              <span
+    <section aria-labelledby="cascade-title">
+      <h2 id="cascade-title" className="mb-3 text-xs font-bold tracking-wide text-slate-500">
+        등록 한 번으로 이어진 일
+      </h2>
+      <ol className="grid gap-4 md:grid-cols-4 md:gap-8">
+        {cards.map((card, i) => {
+          const emphasis = emphasisOf(card.kind);
+          const tone = toneColor(emphasisTone(emphasis));
+          const delay = reduced ? 0 : FIRST_DELAY_MS + i * STEP_INTERVAL_MS;
+          const last = i === cards.length - 1;
+          return (
+            <li key={card.kind} className="relative">
+              <button
+                type="button"
+                onClick={() => jumpTo(card.kind)}
+                aria-label={`${card.order}단계 ${card.label}: ${card.value}. ${card.detail}`}
                 className={cn(
-                  "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white",
-                  c.solid,
+                  "flex h-full w-full flex-col rounded-xl border border-slate-200 bg-white px-5 py-4 text-left shadow-card",
+                  "transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-line",
+                  !reduced && "animate-rise-in",
                 )}
+                style={reduced ? undefined : { animationDelay: `${delay}ms` }}
               >
-                {step.order}
-              </span>
-              <span className="min-w-0">
-                <span className={cn("block text-stage font-semibold", c.text)}>{step.title}</span>
-                <span className="block text-sm text-slate-700">{step.detail}</span>
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ol>
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className={cn("grid h-6 w-6 place-items-center rounded-full text-xs font-bold text-white", tone.solid)}
+                  >
+                    {card.order}
+                  </span>
+                  <span className="text-xs font-bold tracking-wide text-slate-500">{card.label}</span>
+                </span>
+                <span className={`text-display ${cn("mt-3 tabular-nums", emphasis === "NORMAL" ? "text-slate-900" : tone.text)}`}>
+                  {card.value}
+                </span>
+                <span className="mt-1 line-clamp-2 text-sm text-slate-600">{card.detail}</span>
+              </button>
+              {!last && (
+                <span
+                  aria-hidden
+                  className="absolute left-full top-1/2 hidden h-0.5 w-8 -translate-y-1/2 bg-slate-200 md:block"
+                >
+                  <span
+                    className={cn("absolute inset-0 origin-left bg-slate-400", !reduced && "animate-grow-x")}
+                    style={reduced ? undefined : { animationDelay: `${delay + 220}ms`, animationDuration: "320ms" }}
+                  />
+                  <span className="absolute -right-0.5 top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-r-2 border-t-2 border-slate-400" />
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }

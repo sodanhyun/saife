@@ -6,10 +6,10 @@ import { StatusBadge } from "@/components/ui/Badge";
 import type { Evidence } from "@/types/evidence";
 
 const SECTION_NAME: Record<string, string> = {
-  "02": "유해성·위험성",
-  "05": "폭발·화재시 대처",
-  "07": "취급·저장",
-  "08": "노출방지·보호구",
+  "02": "유해성, 위험성",
+  "05": "폭발, 화재 시 대처",
+  "07": "취급과 저장",
+  "08": "노출방지와 보호구",
 };
 
 export default function MsdsCard({ e, scope }: { e: Evidence; scope: string }) {
@@ -50,7 +50,7 @@ export default function MsdsCard({ e, scope }: { e: Evidence; scope: string }) {
           return (
             <div key={code}>
               <dt className="text-xs font-semibold text-slate-500">{SECTION_NAME[code] ?? `항목 ${code}`}</dt>
-              <dd className="text-slate-700">{lines.slice(0, 4).join(" · ")}</dd>
+              <dd className="text-slate-700">{lines.slice(0, 4).join(", ")}</dd>
             </div>
           );
         })}

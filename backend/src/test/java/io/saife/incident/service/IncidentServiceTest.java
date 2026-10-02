@@ -133,7 +133,7 @@ class IncidentServiceTest {
         assertThat(recallStep.refId()).isEqualTo(1L);
         assertThat(recallStep.refType()).isEqualTo("EQUIPMENT");
         // detail은 recall.headline()으로 시작한다. 유사 사례가 검색되면(B1 Task 5)
-        // " · 동종 유사 사고 N건(사진 M)"이 뒤에 덧붙는다 — 검색 결과 유무에 관계없이 통과해야 한다.
+        // " 동종 유사 사고 N건(사진 M)."이 뒤에 덧붙는다 — 검색 결과 유무에 관계없이 통과해야 한다.
         assertThat(recallStep.detail()).startsWith(response.recall().headline());
         if (!response.similarCases().isEmpty()) {
             assertThat(recallStep.detail()).contains("동종 유사 사고 " + response.similarCases().size() + "건");

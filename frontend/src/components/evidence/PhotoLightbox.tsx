@@ -6,7 +6,7 @@ export default function PhotoLightbox({ e, onClose }: { e: Evidence; onClose: ()
   return (
     <Modal isOpen onClose={onClose} title={e.title} maxWidth="lg">
       <img src={e.mediaUrl ?? undefined} alt={e.title} className="max-h-[70vh] w-full rounded object-contain" />
-      <p className="mt-2 text-xs text-slate-500">출처: 한국산업안전보건공단 사고사망 게시판 · 근거 #{e.no}</p>
+      <p className="mt-2 text-xs text-slate-500">출처: 한국산업안전보건공단 사고사망 게시판, 근거 #{e.no}</p>
     </Modal>
   );
 }

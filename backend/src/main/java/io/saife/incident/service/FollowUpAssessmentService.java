@@ -65,7 +65,7 @@ public class FollowUpAssessmentService {
                 .triggerType(TRIGGER_INCIDENT)
                 .triggerRefId(incident.getId())
                 .assessedOn(today)
-                .participants("(자동 생성 초안 — 참여자를 입력한 뒤 확정하십시오)")
+                .participants("(자동 생성 초안, 참여자를 입력한 뒤 확정하십시오)")
                 .status("DRAFT")
                 .build());
 
@@ -97,7 +97,7 @@ public class FollowUpAssessmentService {
                     .equipmentId(incident.getEquipmentId())
                     .accidentType(incident.getAccidentType())
                     .missingControl(incident.getAccidentType().getMissingControlHint())
-                    .description("%s 사고로 확인된 위험요인 — %s".formatted(
+                    .description("%s 사고로 확인된 위험요인: %s".formatted(
                             incident.getAccidentType().getLabel(),
                             nvl(incident.getDescription(), "사고 서술 없음")))
                     .source(HazardSource.INCIDENT)
