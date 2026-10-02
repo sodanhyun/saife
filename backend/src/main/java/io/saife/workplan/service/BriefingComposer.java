@@ -145,7 +145,7 @@ public class BriefingComposer {
             return;
         }
 
-        sb.append("\n[화학물질 — %s]\n".formatted(nvl(rows.get(0).getChemNameKor(), productName)));
+        sb.append("\n[화학물질: %s]\n".formatted(nvl(rows.get(0).getChemNameKor(), productName)));
         for (MsdsCache row : rows) {
             if (row.getItemDetail() == null || row.getItemDetail().isBlank()) {
                 continue;
@@ -267,7 +267,7 @@ public class BriefingComposer {
         if (history.isEmpty()) {
             return "";
         }
-        return " — 최근 평가 '%s'".formatted(history.get(0).getRiskLevel().getLabel());
+        return " (최근 평가 '%s')".formatted(history.get(0).getRiskLevel().getLabel());
     }
 
     private Map<String, String> loadSlots(Long workPlanId) {

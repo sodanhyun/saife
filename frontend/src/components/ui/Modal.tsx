@@ -14,7 +14,7 @@ export interface ModalProps {
   title?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "full";
   closeOnOutsideClick?: boolean;
   /** 모달 패널에 추가 클래스 (max-h 오버라이드 등) */
   className?: string;
@@ -75,6 +75,7 @@ export default function Modal({
     lg: "sm:max-w-lg",
     xl: "sm:max-w-xl",
     "2xl": "sm:max-w-2xl",
+    "4xl": "sm:max-w-4xl",
     full: "sm:max-w-[90vw]",
   }[maxWidth];
 

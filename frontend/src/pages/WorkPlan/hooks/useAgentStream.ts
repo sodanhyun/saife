@@ -7,6 +7,7 @@ import { api } from "@/api/client";
 import { agentTranscript, AGENT_CHAT } from "@/api/endpoints";
 import { useSSEStream } from "@/hooks/useSSEStream";
 import type { Evidence } from "@/types/evidence";
+import type { WorkPlanDetail } from "@/types/workPlan";
 import type { AiErrorPayload, EvidencePayload, RecallPayload, SlotRequestPayload, SseEnvelope, ToolDonePayload, ToolStartPayload, ToolTraceRow } from "@/types/sse";
 
 const CONVERSATION_KEY = "saife.conversationId";
@@ -56,7 +57,8 @@ function resolveInitialConversationId(entryEquipmentId: number | null): string |
   return stored;
 }
 
-export interface Turn { role: "user" | "assistant"; text: string; evidence: Evidence[] }
+/** workPlan: 이 턴에서 계획서가 제출됐으면 그 결과(ai.workplan). 결과 카드가 읽는다 */
+export interface Turn { role: "user" | "assistant"; text: string; evidence: Evidence[]; workPlan?: WorkPlanDetail }
 
 /** 근거 no로 중복 제거 — 먼저 온 것을 유지한다 */
 function dedupeByNo(items: Evidence[]): Evidence[] {
@@ -72,6 +74,7 @@ interface AgentEventMap {
   "ai.slot.request": SlotRequestPayload;
   "ai.recall": RecallPayload;
   "ai.evidence": EvidencePayload;
+  "ai.workplan": WorkPlanDetail;
   "ai.error": AiErrorPayload;
   "ai.done": null;
 }
@@ -107,6 +110,10 @@ export function useAgentStream(entryEquipmentId: number | null = null) {
   // 이번 턴에 assistant 턴이 이미 생겼는지 — 생겼으면 뒤이어 오는 ai.evidence를
   // pendingEvidenceRef가 아니라 그 턴에 직접(중복 제거하며) 이어붙인다.
   const assistantStartedRef = useRef(false);
+  // ai.workplan이 첫 토큰보다 먼저 오면(도구 레벨 발행이라 정상) 여기 두었다가 assistant 턴에 붙인다
+  const pendingWorkPlanRef = useRef<WorkPlanDetail | null>(null);
+  // 대화 턴 번호(1부터). 백엔드 callOrder는 턴마다 1부터 다시 세므로 트레이스 행은 (turn, callOrder)로 구분한다
+  const userTurnRef = useRef(0);
 
   /** 봉투 공통 처리 — 역행 seq 폐기 + 대화 ID 동기화. true면 계속 처리. */
   const accept = useCallback((env: SseEnvelope<unknown>) => {
@@ -126,24 +133,43 @@ export function useAgentStream(entryEquipmentId: number | null = null) {
       "ai.token": (chunk, env) => {
         if (!accept(env)) return;
         const text = String(chunk ?? "");
+        // 대기 중이던 근거·결과 카드는 업데이터 밖에서 꺼낸다. StrictMode는 업데이터를 두 번 돌리므로
+        // 업데이터 안에서 ref를 비우면 두 번째 실행이 빈 값을 보고 카드가 사라진다(2026-10-02 실측).
+        const starting = !assistantStartedRef.current;
+        const evidence = starting ? pendingEvidenceRef.current : [];
+        const workPlan = starting ? (pendingWorkPlanRef.current ?? undefined) : undefined;
+        if (starting) { pendingEvidenceRef.current = []; pendingWorkPlanRef.current = null; }
+        assistantStartedRef.current = true;
         setTurns((prev) => {
           const last = prev[prev.length - 1];
-          if (last && last.role === "assistant") return [...prev.slice(0, -1), { ...last, text: last.text + text }];
-          const evidence = pendingEvidenceRef.current;
-          pendingEvidenceRef.current = [];
-          return [...prev, { role: "assistant", text, evidence }];
+          if (!starting && last && last.role === "assistant") return [...prev.slice(0, -1), { ...last, text: last.text + text }];
+          return [...prev, { role: "assistant", text, evidence, workPlan }];
         });
-        assistantStartedRef.current = true;
       },
       "ai.tool.start": (p, env) => {
         if (!accept(env)) return;
-        setTrace((prev) => [...prev, { callOrder: p.callOrder, toolName: p.toolName, params: p.params, status: "running" }]);
+        const turn = userTurnRef.current;
+        setTrace((prev) => [...prev, { callOrder: p.callOrder, toolName: p.toolName, params: p.params, status: "running", startedAt: Date.now(), turn }]);
       },
       "ai.tool.done": (p, env) => {
         if (!accept(env)) return;
-        setTrace((prev) => prev.map((row) => (row.callOrder === p.callOrder
-          ? { ...row, status: p.success ? "ok" : "failed", durationMs: p.durationMs, errorMessage: p.errorMessage }
+        const turn = userTurnRef.current;
+        const status = !p.success ? "failed" : p.outcome === "INCOMPLETE" ? "incomplete" : "ok";
+        setTrace((prev) => prev.map((row) => (row.callOrder === p.callOrder && row.turn === turn
+          ? { ...row, status, durationMs: p.durationMs, errorMessage: p.errorMessage, summary: p.summary, missing: p.missing }
           : row)));
+      },
+      "ai.workplan": (detail, env) => {
+        if (!accept(env) || !detail) return;
+        if (assistantStartedRef.current) {
+          setTurns((prev) => {
+            const last = prev[prev.length - 1];
+            if (!last || last.role !== "assistant") return prev;
+            return [...prev.slice(0, -1), { ...last, workPlan: detail }];
+          });
+        } else {
+          pendingWorkPlanRef.current = detail;
+        }
       },
       "ai.slot.request": (p, env) => { if (accept(env)) setPendingSlot(p); },
       "ai.recall": (p, env) => { if (accept(env)) setRecall(p); },
@@ -165,10 +191,12 @@ export function useAgentStream(entryEquipmentId: number | null = null) {
       "ai.done": (_p, env) => {
         if (!accept(env)) return;
         // 토큰 없이 근거만 온 경우(빈 답변) — 빈 텍스트 assistant 턴을 만들어 근거를 붙인다
-        if (!assistantStartedRef.current && pendingEvidenceRef.current.length > 0) {
+        if (!assistantStartedRef.current && (pendingEvidenceRef.current.length > 0 || pendingWorkPlanRef.current)) {
           const evidence = pendingEvidenceRef.current;
+          const workPlan = pendingWorkPlanRef.current ?? undefined;
           pendingEvidenceRef.current = [];
-          setTurns((prev) => [...prev, { role: "assistant", text: "", evidence }]);
+          pendingWorkPlanRef.current = null;
+          setTurns((prev) => [...prev, { role: "assistant", text: "", evidence, workPlan }]);
         }
       },
     },
@@ -182,9 +210,11 @@ export function useAgentStream(entryEquipmentId: number | null = null) {
     lastSeqRef.current = 0; // seq는 턴마다 새로 시작한다
     setStreaming(true);
     pendingEvidenceRef.current = [];
+    pendingWorkPlanRef.current = null;
     assistantStartedRef.current = false;
+    userTurnRef.current += 1;
     setTurns((prev) => [...prev, { role: "user", text: message, evidence: [] }]);
-    setTrace([]);
+    // 트레이스는 대화 전체에 걸쳐 쌓는다 — 되묻기 전후의 재호출이 한 흐름으로 보여야 판단이 읽힌다
     // 새 대화의 첫 턴에만 넣는다 — conversationId가 아직 없을 때가 그 순간이다.
     // 백엔드는 2b에서 읽기 전까지 이 필드를 무시한다(계약은 이미 여기서 맞춘다).
     const isFirstTurn = conversationIdRef.current === null;
@@ -228,7 +258,9 @@ export function useAgentStream(entryEquipmentId: number | null = null) {
     sentRef.current = true;
     setRestoring(false);
     pendingEvidenceRef.current = [];
+    pendingWorkPlanRef.current = null;
     assistantStartedRef.current = false;
+    userTurnRef.current = 0;
     // recall도 항상 비운다 — 진입 회상(?equipmentId=)이 있으면 useEntryEquipment가
     // 독립적으로 들고 있는 값이 그대로 다시 보이므로 "유지"가 성립하고, 없으면 카드가 사라진다.
     setTrace([]); setTurns([]); setPendingSlot(null); setRecall(null); setError(null); setStreaming(false);

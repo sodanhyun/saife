@@ -40,6 +40,7 @@ public class WorkPlanService {
     private final EquipmentRepository equipmentRepository;
     private final WorkPlanEvidenceRepository workPlanEvidenceRepository;
     private final ObjectMapper objectMapper;
+    private final BriefingViewBuilder briefingViewBuilder;
 
     @Transactional(readOnly = true)
     public Page<WorkPlanDtos.ListItem> list(Long siteId, Pageable pageable) {
@@ -138,7 +139,7 @@ public class WorkPlanService {
                 plan.getWorkName(), plan.getWorkPlace(), plan.getWorkDate(), plan.getWorkHours(),
                 plan.getMethod(), plan.getNotes(), plan.getBriefing(), plan.getBriefingAckAt(),
                 plan.getStatus(), plan.getApprovalNote(), plan.getApprovedBy(), plan.getApprovedAt(),
-                slots, workers, evidence, plan.getWarningNote());
+                slots, workers, evidence, plan.getWarningNote(), briefingViewBuilder.build(plan));
     }
 
     private String equipmentName(Long equipmentId) {

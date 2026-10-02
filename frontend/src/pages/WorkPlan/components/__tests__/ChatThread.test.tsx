@@ -26,20 +26,20 @@ describe("ChatThread", () => {
       text: `턴 ${i}`,
       evidence: [],
     }));
-    render(<ChatThread turns={turns} streaming={false} restoring={false} />);
+    render(<ChatThread turns={turns} streaming={false} restoring={false} onOpenDetail={() => {}} />);
     expect(setter).toHaveBeenCalled();
   });
 
   it("스레드는 새 답변을 알리는 polite 라이브 영역이고 이름이 '대화 내용'이다", () => {
-    const { getByLabelText } = render(<ChatThread turns={[{ role: "user", text: "안녕", evidence: [] }]} streaming={false} restoring={false} />);
+    const { getByLabelText } = render(<ChatThread turns={[{ role: "user", text: "안녕", evidence: [] }]} streaming={false} restoring={false} onOpenDetail={() => {}} />);
     expect(getByLabelText("대화 내용")).toHaveAttribute("aria-live", "polite");
   });
 
   it("streaming 중에는 aria-busy가 true여서 토큰마다 읽어주지 않는다", () => {
-    const { getByLabelText, rerender } = render(<ChatThread turns={[{ role: "user", text: "안녕", evidence: [] }]} streaming={true} restoring={false} />);
+    const { getByLabelText, rerender } = render(<ChatThread turns={[{ role: "user", text: "안녕", evidence: [] }]} streaming={true} restoring={false} onOpenDetail={() => {}} />);
     expect(getByLabelText("대화 내용")).toHaveAttribute("aria-busy", "true");
 
-    rerender(<ChatThread turns={[{ role: "user", text: "안녕", evidence: [] }]} streaming={false} restoring={false} />);
+    rerender(<ChatThread turns={[{ role: "user", text: "안녕", evidence: [] }]} streaming={false} restoring={false} onOpenDetail={() => {}} />);
     expect(getByLabelText("대화 내용")).toHaveAttribute("aria-busy", "false");
   });
 
@@ -54,7 +54,7 @@ describe("ChatThread", () => {
       { role: "assistant", text: "근거 없는 답", evidence: [] },
       { role: "assistant", text: "근거 있는 답 [#1]", evidence },
     ];
-    render(<ChatThread turns={turns} streaming={false} restoring={false} knownNos={new Set([1])} />);
+    render(<ChatThread turns={turns} streaming={false} restoring={false} knownNos={new Set([1])} onOpenDetail={() => {}} />);
     expect(screen.getByText("근거 1건 펼치기")).toBeInTheDocument();
   });
 });

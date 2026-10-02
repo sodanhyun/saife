@@ -48,7 +48,8 @@ class WorkPlanToolsTest {
 
     private WorkPlanTools tools() {
         return new WorkPlanTools(workPlanRepository, workPlanWorkerRepository, workPlanSlotRepository,
-                briefingComposer, sseService, evidenceLedger, workPlanEvidenceRepository, objectMapper);
+                briefingComposer, sseService, evidenceLedger, workPlanEvidenceRepository, objectMapper,
+                mock(io.saife.core.repository.EquipmentRepository.class), mock(org.springframework.beans.factory.ObjectProvider.class));
     }
 
     /** 필수 슬롯(work_height)이 채워진, 방금 로드된 DRAFT 계획서 */

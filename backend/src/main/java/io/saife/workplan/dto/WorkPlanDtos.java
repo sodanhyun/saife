@@ -1,5 +1,7 @@
 package io.saife.workplan.dto;
 
+import io.saife.core.domain.AccidentType;
+import io.saife.core.domain.RiskLevel;
 import io.saife.evidence.Evidence;
 import io.saife.workplan.domain.WorkPlanStatus;
 
@@ -50,7 +52,27 @@ public final class WorkPlanDtos {
                          List<Slot> slots,
                          List<Worker> workers,
                          List<Evidence> evidence,
-                         String warningNote) {}
+                         String warningNote,
+                         BriefingView briefingView) {}
+
+    /**
+     * 브리핑의 구조화 뷰. 결과 카드(등급 배지 + 룰 근거)가 읽는다. 브리핑이 없는 초안이면 null.
+     * 문장 브리핑과 같은 룰 엔진 판정에서 나온다({@code BriefingViewBuilder}).
+     */
+    public record BriefingView(List<PendingAction> pendingActions,
+                               List<HazardDecision> decisions,
+                               MsdsSummary msds) {}
+
+    /** 이 설비에 남아 있는 미이행 조치. overdueDays는 기한이 지났을 때만 값이 있다 */
+    public record PendingAction(String content, LocalDate dueDate, Long overdueDays, RiskLevel lastGrade) {}
+
+    /** 발생형태 축 하나의 룰 엔진 판정. ruleTrace가 화면에 그대로 뜬다 */
+    public record HazardDecision(AccidentType accidentType, String label, RiskLevel riskLevel,
+                                 short frequency, short severity, String ruleTrace) {}
+
+    public record MsdsSummary(String chemName, String productName, List<MsdsLine> lines) {}
+
+    public record MsdsLine(String item, String text) {}
 
     /**
      * @param ledgerValue   설비 대장이 알고 있던 값
