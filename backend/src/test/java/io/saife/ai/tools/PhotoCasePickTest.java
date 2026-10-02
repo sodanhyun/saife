@@ -10,7 +10,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 재해사례 3건 선택: 상위에 사진이 없으면 후보 풀의 사진 사례 1건을 마지막 자리에 넣는다 */
+/** 유사 재해사례 3건: 사진 사례가 없으면 사진 사례 전용 검색의 첫 건을 마지막 자리에 넣는다 */
 class PhotoCasePickTest {
 
     private static Evidence ev(int n, boolean photo) {
@@ -19,19 +19,20 @@ class PhotoCasePickTest {
     }
 
     @Test
-    @DisplayName("상위 3건에 사진이 없으면 풀의 첫 사진 사례가 3번째 자리로")
+    @DisplayName("사진 사례가 없으면 마지막 자리를 사진 사례로")
     void swapsInPhoto() {
-        List<Evidence> picked = HazardAnalysisTools.withPhotoCase(
-                List.of(ev(1, false), ev(2, false), ev(3, false), ev(4, false), ev(5, true), ev(6, true)), 3);
-        assertThat(picked).extracting(Evidence::refKey).containsExactly("k1", "k2", "k5");
+        assertThat(HazardAnalysisTools.withPhotoCase(List.of(ev(1, false), ev(2, false), ev(3, false)), List.of(ev(9, true)), 3))
+                .extracting(Evidence::refKey).containsExactly("k1", "k2", "k9");
+        assertThat(HazardAnalysisTools.withPhotoCase(List.of(ev(1, false)), List.of(ev(9, true)), 3))
+                .extracting(Evidence::refKey).containsExactly("k1", "k9");
     }
 
     @Test
-    @DisplayName("상위에 사진이 있거나 풀에 사진이 없으면 그대로")
+    @DisplayName("이미 사진이 있거나 사진 후보가 없으면 그대로")
     void keepsOrder() {
-        assertThat(HazardAnalysisTools.withPhotoCase(List.of(ev(1, false), ev(2, true), ev(3, false), ev(4, true)), 3))
+        assertThat(HazardAnalysisTools.withPhotoCase(List.of(ev(1, false), ev(2, true), ev(3, false)), List.of(ev(9, true)), 3))
                 .extracting(Evidence::refKey).containsExactly("k1", "k2", "k3");
-        assertThat(HazardAnalysisTools.withPhotoCase(List.of(ev(1, false), ev(2, false), ev(3, false), ev(4, false)), 3))
+        assertThat(HazardAnalysisTools.withPhotoCase(List.of(ev(1, false), ev(2, false), ev(3, false)), List.of(), 3))
                 .extracting(Evidence::refKey).containsExactly("k1", "k2", "k3");
     }
 }

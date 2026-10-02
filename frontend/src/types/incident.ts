@@ -129,6 +129,9 @@ export interface PriorWorkPlan {
   workDate: string;
   briefingAckAt: string | null;
   status: string;
+  /** 승인 시각과 잠정조치(조건부 승인) */
+  approvedAt?: string | null;
+  approvalNote?: string | null;
 }
 
 export interface PriorIncident {

@@ -40,16 +40,23 @@ public class EvidenceChunkRepository {
     private static final String BUSINESS_FILTER =
             "and (?::text is null or metadata->>'business' is null or metadata->>'business' = ?::text) ";
 
+    private static final String PHOTO_FILTER = "and (metadata->>'hasImage')::boolean ";
+
     public List<ChunkHit> vectorSearch(float[] q, Set<EvidenceKind> kinds, String axis, int limit) {
         return vectorSearch(q, kinds, axis, null, limit);
     }
 
     public List<ChunkHit> vectorSearch(float[] q, Set<EvidenceKind> kinds, String axis, String business, int limit) {
+        return vectorSearch(q, kinds, axis, business, false, limit);
+    }
+
+    /** photoOnly: 사진이 있는 사례(metadata.hasImage)만 */
+    public List<ChunkHit> vectorSearch(float[] q, Set<EvidenceKind> kinds, String axis, String business, boolean photoOnly, int limit) {
         try {
             String v = toVectorLiteral(q);
             return jdbc.query(SELECT + ", 1 - (embedding <=> ?::vector) as score from evidence_chunk "
                             + "where searchable and kind = any(?) and (?::text is null or metadata->>'accidentType' = ?::text) "
-                            + BUSINESS_FILTER
+                            + BUSINESS_FILTER + (photoOnly ? PHOTO_FILTER : "")
                             + "and embedding is not null and 1 - (embedding <=> ?::vector) >= ? "
                             + "order by embedding <=> ?::vector limit ?",
                     mapper(), v, kindsArray(kinds), axis, axis, business, business, v, SearchPolicy.SIMILARITY_THRESHOLD, v, limit);
@@ -64,11 +71,15 @@ public class EvidenceChunkRepository {
     }
 
     public List<ChunkHit> keywordSearch(String tsquery, Set<EvidenceKind> kinds, String axis, String business, int limit) {
+        return keywordSearch(tsquery, kinds, axis, business, false, limit);
+    }
+
+    public List<ChunkHit> keywordSearch(String tsquery, Set<EvidenceKind> kinds, String axis, String business, boolean photoOnly, int limit) {
         if (tsquery == null || tsquery.isBlank()) return List.of();
         try {
             return jdbc.query(SELECT + ", ts_rank_cd(tsv, to_tsquery('simple', ?)) as score from evidence_chunk "
                             + "where searchable and kind = any(?) and (?::text is null or metadata->>'accidentType' = ?::text) "
-                            + BUSINESS_FILTER
+                            + BUSINESS_FILTER + (photoOnly ? PHOTO_FILTER : "")
                             + "and tsv @@ to_tsquery('simple', ?) order by score desc limit ?",
                     mapper(), tsquery, kindsArray(kinds), axis, axis, business, business, tsquery, limit);
         } catch (Exception e) {

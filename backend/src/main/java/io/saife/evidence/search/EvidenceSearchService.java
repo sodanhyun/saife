@@ -65,8 +65,12 @@ public class EvidenceSearchService {
         int wide = k * SearchPolicy.CANDIDATE_MULTIPLIER;
         // 최종 리뷰 F7: 업종 필터를 SQL 두 다리 모두에 건다(업종 필드가 없는 행은 통과 — 저장소 문서 참고)
         String business = req.business() == null || req.business().isBlank() ? null : req.business().strip();
-        List<ChunkHit> vec = q.map(v -> repository.vectorSearch(v, kinds, axis, business, wide)).orElse(List.of());
-        List<ChunkHit> kw = repository.keywordSearch(tsquery, kinds, axis, business, wide);
+        List<ChunkHit> vec = q.map(v -> req.photoOnly()
+                ? repository.vectorSearch(v, kinds, axis, business, true, wide)
+                : repository.vectorSearch(v, kinds, axis, business, wide)).orElse(List.of());
+        List<ChunkHit> kw = req.photoOnly()
+                ? repository.keywordSearch(tsquery, kinds, axis, business, true, wide)
+                : repository.keywordSearch(tsquery, kinds, axis, business, wide);
 
         List<ChunkHit> fused = HybridRrf.fuse(vec, kw, wide);
         if (fused.isEmpty()) return List.of();

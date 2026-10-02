@@ -76,8 +76,10 @@ class HazardAnalysisToolsTest {
         when(crawler.checkLatest(anyString())).thenReturn(Optional.empty());
         String out = tools().searchCases("FALL", null, null, null, null, ctx);
         ArgumentCaptor<SearchRequest> cap = ArgumentCaptor.forClass(SearchRequest.class);
-        verify(search).search(cap.capture());
-        assertThat(cap.getValue().query()).isEqualTo("추락");   // 축 라벨로 대체
+        // 사진 사례가 없으면 사진 사례 전용 검색을 한 번 더 한다
+        verify(search, org.mockito.Mockito.times(2)).search(cap.capture());
+        assertThat(cap.getAllValues().get(0).query()).isEqualTo("추락");   // 축 라벨로 대체
+        assertThat(cap.getAllValues().get(1).photoOnly()).isTrue();
         assertThat(out).contains("#1");
     }
 

@@ -76,8 +76,10 @@ public class EquipmentHistoryRecaller {
     public record UnfinishedAction(Long actionId, String content, LocalDate dueDate,
                                    ActionStatus status, Long overdueDays, String guideRef, String owner) {}
 
+    /** approvedAt, approvalNote: 승인 시각과 잠정조치. 사고 화면이 "그날 무엇을 조건으로 승인했나"를 보인다 */
     public record PriorWorkPlan(Long workPlanId, String workName, LocalDate workDate,
-                                OffsetDateTime briefingAckAt, String status) {}
+                                OffsetDateTime briefingAckAt, String status,
+                                OffsetDateTime approvedAt, String approvalNote) {}
 
     public record PriorIncident(Long incidentId, OffsetDateTime occurredAt,
                                 AccidentType accidentType, String description) {}
@@ -263,7 +265,7 @@ public class EquipmentHistoryRecaller {
         return workPlanRepository.findByEquipmentIdOrderByWorkDateDesc(equipmentId).stream()
                 .filter(p -> !p.getWorkDate().isAfter(occurredAt.atZoneSameInstant(KST).toLocalDate()))
                 .map(p -> new PriorWorkPlan(p.getId(), p.getWorkName(), p.getWorkDate(),
-                        p.getBriefingAckAt(), p.getStatus().name()))
+                        p.getBriefingAckAt(), p.getStatus().name(), p.getApprovedAt(), p.getApprovalNote()))
                 .toList();
     }
 

@@ -106,21 +106,24 @@ public class HazardAnalysisTools {
         });
     }
 
-    /** 사례 후보 풀. 리랭크를 통과한 상위 후보에서 최종 3건을 고른다 */
-    static final int CASE_POOL = 6;
     static final int CASE_LIMIT = 3;
 
     /**
-     * 상위 {@code limit}건에 사진 사례가 없고, 후보 풀(리랭크 통과분)에 사진 사례가 있으면 마지막 자리를
-     * 그 사례로 바꾼다. 현장 사진은 글 요약보다 상황 전달이 빠르다. 순서는 원래 순위를 유지한다.
+     * 유사 재해사례에 사진 사례가 하나도 없으면, 사진 사례 전용 검색(리랭크 통과분)의 첫 건을 마지막 자리에 넣는다.
+     * 현장 사진은 글 요약보다 상황 전달이 빠르다. 이미 들어 있는 사례면 그대로 둔다.
      */
-    static List<Evidence> withPhotoCase(List<Evidence> ranked, int limit) {
-        if (ranked.size() <= limit) return ranked;
-        List<Evidence> top = new ArrayList<>(ranked.subList(0, limit));
-        if (top.stream().anyMatch(e -> e.thumbnailUrl() != null)) return top;
-        ranked.stream().skip(limit).filter(e -> e.thumbnailUrl() != null).findFirst()
-                .ifPresent(photo -> top.set(limit - 1, photo));
-        return top;
+    private static boolean hasPhoto(Evidence e) {
+        return e.mediaUrl() != null || e.thumbnailUrl() != null;
+    }
+
+    static List<Evidence> withPhotoCase(List<Evidence> top, List<Evidence> photos, int limit) {
+        if (top.stream().anyMatch(HazardAnalysisTools::hasPhoto)) return top;
+        Evidence photo = photos.stream().filter(HazardAnalysisTools::hasPhoto)
+                .filter(e -> top.stream().noneMatch(t -> t.identity().equals(e.identity()))).findFirst().orElse(null);
+        if (photo == null) return top;
+        List<Evidence> out = new ArrayList<>(top.subList(0, Math.min(top.size(), limit)));
+        if (out.size() < limit) out.add(photo); else out.set(limit - 1, photo);
+        return out;
     }
 
     @Tool(description = """
@@ -158,10 +161,12 @@ public class HazardAnalysisTools {
                 }
             }
             String cid = AgentContextKeys.conversationId(toolContext);
-            List<Evidence> found = safeSearch(SearchRequest.cases(q, axis, blankToNull(business), CASE_POOL));
+            List<Evidence> found = safeSearch(SearchRequest.cases(q, axis, blankToNull(business), CASE_LIMIT));
             // 업종 필터(최종 리뷰 F7)로 비면 업종 없이 한 번 더 — 업종이 없던 요청은 같은 검색을 되풀이하지 않는다
-            if (found.isEmpty() && blankToNull(business) != null) found = safeSearch(SearchRequest.cases(q, axis, null, CASE_POOL));
-            found = withPhotoCase(found, CASE_LIMIT);
+            if (found.isEmpty() && blankToNull(business) != null) found = safeSearch(SearchRequest.cases(q, axis, null, CASE_LIMIT));
+            if (!found.isEmpty() && found.stream().noneMatch(HazardAnalysisTools::hasPhoto)) {
+                found = withPhotoCase(found, safeSearch(SearchRequest.casePhotos(q, axis, 1)), CASE_LIMIT);
+            }
             if (found.isEmpty()) return ToolResult.of("해당 발생형태의 유사 사고사례를 찾지 못했습니다.");
             List<Evidence> numbered = registerSafely(cid, found);
             if (numbered.isEmpty()) return ToolResult.of("해당 발생형태의 유사 사고사례를 찾지 못했습니다.");

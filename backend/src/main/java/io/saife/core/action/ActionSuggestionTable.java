@@ -27,31 +27,40 @@ public final class ActionSuggestionTable {
      * @param content  감소대책 문안 초안
      * @param lawRef   근거 조문 (예: "산업안전보건기준에 관한 규칙 제42조제4항")
      * @param lawTitle 조문 제목
-     * @param guideRef KOSHA GUIDE 규정번호. 후보의 근거 카드에 지침이 있을 때만 채운다
+     * @param guideRef KOSHA GUIDE 규정번호. 규칙에 정해진 지침, 없으면 후보 근거 카드의 지침
      * @param priority 감소대책 우선순위
      */
     public record Suggestion(String content, String lawRef, String lawTitle, String guideRef,
                              ControlPriority priority) {}
 
-    /** 키워드(빠진 조치 문구에 포함, 공백 무시) → 문안 + 조문 + 우선순위 */
+    /** 키워드(빠진 조치 문구에 포함, 공백 무시) → 문안 + 조문 + 우선순위 (+ 정해진 KOSHA GUIDE) */
     private record Rule(AccidentType axis, List<String> keywords, String content,
-                        String article, String title, ControlPriority priority) {}
+                        String article, String title, ControlPriority priority, String guide) {
+        Rule(AccidentType axis, List<String> keywords, String content, String article, String title, ControlPriority priority) {
+            this(axis, keywords, content, article, title, priority, null);
+        }
+    }
+
+    /** 이동식 사다리의 사용에 관한 기술지원규정 */
+    private static final String GUIDE_LADDER = "A-G-4-2025";
+    /** 비계 구조 및 안전작업에 관한 기술지원규정 */
+    private static final String GUIDE_SCAFFOLD = "D-C-7-2026";
 
     /** 위에서부터 처음 맞는 규칙을 쓴다. 구체적인 것이 위에 온다 */
     private static final List<Rule> RULES_TABLE = List.of(
             // 떨어짐. 이동식 사다리는 작업발판을 설치하기 곤란한 경우에만 쓴다(제42조④)
             new Rule(AccidentType.FALL, List.of("최상부", "디딤대", "맨위"),
                     "이동식 비계(안전난간) 또는 말비계로 작업발판 확보, 사다리 사용 시 최상부 발판 및 그 하단 디딤대 사용 금지",
-                    "제42조제4항", "추락의 방지", ControlPriority.ENGINEERING),
+                    "제42조제4항", "추락의 방지", ControlPriority.ENGINEERING, GUIDE_LADDER),
             new Rule(AccidentType.FALL, List.of("채광창", "선라이트", "썬라이트", "슬레이트"),
                     "채광창 덮개 또는 추락방호망 설치, 폭 30cm 이상 작업발판 확보",
                     "제45조", "지붕 위에서의 위험 방지", ControlPriority.ENGINEERING),
             new Rule(AccidentType.FALL, List.of("이동식비계", "바퀴", "브레이크"),
                     "이동식 비계 안전난간 설치, 바퀴 브레이크와 쐐기로 고정",
-                    "제68조", "이동식비계", ControlPriority.ENGINEERING),
+                    "제68조", "이동식비계", ControlPriority.ENGINEERING, GUIDE_SCAFFOLD),
             new Rule(AccidentType.FALL, List.of("사다리", "발판미확보", "작업발판미설치"),
                     "이동식 비계(안전난간) 또는 말비계로 작업발판 확보",
-                    "제42조제1항", "추락의 방지", ControlPriority.ENGINEERING),
+                    "제42조제1항", "추락의 방지", ControlPriority.ENGINEERING, GUIDE_SCAFFOLD),
             new Rule(AccidentType.FALL, List.of("부착설비", "앵커", "구명줄"),
                     "안전대 부착설비(앵커, 수직구명줄) 설치, 사용 전 고정 상태 확인",
                     "제44조", "안전대의 부착설비 등", ControlPriority.ENGINEERING),
@@ -155,8 +164,9 @@ public final class ActionSuggestionTable {
             boolean matches = rule.keywords().isEmpty()
                     || rule.keywords().stream().anyMatch(control::contains);
             if (matches) {
-                return new Suggestion(rule.content(), RULES + " " + rule.article(), rule.title(),
-                        guideRef == null || guideRef.isBlank() ? null : guideRef, rule.priority());
+                // 규칙에 정해진 지침이 있으면 그것을 쓴다(검색 상위 지침은 작업과 무관한 경우가 있다)
+                String guide = rule.guide() != null ? rule.guide() : guideRef == null || guideRef.isBlank() ? null : guideRef;
+                return new Suggestion(rule.content(), RULES + " " + rule.article(), rule.title(), guide, rule.priority());
             }
         }
         return null;

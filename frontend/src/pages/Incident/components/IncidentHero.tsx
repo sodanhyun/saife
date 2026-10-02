@@ -10,12 +10,16 @@ import RiskGradeMark from "@/components/ui/RiskGradeMark";
 import cn from "@/lib/cn";
 import { buildPriorRecord, incidentTitle, plain, reportRequired } from "@/pages/Incident/utils/priorRecord";
 import { ACCIDENT_LABEL, SEVERITY_LABEL } from "@/types/domain";
-import type { IncidentRegisterResponse } from "@/types/incident";
+import { Link } from "react-router-dom";
+
+import type { IncidentRegisterResponse, PriorWorkPlan } from "@/types/incident";
 import { formatDate } from "@/utils/datetime";
+import { formatShortDateTime } from "@/pages/WorkPlan/utils/format";
 
 export default function IncidentHero({ r }: { r: IncidentRegisterResponse }) {
   const inc = r.incident;
   const { hazard, action } = buildPriorRecord(r);
+  const dayPlan = relatedPlan(r);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const overdue = action !== null && action.overdueDays !== null && action.overdueDays > 0;
   const nearMiss = inc.severity === "NEAR_MISS";
@@ -146,8 +150,45 @@ export default function IncidentHero({ r }: { r: IncidentRegisterResponse }) {
             )}
           </>
         )}
+        {dayPlan && <PlanLine p={dayPlan} />}
       </section>
     </article>
+  );
+}
+
+/** 사고와 연결된 작업 전 점검: 사고 보고에서 고른 관련 작업, 없으면 사고 당일 같은 설비의 점검 */
+function relatedPlan(r: IncidentRegisterResponse): PriorWorkPlan | null {
+  const plans = r.recall.priorWorkPlans;
+  const byId = r.incident.workPlanId != null ? plans.find((p) => p.workPlanId === r.incident.workPlanId) : undefined;
+  if (byId) return byId;
+  const day = r.incident.occurredAt.slice(0, 10);
+  return plans.find((p) => p.workDate === day) ?? null;
+}
+
+/** 승인 상태는 사고 당시 기준: 잠정조치가 있으면 조건부 승인 */
+function PlanLine({ p }: { p: PriorWorkPlan }) {
+  const approval = p.approvedAt ? (p.approvalNote ? "조건부 승인" : "승인") : "승인 전";
+  return (
+    <div className="mt-5 flex flex-wrap items-baseline gap-x-5 gap-y-1.5 rounded-lg border border-slate-200 bg-panel px-5 py-3 text-sm">
+      <span className="text-xs font-semibold text-slate-500">작업 전 점검 {formatDate(p.workDate)}</span>
+      <span className="font-semibold text-slate-900">{p.workName}</span>
+      <span className="text-slate-700">
+        {approval}
+        {p.approvedAt && <span className="ml-1 tabular-nums text-slate-500">{formatShortDateTime(p.approvedAt).slice(-5)}</span>}
+      </span>
+      {p.approvalNote && (
+        <span className="min-w-0 flex-1 text-slate-800">
+          <span className="mr-2 text-xs font-semibold text-pending-text">잠정조치</span>
+          {p.approvalNote}
+        </span>
+      )}
+      <span className="tabular-nums text-slate-700">
+        {p.briefingAckAt ? `TBM ${formatShortDateTime(p.briefingAckAt).slice(-5)}` : "TBM 기록 없음"}
+      </span>
+      <Link to={`/work-plan?planId=${p.workPlanId}`} className="text-xs font-semibold text-brand underline-offset-4 hover:underline">
+        열기
+      </Link>
+    </div>
   );
 }
 
