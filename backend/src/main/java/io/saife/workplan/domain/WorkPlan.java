@@ -122,6 +122,11 @@ public class WorkPlan {
         this.briefingAckAt = OffsetDateTime.now();
     }
 
+    /** 산업재해 발생 후 수시평가가 끝날 때까지 작업을 보류한다(시행규칙 제37조제2항제3호) */
+    public void hold() {
+        this.status = WorkPlanStatus.HOLD;
+    }
+
     public void close() {
         this.status = WorkPlanStatus.CLOSED;
         this.closedAt = OffsetDateTime.now();

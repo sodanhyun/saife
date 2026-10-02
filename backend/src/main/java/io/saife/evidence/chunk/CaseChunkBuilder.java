@@ -12,7 +12,7 @@ public final class CaseChunkBuilder {
     public static ChunkDraft build(PublicCase c) {
         EvidenceKind kind = "FATALITY".equals(c.getSource()) ? EvidenceKind.CASE_FATALITY : EvidenceKind.CASE_DISASTER;
         StringBuilder title = new StringBuilder();
-        if (c.getAccidentType() != null) title.append('[').append(c.getAccidentType().getLabel()).append("] ");
+        if (c.getAccidentType() != null) title.append('[').append(c.getAccidentType().getSearchTerm()).append("] ");
         if (c.getBusiness() != null && !c.getBusiness().isBlank()) title.append('[').append(c.getBusiness()).append("] ");
         title.append(c.getKeyword() == null ? "" : c.getKeyword());
         String text = ((c.getKeyword() == null ? "" : c.getKeyword()) + " " + (c.getContents() == null ? "" : c.getContents())).strip();

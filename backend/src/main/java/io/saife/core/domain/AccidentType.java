@@ -13,19 +13,28 @@ package io.saife.core.domain;
  */
 public enum AccidentType {
 
-    FALL("추락", "안전대 부착설비, 개구부 덮개, 작업발판 난간 미설치"),
-    CAUGHT("협착", "방호덮개 미설치"),
-    DROP("낙하", "적재 불량, 낙하물 방지망 미설치"),
-    STRUCK("부딪힘", "통로 폐색, 유도 표식, 구획선 미설치"),
-    FIRE("화재", "화기 근접, 개구부, 배기구 미확보, 소화기 부재"),
-    PPE("보호구", "안전모, 안전대, 보안경 미착용");
+    // 화면 이름은 공단 현행 재해 발생형태 분류(떨어짐, 끼임, 물체에 맞음 …)를 따른다.
+    // 공단 사례 원문은 옛 용어("[추락]")를 그대로 쓰므로 검색 질의에는 searchTerm을 쓴다.
+    FALL("떨어짐", "추락", "작업발판, 안전난간, 개구부 덮개 미설치"),
+    CAUGHT("끼임", "협착", "방호덮개 미설치"),
+    DROP("물체에 맞음", "낙하", "적재 불량, 낙하물 방지망 미설치"),
+    STRUCK("부딪힘", "부딪힘", "통로 미확보, 통로 표시 없음"),
+    FIRE("화재", "화재", "점화원 관리 미흡, 환기 부족, 소화기 미비치"),
+    PPE("보호구 미착용", "보호구", "안전모, 안전대, 보안경 미착용");
 
     private final String label;
+    private final String searchTerm;
     private final String missingControlHint;
 
-    AccidentType(String label, String missingControlHint) {
+    AccidentType(String label, String searchTerm, String missingControlHint) {
         this.label = label;
+        this.searchTerm = searchTerm;
         this.missingControlHint = missingControlHint;
+    }
+
+    /** 공단 사례 원문 검색용 옛 용어(추락, 협착, 낙하) */
+    public String getSearchTerm() {
+        return searchTerm;
     }
 
     public String getLabel() {

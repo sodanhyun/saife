@@ -90,7 +90,7 @@ export function riskColor(level: RiskLevel): ToneClasses {
 /** 작업계획서 상태 — 승인 대기만 눈에 걸리고, 반려만 이탈이다. 나머지는 무채색. */
 export function workPlanStatusTone(status: WorkPlanStatus): Tone {
   if (status === "SUBMITTED") return "pending";
-  if (status === "REJECTED") return "high";
+  if (status === "REJECTED" || status === "HOLD") return "high";
   return "neutral";
 }
 

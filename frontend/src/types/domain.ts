@@ -13,18 +13,19 @@ export type WorkPlanStatus =
   | "APPROVED"
   | "CONDITIONAL"
   | "REJECTED"
+  | "HOLD"
   | "CLOSED";
 export type IncidentSeverity = "NEAR_MISS" | "INJURY" | "LOST_TIME" | "FATALITY";
 export type ReportStatus = "UNDETERMINED" | "NOT_REQUIRED" | "REQUIRED" | "OVERDUE" | "SUBMITTED";
 
 /** 화면 표기 — 백엔드 라벨과 같은 말을 쓴다. 같은 값을 다르게 부르면 안 된다 */
 export const ACCIDENT_LABEL: Record<AccidentType, string> = {
-  FALL: "추락",
-  CAUGHT: "협착",
-  DROP: "낙하",
+  FALL: "떨어짐",
+  CAUGHT: "끼임",
+  DROP: "물체에 맞음",
   STRUCK: "부딪힘",
   FIRE: "화재",
-  PPE: "보호구",
+  PPE: "보호구 미착용",
 };
 
 export const RISK_LABEL: Record<RiskLevel, string> = {
@@ -36,6 +37,7 @@ export const RISK_LABEL: Record<RiskLevel, string> = {
 export const WORK_PLAN_STATUS_LABEL: Record<WorkPlanStatus, string> = {
   DRAFT: "작성 중",
   SUBMITTED: "승인 대기",
+  HOLD: "작업 보류",
   APPROVED: "승인",
   CONDITIONAL: "조건부 승인",
   REJECTED: "반려",

@@ -1,4 +1,4 @@
-import { Camera, ClipboardList, History, LayoutGrid, Siren, type LucideIcon } from "lucide-react";
+import { Camera, ClipboardList, LayoutGrid, Siren, type LucideIcon } from "lucide-react";
 
 export interface MenuItem {
   key: string;
@@ -20,18 +20,13 @@ export interface MenuGroup {
  */
 export const MENU_GROUPS: MenuGroup[] = [
   {
-    key: "home",
+    key: "main",
     label: null,
-    items: [{ key: "home", path: "/", label: "설비 현황", icon: LayoutGrid }],
-  },
-  {
-    key: "documents",
-    label: "문서별 보기",
     items: [
-      { key: "work-plan", path: "/work-plan", label: "작업 신고", icon: ClipboardList },
-      { key: "vision", path: "/vision", label: "사진 점검", icon: Camera },
-      { key: "incident", path: "/incident", label: "사고 신고", icon: Siren },
-      { key: "timeline", path: "/timeline", label: "설비 타임라인", icon: History },
+      { key: "home", path: "/", label: "설비 현황", icon: LayoutGrid },
+      { key: "work-plan", path: "/work-plan", label: "작업 전 점검", icon: ClipboardList },
+      { key: "vision", path: "/vision", label: "순회점검", icon: Camera },
+      { key: "incident", path: "/incident", label: "사고 보고", icon: Siren },
     ],
   },
 ];
@@ -45,7 +40,10 @@ export const LANDING_PATH = "/";
 /** 사용자 선호가 없을 때 접힌 채로 여는 화면 — 대화+트레이스 2열이 폭을 다 쓴다. */
 export const COLLAPSED_BY_DEFAULT = new Set<string>();
 
-export const SITE_NAME = "가상 정밀금속 사업장";
+export const SITE_NAME = "청우정밀 창원공장";
+
+/** 로그인 사용자(인증 범위 밖이라 고정). 화면 하단 사용자 행에 쓴다 */
+export const CURRENT_USER = { name: "이정훈", role: "안전관리자" };
 
 /** 사용자 선호가 있으면 그것, 없으면 화면별 기본값(작업계획서만 접힘). */
 export function resolveSidebarCollapsed(pref: boolean | null, pathname: string): boolean {

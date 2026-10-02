@@ -138,7 +138,7 @@ public class MediaPrefetcher {
             demoAxes.addAll(axes);
             for (AccidentType axis : axes) {
                 // HazardAnalysisTools.searchCases·BriefingComposer의 대체 질의와 같은 모양: 축 라벨 + 설비명
-                String q = axis.getLabel() + " " + e.getName();
+                String q = axis.getSearchTerm() + " " + e.getName();
                 List<SearchRequest> requests = List.of(
                         SearchRequest.cases(q, axis, MANUFACTURING, 3),                    // 도구 4(리랭크)
                         SearchRequest.cases(q, axis, MANUFACTURING, 3).withoutRerank(),    // UC1·브리핑(비리랭크)

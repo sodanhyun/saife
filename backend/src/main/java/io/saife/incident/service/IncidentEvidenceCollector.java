@@ -100,7 +100,7 @@ public class IncidentEvidenceCollector {
         if (axis == null) {
             return base.isBlank() ? "사고" : base;
         }
-        String axisLabel = axis.getLabel();
+        String axisLabel = axis.getSearchTerm();
         if (base.isBlank()) {
             return axisLabel;
         }

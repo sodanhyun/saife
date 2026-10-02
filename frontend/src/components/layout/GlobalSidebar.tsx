@@ -1,13 +1,12 @@
 import { useState } from "react";
 
-import { X } from "lucide-react";
+import { Building2, ChevronsUpDown, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useSystemStatus } from "@/components/layout/hooks/useSystemStatus";
 import cn from "@/lib/cn";
 import { useUiStore } from "@/stores/uiStore";
-import { LANDING_PATH, MENU_GROUPS, resolveSidebarCollapsed, SITE_NAME } from "@/components/layout/menu";
-import SystemStatusLine from "@/components/layout/SystemStatusLine";
+import { CURRENT_USER, LANDING_PATH, MENU_GROUPS, resolveSidebarCollapsed, SITE_NAME } from "@/components/layout/menu";
 
 interface Props {
   isOpen: boolean;
@@ -20,7 +19,7 @@ interface TooltipState {
   left: number;
 }
 
-/** 접힌 레일의 항목 라벨 — overflow 영향을 받지 않도록 fixed */
+/** 접힌 레일의 항목 라벨. overflow 영향을 받지 않도록 fixed */
 function FixedTooltip({ tooltip }: { tooltip: TooltipState | null }) {
   if (!tooltip) return null;
   return (
@@ -41,11 +40,10 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
   const collapsed = resolveSidebarCollapsed(pref, pathname);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [edgeHover, setEdgeHover] = useState(false);
+  const { status } = useSystemStatus();
 
-  const { status: systemStatus, loading: systemStatusLoading, refetch: refetchSystemStatus } = useSystemStatus();
-
-  // "/"는 모든 경로의 접두어라 startsWith로 판정하면 항상 활성화된다 — 완전 일치로만 본다.
-  const isActive = (path: string) => (path === "/" ? pathname === "/" : pathname.startsWith(path));
+  // 설비 상세(/equipment/:id)는 설비 현황 아래에 있다
+  const isActive = (path: string) => (path === "/" ? pathname === "/" || pathname.startsWith("/equipment") || pathname === "/timeline" : pathname.startsWith(path));
   const go = (path: string) => {
     navigate(path);
     onClose();
@@ -58,80 +56,72 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
     setTooltip({ label, top: r.top + r.height / 2, left: r.right + 10 });
   };
 
-  const brand = (
-    <button onClick={() => go(LANDING_PATH)} className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
-      <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-white text-sm font-extrabold tracking-tight text-brand-ink">S</span>
-      {!collapsed && (
-        <span className="flex flex-col items-start">
-          <span className="text-lg font-bold tracking-tight text-white leading-none">SAIFE</span>
-          <span className="mt-1 text-xs text-slate-400 whitespace-nowrap">설비 ID로 잇는 안전 데이터 코어</span>
-        </span>
-      )}
+  const brand = (rail: boolean) => (
+    <button onClick={() => go(LANDING_PATH)} aria-label="SAIFE 홈" className="flex items-center transition-opacity hover:opacity-90">
+      <img src={rail ? "/brand/saife-mark.svg" : "/brand/saife-logo-inverse.svg"} alt="SAIFE" className={rail ? "h-8 w-8" : "h-8"} />
     </button>
   );
 
-  const nav = (railCollapsed: boolean) => (
-    <nav className={cn("flex-1 space-y-1 overflow-y-auto overflow-x-hidden py-2", railCollapsed ? "px-1.5" : "px-3")}>
-      {MENU_GROUPS.map((group, gi) => (
-        <div key={group.key} className={gi > 0 ? "mt-3 border-t border-white/10 pt-3" : undefined}>
-          {group.label && !railCollapsed && (
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</p>
-          )}
-          {group.items.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path);
-            return (
-              <button
-                key={item.key}
-                onClick={() => go(item.path)}
-                onMouseEnter={(e) => showTooltip(e, item.label)}
-                onMouseLeave={() => setTooltip(null)}
-                aria-label={item.label}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative w-full flex items-center rounded-lg transition-colors duration-200 group",
-                  railCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
-                  active ? "text-white bg-white/10" : "text-slate-400 hover:text-white hover:bg-white/5",
-                )}
-              >
-                {active && !railCollapsed && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-brand-line rounded-r-full" />
-                )}
-                <Icon size={19} className={cn("shrink-0 transition-colors", active ? "text-brand-line" : "text-slate-500 group-hover:text-white")} />
-                {!railCollapsed && <span className={cn("text-stage whitespace-nowrap", active ? "font-semibold" : "font-medium")}>{item.label}</span>}
-              </button>
-            );
-          })}
-        </div>
-      ))}
+  const nav = (rail: boolean) => (
+    <nav className={cn("flex-1 space-y-1 overflow-y-auto overflow-x-hidden py-4", rail ? "px-1.5" : "px-3")}>
+      {MENU_GROUPS.flatMap((g) => g.items).map((item) => {
+        const Icon = item.icon;
+        const active = isActive(item.path);
+        return (
+          <button
+            key={item.key}
+            onClick={() => go(item.path)}
+            onMouseEnter={(e) => showTooltip(e, item.label)}
+            onMouseLeave={() => setTooltip(null)}
+            aria-label={item.label}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "group relative flex w-full items-center rounded-lg transition-colors duration-200",
+              rail ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
+              active ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white",
+            )}
+          >
+            <Icon size={19} className={cn("shrink-0 transition-colors", active ? "text-white" : "text-slate-500 group-hover:text-white")} />
+            {!rail && <span className={cn("whitespace-nowrap text-stage", active ? "font-semibold" : "font-medium")}>{item.label}</span>}
+          </button>
+        );
+      })}
     </nav>
   );
 
-  const footer = (railCollapsed: boolean) => (
-    <div className={cn("border-t border-white/10 text-xs text-slate-500", railCollapsed ? "px-2 py-3 text-center" : "p-4")}>
-      {railCollapsed ? (
-        "가상"
-      ) : (
-        <>
-          <p className="text-slate-300 font-medium">{SITE_NAME}</p>
-          <p className="mt-0.5">가상 사업장, 데이터 전부 가상</p>
-        </>
+  // 사업장 전환과 사용자. 실제 SaaS처럼 하단에 둔다
+  const footer = (rail: boolean) => (
+    <div className={cn("space-y-1 border-t border-white/10", rail ? "px-1.5 py-3" : "p-3")}>
+      {status?.demoMode && !rail && (
+        <p className="mb-2 rounded-md bg-pending/20 px-2.5 py-1.5 text-xs font-medium text-pending-border">오프라인 모드</p>
       )}
+      <button type="button" className={cn("flex w-full items-center rounded-lg text-left text-slate-300 hover:bg-white/5", rail ? "justify-center p-2.5" : "gap-3 px-3 py-2")}>
+        <Building2 size={18} className="shrink-0 text-slate-400" aria-hidden />
+        {!rail && (
+          <>
+            <span className="flex-1 truncate text-sm font-medium">{SITE_NAME}</span>
+            <ChevronsUpDown size={15} className="text-slate-500" aria-hidden />
+          </>
+        )}
+      </button>
+      <div className={cn("flex items-center rounded-lg", rail ? "justify-center p-1.5" : "gap-3 px-3 py-2")}>
+        <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/15 text-xs font-semibold text-white">{CURRENT_USER.name.slice(0, 1)}</span>
+        {!rail && (
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-white">{CURRENT_USER.name}</span>
+            <span className="block truncate text-xs text-slate-400">{CURRENT_USER.role}</span>
+          </span>
+        )}
+      </div>
     </div>
   );
 
   return (
     <>
-      {/* 데스크톱 레일 — sticky 풀뷰포트 */}
-      <aside className={cn("hidden lg:flex flex-col h-screen sticky top-0 shrink-0 z-40 overflow-hidden bg-brand-ink text-white", collapsed ? "w-16" : "w-60")}>
-        <div className={cn("flex items-center border-b border-white/10", collapsed ? "py-4 px-2 justify-center" : "h-16 px-4")}>{brand}</div>
+      <aside className={cn("sticky top-0 z-40 hidden h-screen shrink-0 flex-col overflow-hidden bg-brand-ink text-white lg:flex", collapsed ? "w-16" : "w-60")}>
+        <div className={cn("flex h-16 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "px-5")}>{brand(collapsed)}</div>
         {nav(collapsed)}
         {footer(collapsed)}
-        {!collapsed && (
-          <div className="border-t border-white/10">
-            <SystemStatusLine status={systemStatus} onRefresh={refetchSystemStatus} refreshing={systemStatusLoading} />
-          </div>
-        )}
       </aside>
 
       {/* 경계선 토글 */}
@@ -141,28 +131,25 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
         onMouseEnter={() => setEdgeHover(true)}
         onMouseLeave={() => setEdgeHover(false)}
         aria-label={collapsed ? "메뉴 펼치기" : "메뉴 접기"}
-        className="hidden lg:block relative w-1.5 h-screen sticky top-0 cursor-pointer shrink-0 z-50 -ml-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border"
+        className="relative sticky top-0 z-50 -ml-1.5 hidden h-screen w-1.5 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border lg:block"
       >
-        <div aria-hidden className={cn("absolute left-1/2 -translate-x-1/2 inset-y-0 rounded-full transition-all duration-200", edgeHover ? "w-1 bg-progress/80" : "w-0.5 bg-slate-800/30")} />
-        <div aria-hidden className="absolute -left-4 -right-4 inset-y-0" />
+        <div aria-hidden className={cn("absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full transition-all duration-200", edgeHover ? "w-1 bg-progress/80" : "w-0.5 bg-slate-800/30")} />
+        <div aria-hidden className="absolute inset-y-0 -left-4 -right-4" />
       </button>
 
       <FixedTooltip tooltip={tooltip} />
 
-      {/* 모바일 오버레이·드로어 */}
+      {/* 모바일 오버레이와 드로어 */}
       {isOpen && <div className="fixed inset-0 z-[60] bg-black/50 lg:hidden" onClick={onClose} />}
-      <aside className={cn("fixed top-0 left-0 bottom-0 z-[70] w-72 lg:hidden bg-brand-ink text-white transition-transform duration-300", isOpen ? "translate-x-0" : "-translate-x-full")}>
-        <div className="h-16 px-4 flex items-center justify-between border-b border-white/10">
-          {brand}
-          <button onClick={onClose} aria-label="닫기" className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-md">
+      <aside className={cn("fixed bottom-0 left-0 top-0 z-[70] flex w-72 flex-col bg-brand-ink text-white transition-transform duration-300 lg:hidden", isOpen ? "translate-x-0" : "-translate-x-full")}>
+        <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
+          {brand(false)}
+          <button onClick={onClose} aria-label="닫기" className="rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white">
             <X size={22} />
           </button>
         </div>
         {nav(false)}
         {footer(false)}
-        <div className="border-t border-white/10">
-          <SystemStatusLine status={systemStatus} onRefresh={refetchSystemStatus} refreshing={systemStatusLoading} />
-        </div>
       </aside>
     </>
   );

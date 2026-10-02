@@ -125,14 +125,14 @@ public class HazardAnalysisTools {
             // query가 없으면 위치 태그가 아니라 발생형태+설비+작업으로 대체 질의를 만든다
             String q;
             if (query == null || query.isBlank()) {
-                StringBuilder qb = new StringBuilder(axis.getLabel());
+                StringBuilder qb = new StringBuilder(axis.getSearchTerm());
                 if (equipment != null && !equipment.isBlank()) qb.append(' ').append(equipment.strip());
                 if (workType != null && !workType.isBlank()) qb.append(' ').append(workType.strip());
                 q = qb.toString();
             } else {
                 q = query.strip();
-                if (!q.contains(axis.getLabel())) {
-                    q = axis.getLabel() + " " + q;
+                if (!q.contains(axis.getSearchTerm())) {
+                    q = axis.getSearchTerm() + " " + q;
                 }
             }
             String cid = AgentContextKeys.conversationId(toolContext);
@@ -296,7 +296,7 @@ public class HazardAnalysisTools {
         }
         String v = raw.trim().toUpperCase();
         for (AccidentType t : AccidentType.values()) {
-            if (t.name().equals(v) || t.getLabel().equals(raw.trim())) {
+            if (t.name().equals(v) || t.getLabel().equals(raw.trim()) || t.getSearchTerm().equals(raw.trim())) {
                 return t;
             }
         }

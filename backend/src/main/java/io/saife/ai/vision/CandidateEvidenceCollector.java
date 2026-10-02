@@ -81,7 +81,7 @@ public class CandidateEvidenceCollector {
     /** R51 — 축 라벨 + 빠진 조치. 장소 태그는 절대 섞지 않는다 */
     private String buildQuery(AccidentType axis, String missingControl) {
         // 축이나 라벨이 비어 와도 NPE로 근거 전체를 잃지 않는다 — 빠진 조치 문구만으로 검색한다
-        String label = axis == null || axis.getLabel() == null ? "" : axis.getLabel();
+        String label = axis == null ? "" : axis.getSearchTerm();
         String control = missingControl == null ? "" : missingControl.strip();
         if (control.isBlank()) {
             return label;

@@ -350,6 +350,7 @@ public class FormDataService {
             case APPROVED -> "승인";
             case CONDITIONAL -> "조건부 승인";
             case REJECTED -> "반려";
+            case HOLD -> "작업 보류";
             case CLOSED -> "완료";
         };
     }

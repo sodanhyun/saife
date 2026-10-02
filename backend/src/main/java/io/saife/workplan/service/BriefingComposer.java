@@ -232,7 +232,7 @@ public class BriefingComposer {
 
     /** 발생형태 라벨 + 설비명 + 작업명. 위치 태그는 절대 넣지 않는다(ruling R51) */
     private String buildCaseQuery(AccidentType axis, String equipmentName, String workName) {
-        StringBuilder qb = new StringBuilder(axis.getLabel());
+        StringBuilder qb = new StringBuilder(axis.getSearchTerm());
         if (equipmentName != null && !equipmentName.isBlank()) {
             qb.append(' ').append(equipmentName);
         }
