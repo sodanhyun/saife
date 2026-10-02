@@ -1,6 +1,7 @@
 // IncidentForm.tsx — 사고 등록 입력. 설비를 고르면 그 설비의 작업계획서만 연결 후보로 보인다.
 import Button from "@/components/ui/Button";
 import Callout from "@/components/ui/Callout";
+import DateInput from "@/components/ui/DateInput";
 import FormField from "@/components/ui/FormField";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
@@ -66,7 +67,7 @@ export default function IncidentForm({ form, setForm, equipment, plans, busy, er
           </Select>
         </FormField>
         <FormField label="발생 일시" required className="md:col-span-2">
-          <Input type="datetime-local" value={form.occurredAt} onChange={set("occurredAt")} />
+          <DateInput type="datetime-local" aria-label="발생 일시" value={form.occurredAt} onChange={(v) => setForm({ ...form, occurredAt: v })} />
         </FormField>
 
         <FormField label="발생형태">

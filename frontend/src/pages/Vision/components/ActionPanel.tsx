@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { StatusBadge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import DateInput from "@/components/ui/DateInput";
 import FormField from "@/components/ui/FormField";
 import Input from "@/components/ui/Input";
 import LinkButton from "@/components/ui/LinkButton";
@@ -43,7 +44,7 @@ export function ActionForm({ suggested, busy, onSubmit, onCancel }: FormProps) {
           <Input value={owner} onChange={(e) => setOwner(e.target.value)} />
         </FormField>
         <FormField label="기한">
-          <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <DateInput type="date" aria-label="기한" value={dueDate} onChange={setDueDate} />
         </FormField>
         <div className="flex gap-2">
           {onCancel && <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>닫기</Button>}
