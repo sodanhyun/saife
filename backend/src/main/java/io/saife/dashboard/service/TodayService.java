@@ -23,9 +23,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
- * "오늘 할 일" — 기억이 만든 인박스 (설계 원칙 1: 기억은 끼어드는 것이다).
+ * 홈 "오늘 할 일".
  *
- * <p>7종 규칙이 각자 데이터 코어를 훑어 항목을 만든다. <b>규칙마다 private 메서드
+ * <p>8종 규칙이 각자 데이터 코어를 훑어 항목을 만든다. <b>규칙마다 private 메서드
  * 하나</b>(경계값을 눈으로 확인하기 쉽게)이고, 문장은 전부 조회 결과에서 조립한다 —
  * 하드코딩한 문장은 하드코딩한 증거다({@code .claude/rules/*}, 원칙 3 참고).
  *
@@ -38,7 +38,7 @@ import java.util.*;
 @Slf4j
 public class TodayService {
 
-    /** 가상 사업장 1곳. 테넌시가 없어 상수로 둔다 */
+    /** 사업장 1곳. 테넌시가 없어 상수로 둔다 */
     private static final Long DEMO_SITE_ID = 1L;
     private static final int MAX_ITEMS = 20;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -50,6 +50,7 @@ public class TodayService {
     private static final String KIND_REPORT_DUE = "REPORT_DUE";
     private static final String KIND_PATROL_DUE = "PATROL_DUE";
     private static final String KIND_PERIODIC_DUE = "PERIODIC_DUE";
+    private static final String KIND_WORK_HOLD = "WORK_HOLD";
 
     private static final String LINK_EQUIPMENT = "EQUIPMENT";
     private static final String LINK_WORK_PLAN = "WORK_PLAN";
@@ -62,8 +63,8 @@ public class TodayService {
     private static final int RISKY_WORK_PLAN_WINDOW_DAYS = 7;
     /** REPORT_DUE에서 이 일수 이하로 남으면 CRITICAL */
     private static final int REPORT_DUE_CRITICAL_DAYS = 3;
-    /** PERIODIC_DUE — 정기평가 만료가 이 일수 이내로 다가오면 항목을 만든다 */
-    private static final int PERIODIC_DUE_LOOKAHEAD_DAYS = 60;
+    /** PERIODIC_DUE: 연말까지 이 일수 이하로 남으면 WARNING, 그 전에는 NORMAL */
+    private static final int PERIODIC_DUE_WARNING_DAYS = 60;
 
     private final HazardRepository hazardRepository;
     private final ActionRepository actionRepository;
@@ -97,6 +98,7 @@ public class TodayService {
         Site site = siteRepository.findById(DEMO_SITE_ID).orElse(null);
 
         List<TodayDtos.TodayItem> items = new ArrayList<>();
+        items.addAll(heldWorkPlans(workPlans, equipmentById));
         items.addAll(overdueActions(actions, hazardById, equipmentById, today));
         items.addAll(dueActions(actions, hazardById, equipmentById, today));
         items.addAll(riskyWorkPlans(workPlans, equipmentById, today));
@@ -107,6 +109,8 @@ public class TodayService {
 
         items.sort(Comparator
                 .comparingInt((TodayDtos.TodayItem i) -> emphasisRank(i.emphasis()))
+                // 작업 보류는 기한이 없지만 긴급 중에서도 맨 위다(작업 재개 전에 막아야 한다)
+                .thenComparingInt(i -> KIND_WORK_HOLD.equals(i.kind()) ? 0 : 1)
                 .thenComparing(TodayDtos.TodayItem::daysRemaining,
                         Comparator.nullsLast(Comparator.naturalOrder())));
 
@@ -117,7 +121,7 @@ public class TodayService {
         int critical = (int) capped.stream().filter(i -> i.emphasis() == Emphasis.CRITICAL).count();
         int warning = (int) capped.stream().filter(i -> i.emphasis() == Emphasis.WARNING).count();
 
-        log.info("[TODAY] {} — 항목 {}건(긴급 {} · 주의 {})", today, capped.size(), critical, warning);
+        log.info("[TODAY] {} 항목 {}건(긴급 {}, 주의 {})", today, capped.size(), critical, warning);
 
         return new TodayDtos.TodayView(today, capped, critical, warning);
     }
@@ -140,10 +144,11 @@ public class TodayService {
             }
             long daysRemaining = ChronoUnit.DAYS.between(today, action.getDueDate());
             Equipment equipment = equipmentOf(action, hazardById, equipmentById);
-            // 제목은 조치 내용 그대로. 종류와 D-day는 화면이 kind/daysRemaining으로 붙인다
+            // 제목은 조치 내용 그대로. 종류와 경과일은 화면이 kind/daysRemaining으로 붙인다.
+            // 미이행이 길어지면 잠정조치가 필요하다(고시 제12조제4항)
             String title = action.getContent();
             out.add(new TodayDtos.TodayItem(KIND_OVERDUE_ACTION, Emphasis.CRITICAL, title,
-                    "기한 " + action.getDueDate(),
+                    joinDetail(ownerOf(action), "잠정조치 필요"),
                     equipment == null ? null : equipment.getId(),
                     equipment == null ? null : equipment.getName(),
                     action.getDueDate(), daysRemaining, LINK_EQUIPMENT, action.getId()));
@@ -170,7 +175,7 @@ public class TodayService {
             Equipment equipment = equipmentOf(action, hazardById, equipmentById);
             String title = action.getContent();
             out.add(new TodayDtos.TodayItem(KIND_DUE_ACTION, Emphasis.WARNING, title,
-                    "기한 " + due,
+                    joinDetail(ownerOf(action), "기한 " + monthDay(due)),
                     equipment == null ? null : equipment.getId(),
                     equipment == null ? null : equipment.getName(),
                     due, daysRemaining, LINK_EQUIPMENT, action.getId()));
@@ -208,8 +213,8 @@ public class TodayService {
             }
             long daysRemaining = ChronoUnit.DAYS.between(today, workDate);
             String qualifier = hasUnfinished
-                    ? "미이행 조치 %d건이 남은 설비에서 작업".formatted(summary.unfinishedActionCount())
-                    : "위험등급 '상' 설비에서 작업";
+                    ? "미이행 조치 %d건".formatted(summary.unfinishedActionCount())
+                    : "현재 등급 상";
             String title = plan.getWorkName();
             Equipment equipment = equipmentById.get(plan.getEquipmentId());
             out.add(new TodayDtos.TodayItem(KIND_RISKY_WORK_PLAN, Emphasis.CRITICAL, title, qualifier,
@@ -235,7 +240,7 @@ public class TodayService {
             Equipment equipment = plan.getEquipmentId() == null ? null : equipmentById.get(plan.getEquipmentId());
             String title = plan.getWorkName();
             out.add(new TodayDtos.TodayItem(KIND_PENDING_APPROVAL, Emphasis.WARNING, title,
-                    "작업일 %s, 승인 전에는 작업을 시작할 수 없습니다".formatted(plan.getWorkDate()),
+                    plan.getWorkDate() == null ? "" : "작업일 " + monthDay(plan.getWorkDate()),
                     plan.getEquipmentId(), equipment == null ? null : equipment.getName(),
                     plan.getWorkDate(), daysRemaining, LINK_WORK_PLAN, plan.getId()));
         }
@@ -264,12 +269,13 @@ public class TodayService {
             Emphasis emphasis = daysRemaining <= REPORT_DUE_CRITICAL_DAYS ? Emphasis.CRITICAL : Emphasis.WARNING;
             Equipment equipment = incident.getEquipmentId() == null ? null
                     : equipmentById.get(incident.getEquipmentId());
-            String axisLabel = incident.getAccidentType() == null ? "" : incident.getAccidentType().getLabel();
-            String equipmentName = equipment == null ? "" : equipment.getName();
-            String title = "%s %s 사고 산업재해조사표".formatted(equipmentName, axisLabel)
-                    .replaceAll("\\s+", " ").strip();
-            out.add(new TodayDtos.TodayItem(KIND_REPORT_DUE, emphasis, title,
-                    "제출 기한 %s (재해 발생 후 1개월)".formatted(incident.getReportDueDate()),
+            String axisLabel = incident.getAccidentType() == null ? "재해" : incident.getAccidentType().getLabel();
+            String title = "%s 사고 %s".formatted(axisLabel,
+                    monthDay(incident.getOccurredAt().atZoneSameInstant(KST).toLocalDate()));
+            String detail = joinDetail(
+                    incident.getLeaveDays() == null ? null : "휴업 %d일".formatted(incident.getLeaveDays()),
+                    "기한 %s (발생일부터 1개월)".formatted(monthDay(incident.getReportDueDate())));
+            out.add(new TodayDtos.TodayItem(KIND_REPORT_DUE, emphasis, title, detail,
                     incident.getEquipmentId(), equipment == null ? null : equipment.getName(),
                     incident.getReportDueDate(), daysRemaining, LINK_INCIDENT, incident.getId()));
         }
@@ -278,7 +284,10 @@ public class TodayService {
 
     // ---------- 규칙 6: PATROL_DUE ----------
 
-    /** site.regular_track=true & 이번 달 assessed_on인 ROUTINE 평가 없음. WARNING 고정 */
+    /**
+     * site.regular_track=true & 이번 달 assessed_on인 ROUTINE 평가 없음. WARNING 고정.
+     * 순회점검은 근로자 참여의 기본 방법이다(시행규칙 제37조의2)
+     */
     private List<TodayDtos.TodayItem> patrolDue(Site site, List<Assessment> assessments, LocalDate today) {
         if (site == null || !site.isRegularTrack()) {
             return List.of();
@@ -293,32 +302,55 @@ public class TodayService {
         LocalDate dueDate = thisMonth.atEndOfMonth();
         long daysRemaining = ChronoUnit.DAYS.between(today, dueDate);
         String title = "이번 달 순회점검 미실시";
-        String detail = "월 1회 순회점검과 아차사고 확인은 상시평가 트랙(수시/정기 면제)의 요건입니다.";
+        String detail = "근로자 참여 (시행규칙 제37조의2)";
         return List.of(new TodayDtos.TodayItem(KIND_PATROL_DUE, Emphasis.WARNING, title, detail,
                 null, null, dueDate, daysRemaining, LINK_ASSESSMENT, null));
     }
 
     // ---------- 규칙 7: PERIODIC_DUE ----------
 
-    /** 가장 최근 INITIAL/REGULAR 평가 + 1년이 오늘+60일 이내. WARNING 고정 */
+    /**
+     * 올해 정기평가 미실시. 가장 최근 최초/정기 평가가 올해가 아니면 연말을 기한으로 항목을 만든다
+     * (시행규칙 제37조제2항제2호, 매년). 연말까지 60일 이하면 WARNING, 그 전에는 NORMAL.
+     * 최초/정기 평가 기록이 아예 없으면 만들지 않는다(최초평가가 먼저다).
+     */
     private List<TodayDtos.TodayItem> periodicDue(List<Assessment> assessments, LocalDate today) {
         Assessment latest = assessments.stream()
                 .filter(a -> a.getKind() == AssessmentKind.INITIAL || a.getKind() == AssessmentKind.REGULAR)
                 .max(Comparator.comparing(Assessment::getAssessedOn))
                 .orElse(null);
-        if (latest == null) {
+        if (latest == null || latest.getAssessedOn().getYear() >= today.getYear()) {
             return List.of();
         }
-        LocalDate dueDate = latest.getAssessedOn().plusYears(1);
-        if (dueDate.isAfter(today.plusDays(PERIODIC_DUE_LOOKAHEAD_DAYS))) {
-            return List.of();
-        }
+        LocalDate dueDate = LocalDate.of(today.getYear(), 12, 31);
         long daysRemaining = ChronoUnit.DAYS.between(today, dueDate);
-        String title = "정기 위험성평가 갱신";
-        String detail = "최근 %s 평가(%s) 기준 1년 주기".formatted(
-                latest.getKind().getLabel(), latest.getAssessedOn());
-        return List.of(new TodayDtos.TodayItem(KIND_PERIODIC_DUE, Emphasis.WARNING, title, detail,
+        Emphasis emphasis = daysRemaining <= PERIODIC_DUE_WARNING_DAYS ? Emphasis.WARNING : Emphasis.NORMAL;
+        String title = "올해 정기평가 미실시";
+        String detail = "최근 %s평가 %s".formatted(latest.getKind().getLabel(), latest.getAssessedOn());
+        return List.of(new TodayDtos.TodayItem(KIND_PERIODIC_DUE, emphasis, title, detail,
                 null, null, dueDate, daysRemaining, LINK_ASSESSMENT, latest.getId()));
+    }
+
+    // ---------- 규칙 8: WORK_HOLD ----------
+
+    /**
+     * 작업 보류. 같은 설비에 산업재해가 발생해 HOLD가 된 작업 전 점검이다. 수시평가가 끝나기 전에는
+     * 작업을 재개할 수 없다(시행규칙 제37조제2항제3호). 기한이 아니라 금지라 daysRemaining은 null,
+     * 정렬은 긴급 맨 위.
+     */
+    private List<TodayDtos.TodayItem> heldWorkPlans(List<WorkPlan> workPlans, Map<Long, Equipment> equipmentById) {
+        List<TodayDtos.TodayItem> out = new ArrayList<>();
+        for (WorkPlan plan : workPlans) {
+            if (plan.getStatus() != WorkPlanStatus.HOLD) {
+                continue;
+            }
+            Equipment equipment = plan.getEquipmentId() == null ? null : equipmentById.get(plan.getEquipmentId());
+            out.add(new TodayDtos.TodayItem(KIND_WORK_HOLD, Emphasis.CRITICAL, plan.getWorkName(),
+                    "수시평가 완료 전 작업 재개 금지",
+                    plan.getEquipmentId(), equipment == null ? null : equipment.getName(),
+                    plan.getWorkDate(), null, LINK_WORK_PLAN, plan.getId()));
+        }
+        return out;
     }
 
     // ---------- 보조 ----------
@@ -329,6 +361,22 @@ public class TodayService {
             return null;
         }
         return equipmentById.get(hazard.getEquipmentId());
+    }
+
+    private static String ownerOf(Action action) {
+        String owner = action.getOwner();
+        return owner == null || owner.isBlank() ? null : "담당 " + owner.strip();
+    }
+
+    /** null과 빈 값을 건너뛰고 쉼표로 잇는다 */
+    private static String joinDetail(String... parts) {
+        return Arrays.stream(parts).filter(p -> p != null && !p.isBlank())
+                .reduce((a, b) -> a + ", " + b).orElse("");
+    }
+
+    /** 촘촘한 목록의 날짜 표기 MM-DD */
+    private static String monthDay(LocalDate date) {
+        return date == null ? "" : "%02d-%02d".formatted(date.getMonthValue(), date.getDayOfMonth());
     }
 
     private int emphasisRank(Emphasis emphasis) {

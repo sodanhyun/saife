@@ -56,7 +56,7 @@ describe("EquipmentHomePage", () => {
     mockCards.mockResolvedValue([card(1, "사다리")]);
     renderPage();
     await waitFor(() => expect(screen.getByText("사다리")).toBeInTheDocument());
-    expect(screen.queryByLabelText("오늘 요약")).toBeNull();
+    expect(screen.queryByLabelText("요약")).toBeNull();
     expect(screen.queryByText("오늘 할 일")).toBeNull();
   });
 
@@ -73,7 +73,7 @@ describe("EquipmentHomePage", () => {
     });
     renderPage();
     await waitFor(() => expect(screen.getByText("천장 페인트 작업")).toBeInTheDocument());
-    const approval = screen.getByRole("button", { name: /승인 대기 계획서/ });
+    const approval = screen.getByRole("button", { name: /^승인 대기/ });
     fireEvent.click(approval);
     expect(approval).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText("앵커 설치")).toBeNull();

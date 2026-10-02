@@ -35,7 +35,7 @@ public final class TimelineDtos {
     /**
      * 타임라인 위쪽 요약.
      *
-     * @param headline 한 줄 요약. 프로젝터에서 이 줄만 읽혀도 논지가 전달돼야 한다
+     * @param headline 상태 칩 하나("기한 경과 1", "사고 1", "최초 평가 필요", "미이행 1"). 해당 없으면 빈 문자열
      */
     public record TimelineSummary(RiskLevel currentRiskLevel,
                                   AccidentType currentRiskAxis,
@@ -87,7 +87,7 @@ public final class TimelineDtos {
      * @param upcomingWorkPlanCount 상태가 SUBMITTED/APPROVED/CONDITIONAL이고 작업일이 오늘 이후인 작업계획서 수
      * @param lastEventOn           타임라인 마지막 사건 날짜. 사건이 없으면 null
      * @param emphasis              카드 톤. <b>백엔드가 정한다</b> — 화면마다 다르게 판단하면 시연에서 색이 흔들린다
-     * @param headline              카드 한 줄. {@code TimelineSummary.headline}과 같은 생성기를 쓴다
+     * @param headline              상태 칩. {@code TimelineSummary.headline}과 같은 값이다
      */
     public record EquipmentCard(Long id, String name, String locationTag, String processName,
                                 RiskLevel currentRiskLevel, AccidentType currentRiskAxis,
@@ -163,9 +163,9 @@ public final class TimelineDtos {
 
     public enum EventType {
         ASSESSMENT("위험성평가"),
-        ACTION("감소대책"),
-        WORK_PLAN("작업계획서"),
-        INCIDENT("산업재해");
+        ACTION("개선대책"),
+        WORK_PLAN("작업 전 점검"),
+        INCIDENT("사고");
 
         private final String label;
 

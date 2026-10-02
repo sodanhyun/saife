@@ -15,14 +15,14 @@ const card = (o: Partial<EquipmentCard>): EquipmentCard => ({
 });
 
 describe("buildTodayRows", () => {
-  it("같은 계획서의 승인 대기 행은 위험 작업 행에 합치고 '승인 검토' 버튼을 단다", () => {
+  it("같은 계획서의 승인 대기 행은 위험 작업 행에 합치고 '검토' 버튼을 단다", () => {
     const rows = buildTodayRows([
       item({ kind: "RISKY_WORK_PLAN", linkType: "WORK_PLAN", refId: 30, title: "천장 페인트 작업" }),
       item({ kind: "PENDING_APPROVAL", emphasis: "WARNING", linkType: "WORK_PLAN", refId: 30, title: "천장 페인트 작업" }),
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0].awaitingApproval).toBe(true);
-    expect(rows[0].action).toEqual({ label: "승인 검토", href: "/work-plan?planId=30", external: false });
+    expect(rows[0].action).toEqual({ label: "검토", href: "/work-plan?planId=30", external: false });
   });
 
   it("같은 설비, 같은 작업일의 계획서 여러 건은 '외 n건'으로 접는다", () => {
@@ -54,11 +54,13 @@ describe("buildKpis / filterRows", () => {
     const kpis = buildKpis(items, [card({ currentRiskLevel: "HIGH", name: "사다리" })]);
     const byKey = Object.fromEntries(kpis.map((k) => [k.key, k]));
     expect(byKey.overdue.value).toBe(2);
-    expect(byKey.overdue.note).toBe("최장 42일 경과");
+    expect(byKey.overdue.note).toBe("최장 42일");
     expect(byKey.week.value).toBe(1);
     expect(byKey.approval.value).toBe(1);
     expect(byKey.report.value).toBe(1);
-    expect(byKey.highRisk.note).toBe("사다리");
+    expect(byKey.report.note).toBe("기한 10-03");
+    expect(byKey.highRisk.value).toBe(1);
+    expect(kpis.map((k) => k.label)).toEqual(["기한 경과 조치", "7일 내 마감", "승인 대기", "조사표 미제출", "고위험 설비"]);
   });
 
   it("KPI를 누르면 그 종류만 남긴다", () => {

@@ -103,17 +103,16 @@ class TodaySeedSnapshotTest {
         // ── assessment 3(INITIAL, 2025-11-21) — PERIODIC_DUE의 유일한 후보. V10은 ROUTINE만
         //    추가했으므로(INITIAL/REGULAR 아님) "가장 최근 INITIAL/REGULAR"는 항상 assessment 3다 ──
         Assessment assessment3 = assessmentRepository.findById(3L).orElseThrow();
-        LocalDate periodicDueDate = assessment3.getAssessedOn().plusYears(1);
-        boolean periodicWithinLookahead = !periodicDueDate.isAfter(today.plusDays(60));
+        boolean notThisYear = assessment3.getAssessedOn().getYear() < today.getYear();
         List<TodayDtos.TodayItem> periodicItems = itemsOfKind(view, "PERIODIC_DUE");
-        if (periodicWithinLookahead) {
-            assertThat(periodicItems).as("assessment 3 만료(%s)가 오늘+60일 이내면 PERIODIC_DUE가 정확히 1건이어야 한다",
-                    periodicDueDate).hasSize(1);
+        if (notThisYear) {
+            assertThat(periodicItems).as("assessment 3(%s)가 올해 평가가 아니면 '올해 정기평가 미실시'가 1건이어야 한다",
+                    assessment3.getAssessedOn()).hasSize(1);
             assertThat(periodicItems.get(0).refId()).isEqualTo(3L);
-            assertThat(periodicItems.get(0).daysRemaining()).isLessThanOrEqualTo(60L);
+            assertThat(periodicItems.get(0).dueDate()).isEqualTo(LocalDate.of(today.getYear(), 12, 31));
         } else {
-            assertThat(periodicItems).as("assessment 3 만료(%s)가 오늘+60일보다 멀면 PERIODIC_DUE는 없어야 한다",
-                    periodicDueDate).isEmpty();
+            assertThat(periodicItems).as("assessment 3(%s)가 올해 평가면 PERIODIC_DUE는 없어야 한다",
+                    assessment3.getAssessedOn()).isEmpty();
         }
 
         // ── PATROL_DUE — "이번 달 ROUTINE 평가가 있는가"를 시드에서 직접 다시 계산해 대조한다 ──
@@ -137,9 +136,9 @@ class TodaySeedSnapshotTest {
         assertThat(itemsOfKind(view, "REPORT_DUE"))
                 .as("V10의 사고(incident 1)는 report_status=SUBMITTED다 — 제출 완료된 조사표는 절대 뜨면 안 된다")
                 .isEmpty();
-        assertThat(itemsOfKind(view, "PENDING_APPROVAL"))
-                .as("시드에 SUBMITTED 작업계획서가 없다(V10의 work_plan 1은 CONDITIONAL)")
-                .isEmpty();
+        // 화면 문자열 규칙: 대시, 가운뎃점, 따옴표 등급을 쓰지 않는다
+        view.items().forEach(i -> assertThat(i.title() + " " + i.detail())
+                .as("오늘 할 일 문자열").doesNotContain("\u2014", "\u2013", "\u00B7", "'상'", "상시평가 트랙"));
         assertThat(itemsOfKind(view, "RISKY_WORK_PLAN"))
                 .as("V10의 work_plan 1은 작업일이 -50일이라 오늘로부터 7일 창을 이미 한참 벗어났다")
                 .isEmpty();

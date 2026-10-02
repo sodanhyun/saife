@@ -294,32 +294,94 @@ class TodayServiceTest {
     // ---------- 규칙 7: PERIODIC_DUE ----------
 
     @Test
-    @DisplayName("PERIODIC_DUE — 최근 INITIAL/REGULAR 평가 + 1년이 오늘+60일 이내면 포함된다")
-    void periodicDue_within60Days_included() {
-        // assessed_on을 오늘-1년+60일로 잡으면 만료일이 정확히 오늘+60일 — 경계 포함 확인.
-        // 시드(assessment id=3, INITIAL)보다 더 최근 날짜라 "가장 최근"으로 뽑힌다.
-        assessmentRepository.save(Assessment.builder()
-                .siteId(SITE).kind(AssessmentKind.INITIAL)
-                .assessedOn(today().minusYears(1).plusDays(60))
+    @DisplayName("PERIODIC_DUE — 최근 최초/정기 평가가 작년이면 '올해 정기평가 미실시', 기한은 올해 12-31")
+    void periodicDue_lastYear_included() {
+        removeThisYearInitialOrRegular();
+        Assessment last = assessmentRepository.save(Assessment.builder()
+                .siteId(SITE).kind(AssessmentKind.REGULAR)
+                .assessedOn(LocalDate.of(today().getYear() - 1, 12, 31))
                 .status("CONFIRMED").build());
 
         List<TodayDtos.TodayItem> periodic = itemsOfKind(todayService.today(), "PERIODIC_DUE");
 
         assertThat(periodic).hasSize(1);
-        assertThat(periodic.get(0).daysRemaining()).isEqualTo(60L);
+        assertThat(periodic.get(0).refId()).isEqualTo(last.getId());
+        assertThat(periodic.get(0).title()).isEqualTo("올해 정기평가 미실시");
+        assertThat(periodic.get(0).dueDate()).isEqualTo(LocalDate.of(today().getYear(), 12, 31));
     }
 
     @Test
-    @DisplayName("PERIODIC_DUE — 만료가 오늘+61일이면 제외된다")
-    void periodicDue_beyond60Days_excluded() {
+    @DisplayName("PERIODIC_DUE — 올해 정기평가가 있으면 제외된다")
+    void periodicDue_thisYear_excluded() {
         assessmentRepository.save(Assessment.builder()
                 .siteId(SITE).kind(AssessmentKind.REGULAR)
-                .assessedOn(today().minusYears(1).plusDays(61))
+                .assessedOn(LocalDate.of(today().getYear(), 1, 1))
                 .status("CONFIRMED").build());
 
         List<TodayDtos.TodayItem> periodic = itemsOfKind(todayService.today(), "PERIODIC_DUE");
 
         assertThat(periodic).isEmpty();
+    }
+
+    // ---------- 규칙 8: WORK_HOLD ----------
+
+    @Test
+    @DisplayName("WORK_HOLD — 작업 보류된 작업 전 점검은 긴급 맨 위에 '수시평가 완료 전 작업 재개 금지'로 뜬다")
+    void workHold_heldPlan_topOfCritical() {
+        actionRepository.save(Action.builder()
+                .hazardId(1L).content("[TEST] 오래된 기한 경과").status(ActionStatus.PENDING)
+                .dueDate(today().minusDays(400)).build());
+        WorkPlan plan = workPlanRepository.save(WorkPlan.builder()
+                .siteId(SITE).equipmentId(1L).workName("[TEST] 차양부 천장 도장")
+                .workDate(today().plusDays(1)).status(WorkPlanStatus.HOLD).build());
+
+        TodayDtos.TodayView view = todayService.today();
+        Optional<TodayDtos.TodayItem> item = findByKindAndRef(view, "WORK_HOLD", plan.getId());
+
+        assertThat(item).isPresent();
+        assertThat(item.get().emphasis()).isEqualTo(Emphasis.CRITICAL);
+        assertThat(item.get().detail()).isEqualTo("수시평가 완료 전 작업 재개 금지");
+        assertThat(item.get().equipmentId()).isEqualTo(1L);
+        assertThat(view.items().get(0).kind()).as("작업 보류는 긴급 중에서도 맨 위").isEqualTo("WORK_HOLD");
+        assertThat(findByKindAndRef(view, "RISKY_WORK_PLAN", plan.getId()))
+                .as("보류된 계획서는 위험 작업 예정으로 다시 뜨지 않는다").isEmpty();
+    }
+
+    @Test
+    @DisplayName("OVERDUE_ACTION — 보조 정보는 담당과 '잠정조치 필요'(고시 제12조제4항)")
+    void overdueAction_detailMentionsInterimMeasure() {
+        Action action = actionRepository.save(Action.builder()
+                .hazardId(1L).content("[TEST] 잠정조치").owner("생산반장 김철수").status(ActionStatus.PENDING)
+                .dueDate(today().minusDays(3)).build());
+
+        Optional<TodayDtos.TodayItem> item = findByKindAndRef(todayService.today(), "OVERDUE_ACTION", action.getId());
+
+        assertThat(item).get().extracting(TodayDtos.TodayItem::detail)
+                .isEqualTo("담당 생산반장 김철수, 잠정조치 필요");
+    }
+
+    private void removeThisYearInitialOrRegular() {
+        entityManager.createNativeQuery(
+                "DELETE FROM assessment_hazard WHERE assessment_id IN "
+                        + "(SELECT id FROM assessment WHERE kind IN ('INITIAL','REGULAR') "
+                        + "AND date_trunc('year', assessed_on) = date_trunc('year', CURRENT_DATE))")
+                .executeUpdate();
+        entityManager.createNativeQuery(
+                "UPDATE action SET assessment_id = NULL WHERE assessment_id IN "
+                        + "(SELECT id FROM assessment WHERE kind IN ('INITIAL','REGULAR') "
+                        + "AND date_trunc('year', assessed_on) = date_trunc('year', CURRENT_DATE))")
+                .executeUpdate();
+        entityManager.createNativeQuery(
+                "UPDATE incident SET follow_up_assessment_id = NULL WHERE follow_up_assessment_id IN "
+                        + "(SELECT id FROM assessment WHERE kind IN ('INITIAL','REGULAR') "
+                        + "AND date_trunc('year', assessed_on) = date_trunc('year', CURRENT_DATE))")
+                .executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM assessment WHERE kind IN ('INITIAL','REGULAR') "
+                        + "AND date_trunc('year', assessed_on) = date_trunc('year', CURRENT_DATE)")
+                .executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
     }
 
     // ---------- 정렬·상한 ----------

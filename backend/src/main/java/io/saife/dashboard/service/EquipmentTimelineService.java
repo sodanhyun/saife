@@ -269,7 +269,7 @@ public class EquipmentTimelineService {
 
             out.add(new TimelineEvent(eventId, EventType.ASSESSMENT,
                     assessment.getAssessedOn(), assessment.getCreatedAt(),
-                    "%s 위험성평가".formatted(assessment.getKind().getLabel()),
+                    "%s평가".formatted(assessment.getKind().getLabel()),
                     detail, level,
                     worst == null ? null : axisOf(hazardById, worst.getHazardId()),
                     assessment.getStatus(), assessment.getId(), linked, List.of(),
@@ -279,7 +279,10 @@ public class EquipmentTimelineService {
         return out;
     }
 
-    /** 조치 사건. 기한 위에 놓는다 — 타임라인에서 의미 있는 날짜는 기한이다 */
+    /**
+     * 조치 사건. 미이행 조치는 기한 위에, 완료된 조치는 완료일 위에 놓는다.
+     * 완료된 조치가 기한(미래 날짜)에 놓이면 아직 일어나지 않은 일처럼 읽힌다.
+     */
     private List<TimelineEvent> actionEvents(List<Action> actions,
                                              Map<Long, String> assessmentEventId) {
         List<TimelineEvent> out = new ArrayList<>();
@@ -301,7 +304,7 @@ public class EquipmentTimelineService {
             }
 
             out.add(new TimelineEvent("action-" + action.getId(), EventType.ACTION,
-                    action.getDueDate(), action.getCreatedAt(),
+                    placedOn(action), action.getCreatedAt(),
                     action.getContent(), detail, null, null,
                     overdue ? ActionStatus.OVERDUE.name() : action.getStatus().name(),
                     action.getId(), linked, List.of(),
@@ -333,12 +336,7 @@ public class EquipmentTimelineService {
                 }
             }
 
-            String detail = acknowledged
-                    ? "브리핑 확인 완료 (TBM 이행 기록)"
-                    : "브리핑 미확인";
-            if (!linked.isEmpty()) {
-                detail += ", 미이행 조치 %d건 경고".formatted(linked.size());
-            }
+            String detail = acknowledged ? "TBM 실시" : "TBM 전";
 
             out.add(new TimelineEvent("workplan-" + plan.getId(), EventType.WORK_PLAN,
                     plan.getWorkDate(), plan.getBriefingAckAt(),
@@ -381,14 +379,11 @@ public class EquipmentTimelineService {
             if (incident.getLeaveDays() != null) {
                 detail.append("휴업 ").append(incident.getLeaveDays()).append("일");
             }
-            if (incident.getReportDueDate() != null) {
+            if (incident.getReportDueDate() != null && incident.getReportStatus() != ReportStatus.SUBMITTED) {
                 if (detail.length() > 0) {
                     detail.append(", ");
                 }
-                detail.append("조사표 제출 기한 ").append(incident.getReportDueDate());
-            }
-            if (detail.length() == 0) {
-                detail.append(nvl(incident.getDescription(), "재해 발생"));
+                detail.append("조사표 기한 ").append(monthDay(incident.getReportDueDate()));
             }
 
             out.add(new TimelineEvent("incident-" + incident.getId(), EventType.INCIDENT,
@@ -404,7 +399,7 @@ public class EquipmentTimelineService {
     private String incidentTitle(Incident incident, Map<Long, Hazard> hazardById) {
         String axis = incident.getAccidentType() == null ? "재해"
                 : incident.getAccidentType().getLabel();
-        return "%s 사고 발생".formatted(axis);
+        return "%s 사고".formatted(axis);
     }
 
     /**
@@ -462,35 +457,24 @@ public class EquipmentTimelineService {
     }
 
     /**
-     * 한 줄 요약. 프로젝터에서 이 줄만 읽혀도 논지가 전달돼야 한다.
-     *
-     * <p>강한 사실부터 고른다. 없는 사실을 만들지 않는다 — 조용한 설비는
-     * 조용하다고 말하는 게 맞다.
+     * 상태 칩 하나. 서술 문장이 아니라 가장 강한 사실 하나의 이름과 숫자다
+     * ("기한 경과 1", "사고 1", "최초 평가 필요", "미이행 1"). 해당 없으면 빈 문자열.
      */
     private String headline(RiskLevel current, List<Incident> incidents,
                             int overdue, int unfinished, List<Hazard> hazards) {
-        if (!incidents.isEmpty() && overdue > 0) {
-            return ("사고 %d건이 발생했고, 기한이 지난 미이행 조치가 %d건 남아 있습니다. "
-                    + "평가에서 지적된 위험이 조치로 이어지지 않았습니다.")
-                    .formatted(incidents.size(), overdue);
+        if (overdue > 0) {
+            return "기한 경과 %d".formatted(overdue);
         }
         if (!incidents.isEmpty()) {
-            return "사고 %d건 이후 수시평가로 이어졌습니다.".formatted(incidents.size());
+            return "사고 %d".formatted(incidents.size());
         }
-        if (overdue > 0) {
-            return "기한이 지난 미이행 조치가 %d건 있습니다. 사고 전에 닫아야 하는 항목입니다."
-                    .formatted(overdue);
-        }
-        if (current == RiskLevel.HIGH) {
-            return "최근 평가에서 위험성 '상'으로 판정된 설비입니다.";
+        if (hazards.isEmpty() || current == null) {
+            return "최초 평가 필요";
         }
         if (unfinished > 0) {
-            return "기한이 남은 미이행 조치가 %d건 있습니다.".formatted(unfinished);
+            return "미이행 %d".formatted(unfinished);
         }
-        if (hazards.isEmpty()) {
-            return "등록된 위험요인이 없습니다. 최초 평가가 필요합니다.";
-        }
-        return "현재 미이행 조치와 사고 이력이 없습니다.";
+        return "";
     }
 
     // ---------- 보조 ----------
@@ -551,7 +535,16 @@ public class EquipmentTimelineService {
                 .replace("\u00B7", "/");
     }
 
-    private String nvl(String v, String fallback) {
-        return (v == null || v.isBlank()) ? fallback : v;
+    /** 완료된 조치는 완료일(KST), 그 밖에는 기한 */
+    static LocalDate placedOn(Action action) {
+        if (action.getStatus() == ActionStatus.DONE && action.getCompletedAt() != null) {
+            return action.getCompletedAt().atZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDate();
+        }
+        return action.getDueDate();
+    }
+
+    /** 촘촘한 목록의 날짜 표기 MM-DD */
+    private static String monthDay(LocalDate date) {
+        return "%02d-%02d".formatted(date.getMonthValue(), date.getDayOfMonth());
     }
 }

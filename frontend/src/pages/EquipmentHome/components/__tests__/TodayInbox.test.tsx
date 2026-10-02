@@ -40,17 +40,33 @@ function renderInbox(items: TodayItem[], extra: Partial<React.ComponentProps<typ
 }
 
 describe("TodayInbox", () => {
-  it("행마다 종류, 문장, 설비, D-day, 행동 버튼 하나를 보인다", () => {
+  it("행마다 종류, 문장, 설비, 경과일, 행동 버튼 하나를 보인다", () => {
     renderInbox([item({})]);
     expect(screen.getByText("기한 경과 조치")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "차양부 안전대 부착설비 설치" })).toHaveAttribute("href", "/equipment/1");
-    expect(screen.getByText("D+42").className).toContain("text-risk-high-text");
-    expect(screen.getByRole("link", { name: "사진 점검" })).toHaveAttribute("href", "/vision?equipmentId=1");
+    expect(screen.getByText("42일 경과").className).toContain("text-risk-high-text");
+    expect(screen.getByRole("link", { name: "조치 확인" })).toHaveAttribute("href", "/equipment/1?focus=action-1");
   });
 
-  it("조사표 버튼은 법정 서식을 새 탭으로 연다", () => {
-    renderInbox([item({ kind: "REPORT_DUE", emphasis: "WARNING", title: "사다리 추락 사고 산업재해조사표", refId: 7, daysRemaining: 20, linkType: "INCIDENT" })]);
-    const link = screen.getByRole("link", { name: "조사표" });
+  it("작업 보류 행은 '수시평가' 버튼을 달고, 버튼은 모두 같은 모양이다", () => {
+    renderInbox([
+      item({ kind: "WORK_HOLD", title: "차양부 천장 도장", detail: "수시평가 완료 전 작업 재개 금지", daysRemaining: null, linkType: "WORK_PLAN", refId: 3 }),
+      item({ kind: "PENDING_APPROVAL", emphasis: "WARNING", title: "조명 교체", linkType: "WORK_PLAN", refId: 4, daysRemaining: 1 }),
+    ]);
+    expect(screen.getByText("작업 보류")).toBeInTheDocument();
+    expect(screen.getByText("수시평가 완료 전 작업 재개 금지")).toBeInTheDocument();
+    const hold = screen.getByRole("link", { name: "수시평가" });
+    const review = screen.getByRole("link", { name: "검토" });
+    expect(hold).toHaveAttribute("href", "/vision?equipmentId=1");
+    expect(review).toHaveAttribute("href", "/work-plan?planId=4");
+    expect(hold.className).toBe(review.className);
+  });
+
+  it("조사표는 기한을 날짜로 보이고, 버튼은 서식을 새 탭으로 연다", () => {
+    renderInbox([item({ kind: "REPORT_DUE", emphasis: "WARNING", title: "떨어짐 사고 10-02", refId: 7, dueDate: "2026-11-02", daysRemaining: 31, linkType: "INCIDENT" })]);
+    expect(screen.getByText("기한 11-02")).toBeInTheDocument();
+    expect(screen.queryByText("D-31")).toBeNull();
+    const link = screen.getByRole("link", { name: "조사표 작성" });
     expect(link).toHaveAttribute("href", "/form/incident/7");
     expect(link).toHaveAttribute("target", "_blank");
   });
@@ -59,14 +75,14 @@ describe("TodayInbox", () => {
     const items = Array.from({ length: 8 }, (_, i) => item({ title: `조치 ${i}`, refId: i }));
     renderInbox(items);
     expect(screen.queryByText("조치 7")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "나머지 2건 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "2건 더 보기" }));
     expect(screen.getByText("조치 7")).toBeInTheDocument();
   });
 
   it("필터가 걸려 있으면 해제 버튼을 보이고, 누르면 onClearFilter를 부른다", () => {
     const onClearFilter = vi.fn();
     renderInbox([item({})], { filterLabel: "기한 경과 조치", onClearFilter });
-    fireEvent.click(screen.getByRole("button", { name: /기한 경과 조치만 보기/ }));
+    fireEvent.click(screen.getByRole("button", { name: /기한 경과 조치/ }));
     expect(onClearFilter).toHaveBeenCalled();
   });
 

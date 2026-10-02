@@ -69,7 +69,7 @@ docker compose up -d --build
 | `dashboard` | **UC4** 설비 1개 타임라인 뷰 (평가→작업계획→사고→재평가). `dashboard.service`의
   `EquipmentTimelineService`(카드 summary), `RecallService`(진입 회상 — `ai.recall`과 같은 payload를
   카드 클릭 없이도 재사용), `TodayService`(홈 "오늘 할 일" 인박스 — OVERDUE_ACTION/DUE_ACTION/
-  RISKY_WORK_PLAN/PENDING_APPROVAL/REPORT_DUE/PATROL_DUE/PERIODIC_DUE 7종 규칙) |
+  RISKY_WORK_PLAN/PENDING_APPROVAL/REPORT_DUE/PATROL_DUE/PERIODIC_DUE 8종 규칙(WORK_HOLD 포함)) |
 | `ai/agent` | 에이전트 오케스트레이션 (도구 호출 루프, 슬롯 되묻기) |
 | `ai/tools` | Spring AI `@Tool` 6종 + `ToolRegistry` |
 | `ai/vision` | 사진 → **빠진 안전조치 탐지** (Gemini 멀티모달) |

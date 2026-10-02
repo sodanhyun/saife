@@ -118,7 +118,7 @@ class EquipmentTimelineServiceTest {
         assertThat(recall.predicted())
                 .as("PRE_WORK는 axis가 없으므로 predicted는 항상 false다")
                 .isFalse();
-        assertThat(recall.headline()).contains("최근 평가 '상'(추락)");
+        assertThat(recall.headline()).contains("최근 평가 상(떨어짐)");
         assertThat(recall.headline()).contains("미이행 조치 1건(기한 ");
         assertThat(recall.headline()).contains("일 경과)");
         assertThat(recall.headline())
@@ -140,5 +140,29 @@ class EquipmentTimelineServiceTest {
                 .as("값이 없는 '최근 평가 등급'·'미이행 조치'는 담지 않는다")
                 .containsExactlyInAnyOrder("장소", "설비", "공정/작업유형")
                 .doesNotContain("최근 평가 등급", "미이행 조치");
+    }
+
+    @Test
+    @DisplayName("칩 — 카드와 요약의 headline은 서술 문장이 아니라 짧은 상태 칩이다")
+    void headlineIsShortChip() {
+        // 사다리 A: 기한 경과 조치 1건(action 1)
+        assertThat(service.timeline(1L).summary().headline()).isEqualTo("기한 경과 1");
+        for (TimelineDtos.EquipmentCard card : service.cards(SITE)) {
+            assertThat(card.headline()).as("설비 %d 칩", card.id())
+                    .isEqualTo(service.timeline(card.id()).summary().headline())
+                    .doesNotContain(".", "습니다");
+        }
+    }
+
+    @Test
+    @DisplayName("이력 — 완료된 조치는 완료일에 놓이고, 화면 문자열에 대시/가운뎃점이 없다")
+    void doneActionsPlacedOnCompletionDate() {
+        TimelineDtos.EquipmentTimeline timeline = service.timeline(6L);
+        timeline.events().stream()
+                .filter(e -> e.type() == TimelineDtos.EventType.ACTION && "DONE".equals(e.status()))
+                .forEach(e -> assertThat(e.at()).as("완료 조치 %s는 미래 날짜에 놓이지 않는다", e.id())
+                        .isBeforeOrEqualTo(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))));
+        timeline.events().forEach(e -> assertThat(e.title() + " " + e.detail())
+                .doesNotContain("—", "–", "·", "브리핑"));
     }
 }

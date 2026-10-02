@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import TimelineList from "@/components/timeline/TimelineList";
 import { linkedIds } from "@/components/timeline/linkedIds";
-import { buildStory, storyLinkedIds } from "@/components/timeline/storyModel";
+import { buildStory, cleanTrace, gradeHistory, storyLinkedIds } from "@/components/timeline/storyModel";
 import type { TimelineEvent } from "@/types/timeline";
 
 const ev = (id: string, linked: string[] = [], over: Partial<TimelineEvent> = {}): TimelineEvent => ({
@@ -16,8 +16,8 @@ const ev = (id: string, linked: string[] = [], over: Partial<TimelineEvent> = {}
 const story6: TimelineEvent[] = [
   ev("assessment-4", [], { at: "2026-07-16", title: "상시 위험성평가", riskLevel: "HIGH", accidentType: "FALL", ruleTrace: "작업높이 2.4m + 안전대 부착설비 없음 → '상'" }),
   ev("workplan-1", [], { type: "WORK_PLAN", at: "2026-08-10", title: "조명 교체", status: "CONDITIONAL" }),
-  ev("incident-1", ["workplan-1", "assessment-5"], { type: "INCIDENT", at: "2026-08-15", title: "추락 사고 발생", accidentType: "FALL", status: "SUBMITTED", detail: "휴업 5일 · 조사표 제출 기한 2026-09-15" }),
-  ev("assessment-5", ["incident-1"], { at: "2026-08-15", title: "수시 위험성평가", riskLevel: "HIGH", accidentType: "FALL", causalOrder: 4 }),
+  ev("incident-1", ["workplan-1", "assessment-5"], { type: "INCIDENT", at: "2026-08-15", occurredAt: "2026-08-15T10:20:00+09:00", title: "떨어짐 사고", accidentType: "FALL", status: "SUBMITTED", detail: "휴업 5일 · 조사표 기한 09-15" }),
+  ev("assessment-5", ["incident-1"], { at: "2026-08-15", occurredAt: "2026-08-15T11:00:00+09:00", title: "수시평가", riskLevel: "HIGH", accidentType: "FALL", causalOrder: 4 }),
   ev("assessment-6", [], { at: "2026-09-19", title: "상시 위험성평가", riskLevel: "MEDIUM", accidentType: "FALL" }),
 ];
 
@@ -28,19 +28,47 @@ describe("storyModel", () => {
     expect(s.find((x) => x.ev.id === "assessment-5")!.gradeChange).toBeNull();
   });
 
-  it("사고에는 사전 경고(같은 유형을 먼저 평가한 기록)와 서버 연결을 문장으로 붙인다", () => {
+  it("사고에는 사고 전 평가와 서버 연결을 짧은 평문으로 붙인다", () => {
     const incident = buildStory(story6).find((x) => x.ev.id === "incident-1")!;
     const texts = incident.relations.map((r) => r.text);
-    expect(texts[0]).toBe("사고 전 07-16 상시 위험성평가에서 추락 위험을 '상'으로 이미 평가");
-    expect(texts).toContain("연결된 작업계획서: 08-10 조명 교체");
-    expect(texts).toContain("이 사고로 08-15 수시 위험성평가가 생성됨");
-    expect(incident.detail).toBe("휴업 5일, 조사표 제출 기한 2026-09-15");
+    expect(texts[0]).toBe("사고 전 평가: 떨어짐 상 (07-16)");
+    expect(texts).toContain("작업 전 점검: 조명 교체");
+    expect(texts).toContain("수시평가 08-15");
+    expect(incident.detail).toBe("휴업 5일, 조사표 기한 09-15");
+    const followUp = buildStory(story6).find((x) => x.ev.id === "assessment-5")!;
+    expect(followUp.relations.map((r) => r.text)).toEqual(["08-15 떨어짐 사고 후속"]);
   });
 
-  it("ruleTrace가 없는 옛 응답은 detail의 가운뎃점 뒤를 룰 근거로 읽는다", () => {
+  it("사고 전 평가는 같은 날 그 사고가 만든 수시평가가 아니라 사고 이전 가장 최근 평가다", () => {
+    const events = [
+      ...story6.slice(0, 2),
+      ev("assessment-9", [], { at: "2026-08-15", occurredAt: "2026-08-15T08:00:00+09:00", title: "상시평가", riskLevel: "MEDIUM", accidentType: "FALL" }),
+      ...story6.slice(2),
+    ];
+    const incident = buildStory(events).find((x) => x.ev.id === "incident-1")!;
+    expect(incident.relations[0].text).toBe("사고 전 평가: 떨어짐 중 (08-15)");
+  });
+
+  it("등급 근거는 결론 화살표와 따옴표 등급을 걷어낸 평문이다", () => {
+    expect(cleanTrace("작업높이 3.2m (2m 초과) + 안전대 부착설비 없음 → '상'")).toBe("작업높이 3.2m (2m 초과), 안전대 부착설비 없음");
+    expect(cleanTrace("난간 보수 완료로 강도 하향, 안전대 부착설비는 여전히 없어 '중' 유지")).toBe("난간 보수 완료로 강도 하향, 안전대 부착설비는 여전히 없어 등급 유지");
+    expect(cleanTrace("발판 높이 3.5m 초과, 이동식 사다리 사용 불가 (제42조④)")).toBe("발판 높이 3.5m 초과, 이동식 사다리 사용 불가 (제42조④)");
+  });
+
+  it("ruleTrace가 없는 옛 응답은 detail의 가운뎃점 뒤를 등급 근거로 읽는다", () => {
     const [s] = buildStory([ev("a", [], { detail: "1건의 위험요인 평가 · 높이 3m → '상'", riskLevel: "HIGH" })]);
     expect(s.detail).toBe("1건의 위험요인 평가");
-    expect(s.trace).toBe("높이 3m → '상'");
+    expect(s.trace).toBe("높이 3m");
+  });
+
+  it("등급 이력은 같은 날 평가를 하나로 줄인다", () => {
+    const history = gradeHistory(buildStory(story6));
+    expect(history.map((h) => `${h.ev.at.slice(5)} ${h.ev.riskLevel}`)).toEqual(["07-16 HIGH", "08-15 HIGH", "09-19 MEDIUM"]);
+    const sameDay = gradeHistory(buildStory([
+      ev("x", [], { at: "2026-10-02", riskLevel: "HIGH" }),
+      ev("y", [], { at: "2026-10-02", riskLevel: "MEDIUM" }),
+    ]));
+    expect(sameDay.map((h) => h.ev.id)).toEqual(["y"]);
   });
 
   it("포커스 연결은 양방향이고 사전 경고 대상도 포함한다", () => {
@@ -83,11 +111,17 @@ describe("TimelineList", () => {
     expect(onFocus).toHaveBeenLastCalledWith(null);
   });
 
-  it("법정 서식 링크는 role=button 카드 밖 형제 요소이고, 눌러도 카드 포커스를 바꾸지 않는다", () => {
+  it("같은 날 사건에도 날짜를 보이고, 평가 제목은 '상시평가'처럼 줄인다", () => {
+    render(<TimelineList events={[ev("a", [], { title: "상시 위험성평가" }), ev("b", [], { type: "INCIDENT", title: "떨어짐 사고" })]} focusId={null} onFocus={vi.fn()} />);
+    expect(screen.getAllByText("09-21")).toHaveLength(2);
+    expect(screen.getByText("상시평가")).toBeInTheDocument();
+  });
+
+  it("서식 출력 링크는 role=button 카드 밖 형제 요소이고, 눌러도 카드 포커스를 바꾸지 않는다", () => {
     const onFocus = vi.fn();
     const { container } = render(<TimelineList events={[ev("a")]} focusId={null} onFocus={onFocus} />);
     expect(container.querySelector('[role="button"] a')).toBeNull();
-    const link = screen.getByRole("link", { name: "법정 서식" });
+    const link = screen.getByRole("link", { name: "서식 출력" });
     expect(link.closest("li")!.querySelector('[role="button"]')).not.toContainElement(link);
     fireEvent.click(link);
     expect(onFocus).not.toHaveBeenCalled();

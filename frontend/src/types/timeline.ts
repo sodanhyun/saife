@@ -8,9 +8,9 @@ export type Emphasis = "NORMAL" | "WARNING" | "CRITICAL";
 
 export const EVENT_LABEL: Record<EventType, string> = {
   ASSESSMENT: "위험성평가",
-  ACTION: "감소대책",
-  WORK_PLAN: "작업계획서",
-  INCIDENT: "산업재해",
+  ACTION: "개선대책",
+  WORK_PLAN: "작업 전 점검",
+  INCIDENT: "사고",
 };
 
 export interface EquipmentHead {
@@ -22,7 +22,7 @@ export interface EquipmentHead {
   introducedOn: string | null;
 }
 
-/** @property headline 프로젝터에서 이 줄만 읽혀도 논지가 전달돼야 한다 */
+/** @property headline 상태 칩 하나("기한 경과 1", "사고 1", "최초 평가 필요", "미이행 1"). 해당 없으면 빈 문자열 */
 export interface TimelineSummary {
   currentRiskLevel: RiskLevel | null;
   currentRiskAxis: AccidentType | null;
@@ -70,7 +70,7 @@ export interface EquipmentTimeline {
  * `overdueActionCount`·`incidentCount`·`currentRiskLevel`은 같은 설비의
  * `EquipmentTimeline.summary`와 항상 같다(백엔드가 같은 계산을 재사용해서 낸다).
  * @property emphasis 카드 테두리·배지 톤. 백엔드가 정한다 — 화면마다 다르게 판단하면 안 된다
- * @property headline 카드 한 줄. TimelineSummary.headline과 같은 생성기를 쓴다
+ * @property headline 상태 칩. TimelineSummary.headline과 같은 값
  */
 export interface EquipmentCard {
   id: number;
@@ -118,7 +118,8 @@ export type TodayKind =
   | "PENDING_APPROVAL"
   | "REPORT_DUE"
   | "PATROL_DUE"
-  | "PERIODIC_DUE";
+  | "PERIODIC_DUE"
+  | "WORK_HOLD";
 
 /** 클릭 시 이동 대상 종류. 화면 쪽 행동 버튼 표는 `pages/EquipmentHome/utils/todayModel.ts`가 정한다. */
 export type TodayLinkType = "EQUIPMENT" | "WORK_PLAN" | "INCIDENT" | "ASSESSMENT";

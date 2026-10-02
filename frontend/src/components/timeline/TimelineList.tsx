@@ -1,13 +1,12 @@
-// TimelineList.tsx — 한 설비의 이야기. 날짜는 왼쪽, 내용은 오른쪽, 사이에 사건 종류별 표식.
+// TimelineList.tsx — 한 설비의 이력. 날짜는 왼쪽, 내용은 오른쪽, 사이에 사건 종류별 표식.
 // 사고와 등급 변화만 강하게, 나머지는 절제한다. 사건을 누르면 이어진 기록만 밝고 나머지는 물러난다.
-import { AlertTriangle, Check, ClipboardList, Clock, CornerDownRight } from "lucide-react";
+import { AlertTriangle, Check, ClipboardList, Clock, CornerDownRight, Printer } from "lucide-react";
 
 import { formUrl } from "@/api/formUrl";
-import { plainText } from "@/utils/plainText";
-import { buildStory, storyLinkedIds, type StoryEvent, type StoryRelation } from "@/components/timeline/storyModel";
+import { buildStory, shortTitle, storyLinkedIds, type StoryEvent } from "@/components/timeline/storyModel";
 import { RiskBadge, StatusBadge } from "@/components/ui/Badge";
+import { buttonClassName } from "@/components/ui/buttonStyles";
 import EmptyState from "@/components/ui/EmptyState";
-import LinkButton from "@/components/ui/LinkButton";
 import cn from "@/lib/cn";
 import { ACCIDENT_LABEL, RISK_LABEL, WORK_PLAN_STATUS_LABEL, type WorkPlanStatus } from "@/types/domain";
 import { EVENT_LABEL, type TimelineEvent } from "@/types/timeline";
@@ -27,8 +26,8 @@ const ACTION_STATUS: Record<string, { label: string; tone: Tone }> = {
 };
 
 const REPORT_STATUS: Record<string, { label: string; tone: Tone }> = {
-  SUBMITTED: { label: "조사표 제출 완료", tone: "neutral" },
-  REQUIRED: { label: "조사표 제출 필요", tone: "pending" },
+  SUBMITTED: { label: "조사표 제출", tone: "neutral" },
+  REQUIRED: { label: "조사표 미제출", tone: "pending" },
   OVERDUE: { label: "조사표 기한 경과", tone: "high" },
   NOT_REQUIRED: { label: "조사표 대상 아님", tone: "neutral" },
 };
@@ -55,11 +54,8 @@ function Marker({ ev }: { ev: TimelineEvent }) {
   }
   if (ev.type === "INCIDENT") {
     return (
-      <span className="relative grid h-9 w-9 place-items-center">
-        <span className="absolute inset-0 rounded-full bg-risk-high animate-ping-soft" aria-hidden />
-        <span className="relative grid h-9 w-9 place-items-center rounded-full bg-risk-high text-white ring-4 ring-page">
-          <AlertTriangle className="h-4 w-4" strokeWidth={2.4} aria-hidden />
-        </span>
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-risk-high text-white ring-4 ring-page">
+        <AlertTriangle className="h-4 w-4" strokeWidth={2.4} aria-hidden />
       </span>
     );
   }
@@ -87,12 +83,6 @@ function actionBody(detail: string): string | null {
   return ref ? ref[0] : null;
 }
 
-const RELATION_TEXT: Record<StoryRelation["tone"], string> = {
-  high: "font-medium text-risk-high-text",
-  progress: "text-progress-text",
-  neutral: "text-slate-500",
-};
-
 function StoryCard({ story, focused, linked, dimmed, onToggle }: {
   story: StoryEvent; focused: boolean; linked: boolean; dimmed: boolean; onToggle: () => void;
 }) {
@@ -103,7 +93,7 @@ function StoryCard({ story, focused, linked, dimmed, onToggle }: {
   const changeTone: Tone = gradeChange ? (gradeChange.improved ? "low" : "high") : "neutral";
   // 평가의 "위험요인 n건 평가"는 제목 옆 메타로, 조치의 상태 문구는 배지와 겹치니 근거 번호만 남긴다
   const meta = ev.type === "ASSESSMENT"
-    ? [ev.accidentType ? `${ACCIDENT_LABEL[ev.accidentType]} 위험` : null, detail].filter(Boolean).join(", ")
+    ? [ev.accidentType ? ACCIDENT_LABEL[ev.accidentType] : null, detail].filter(Boolean).join(", ")
     : null;
   const body = ev.type === "ASSESSMENT" ? null : ev.type === "ACTION" ? actionBody(detail) : detail;
 
@@ -113,7 +103,8 @@ function StoryCard({ story, focused, linked, dimmed, onToggle }: {
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); }
         }}
-        className={cn("w-full cursor-pointer rounded-xl border bg-white px-5 py-3 pr-32 text-left text-slate-900 shadow-card transition-colors",
+        className={cn("w-full cursor-pointer rounded-xl border bg-white px-5 py-3 text-left text-slate-900 shadow-card transition-colors",
+          href && "pr-16",
           incident && "border-risk-high-border",
           gradeChange && !incident && toneColor(changeTone).border,
           !incident && !gradeChange && "border-slate-200",
@@ -123,13 +114,9 @@ function StoryCard({ story, focused, linked, dimmed, onToggle }: {
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border")}>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <p className={cn("font-semibold", incident ? "text-headline" : "text-stage")}>
-            <span className={cn(incident ? "text-risk-high-text" : "text-slate-900")}>{plainText(ev.title)}</span>
+            <span className={cn(incident ? "text-risk-high-text" : "text-slate-900")}>{shortTitle(ev)}</span>
           </p>
-          {gradeChange && (
-            <StatusBadge tone={gradeChange.improved ? "low" : "high"}>
-              등급 {RISK_LABEL[gradeChange.from]} → {RISK_LABEL[gradeChange.to]}
-            </StatusBadge>
-          )}
+          {gradeChange && <StatusBadge tone={changeTone}>{gradeChange.improved ? "등급 하향" : "등급 상향"}</StatusBadge>}
           {status && <StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
           {meta && <span className="text-xs text-slate-400">{meta}</span>}
         </div>
@@ -143,16 +130,21 @@ function StoryCard({ story, focused, linked, dimmed, onToggle }: {
         {relations.length > 0 && (
           <ul className="mt-1.5 space-y-0.5">
             {relations.map((r) => (
-              <li key={`${r.targetId}-${r.text}`} className={cn("flex items-start gap-1.5 text-sm", RELATION_TEXT[r.tone])}>
-                <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+              <li key={`${r.targetId}-${r.text}`} className="flex items-start gap-1.5 text-sm text-slate-600">
+                <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
                 <span>{r.text}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
-      {/* 법정 서식 링크는 role=button 카드 밖 형제 요소다(보조기술이 버튼 안에 갇히지 않게) */}
-      {href && <LinkButton href={href} external className="absolute right-4 top-4">법정 서식</LinkButton>}
+      {/* 서식 링크는 role=button 카드 밖 형제 요소다(보조기술이 버튼 안에 갇히지 않게) */}
+      {href && (
+        <a href={href} target="_blank" rel="noreferrer" title="서식 출력" aria-label="서식 출력"
+          className={cn(buttonClassName("secondary", "sm"), "absolute right-3 top-3 px-2")}>
+          <Printer className="h-4 w-4" aria-hidden />
+        </a>
+      )}
     </div>
   );
 }
@@ -160,11 +152,11 @@ function StoryCard({ story, focused, linked, dimmed, onToggle }: {
 interface Props { events: TimelineEvent[]; focusId: string | null; onFocus: (id: string | null) => void }
 
 export default function TimelineList({ events, focusId, onFocus }: Props) {
-  if (events.length === 0) return <EmptyState message="이 설비에 기록된 사건이 없습니다" />;
+  if (events.length === 0) return <EmptyState message="기록 없음" />;
   const story = buildStory(events);
   const linked = storyLinkedIds(story, focusId);
   return (
-    <ol aria-label="설비 이력" className="relative">
+    <ol aria-label="이력" className="relative">
       {story.map((s, i) => {
         const ev = s.ev;
         const prev = story[i - 1]?.ev;
@@ -174,14 +166,12 @@ export default function TimelineList({ events, focusId, onFocus }: Props) {
         const focused = focusId === ev.id;
         const isLinked = linked.has(ev.id);
         return (
-          <li key={ev.id} className="grid grid-cols-[5.5rem_3.5rem_minmax(0,1fr)] animate-rise-in" style={{ animationDelay: `${120 + i * 70}ms` }}>
+          <li key={ev.id} id={`event-${ev.id}`} className="grid scroll-mt-24 grid-cols-[6rem_3.5rem_minmax(0,1fr)] animate-rise-in" style={{ animationDelay: `${120 + i * 70}ms` }}>
             <div className="pt-3 text-right">
               {showYear && <p className="text-xs tabular-nums text-slate-400">{year}</p>}
-              {!sameDay && (
-                <p className="text-stage font-semibold tabular-nums">
-                  <span className={cn(ev.type === "INCIDENT" ? "text-risk-high-text" : "text-slate-700")}>{ev.at.slice(5)}</span>
-                </p>
-              )}
+              <p className="text-stage font-semibold tabular-nums">
+                <span className={cn(ev.type === "INCIDENT" || ev.status === "OVERDUE" ? "text-risk-high-text" : sameDay ? "text-slate-400" : "text-slate-700")}>{ev.at.slice(5)}</span>
+              </p>
               <p className={cn("text-xs", ev.type === "INCIDENT" ? "font-semibold text-risk-high-text" : "text-slate-400")}>{EVENT_LABEL[ev.type]}</p>
             </div>
             <div className="relative flex justify-center">
