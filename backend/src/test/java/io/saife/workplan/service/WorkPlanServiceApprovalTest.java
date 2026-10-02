@@ -60,10 +60,10 @@ class WorkPlanServiceApprovalTest {
         WorkPlan plan = submitted();
         when(viewBuilder.compute(plan)).thenReturn(view(true));
 
-        assertThatThrownBy(() -> service.approve(7L, "이정훈", null))
+        assertThatThrownBy(() -> service.approve(7L, "홍길동", null))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessageContaining("잠정조치");
-        assertThatThrownBy(() -> service.approve(7L, "이정훈", "   "))
+        assertThatThrownBy(() -> service.approve(7L, "홍길동", "   "))
                 .isInstanceOf(InvalidRequestException.class);
         assertThat(plan.getStatus()).isEqualTo(WorkPlanStatus.SUBMITTED);
         verify(workPlanRepository, never()).save(any(WorkPlan.class));
@@ -74,10 +74,10 @@ class WorkPlanServiceApprovalTest {
         WorkPlan plan = submitted();
         when(viewBuilder.compute(plan)).thenReturn(view(true));
 
-        service.approve(7L, "이정훈", "사다리 작업 금지, 이동식 비계 설치 후 작업");
+        service.approve(7L, "홍길동", "사다리 작업 금지, 이동식 비계 설치 후 작업");
 
         assertThat(plan.getStatus()).isEqualTo(WorkPlanStatus.CONDITIONAL);
-        assertThat(plan.getApprovedBy()).isEqualTo("이정훈");
+        assertThat(plan.getApprovedBy()).isEqualTo("홍길동");
         assertThat(plan.getApprovalNote()).isEqualTo("사다리 작업 금지, 이동식 비계 설치 후 작업");
         assertThat(plan.getApprovedAt()).isNotNull();
     }
@@ -98,7 +98,7 @@ class WorkPlanServiceApprovalTest {
         WorkPlan plan = submitted();
         plan.hold();
 
-        assertThatThrownBy(() -> service.approve(7L, "이정훈", "잠정조치"))
+        assertThatThrownBy(() -> service.approve(7L, "홍길동", "잠정조치"))
                 .isInstanceOf(IllegalStateException.class);
     }
 }

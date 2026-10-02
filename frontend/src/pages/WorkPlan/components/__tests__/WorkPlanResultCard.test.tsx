@@ -67,8 +67,8 @@ describe("WorkPlanResultCard", () => {
   });
 
   it("승인되면 머리에 승인자와 시각을 보인다", () => {
-    render(<WorkPlanResultCard detail={{ ...detail, status: "CONDITIONAL", approvedBy: "이정훈", approvedAt: "2026-10-02T08:50:00+09:00", approvalNote: "사다리 작업 금지" }} evidence={[]} />);
-    expect(screen.getByText("조건부 승인 이정훈, 10-02 08:50")).toBeInTheDocument();
+    render(<WorkPlanResultCard detail={{ ...detail, status: "CONDITIONAL", approvedBy: "홍길동", approvedAt: "2026-10-02T08:50:00+09:00", approvalNote: "사다리 작업 금지" }} evidence={[]} />);
+    expect(screen.getByText("조건부 승인 홍길동, 10-02 08:50")).toBeInTheDocument();
     expect(screen.getByText("사다리 작업 금지")).toBeInTheDocument();
   });
 });

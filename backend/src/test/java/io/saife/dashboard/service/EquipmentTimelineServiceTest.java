@@ -134,12 +134,12 @@ class EquipmentTimelineServiceTest {
         assertThat(ladderRecall.knownSlots())
                 .containsExactlyInAnyOrder("장소", "설비", "공정/작업유형", "최근 평가 등급", "미이행 조치");
 
-        // 유압 프레스 3호(id=4): 위험요인은 있지만 평가·미이행 조치가 없다
+        // 유압 프레스 3호(id=4): 평가 이력은 있고 조치는 전부 이행 완료(V14 시드)
         TimelineDtos.RecallView pressRecall = service.recall(4L);
         assertThat(pressRecall.knownSlots())
-                .as("값이 없는 '최근 평가 등급'·'미이행 조치'는 담지 않는다")
-                .containsExactlyInAnyOrder("장소", "설비", "공정/작업유형")
-                .doesNotContain("최근 평가 등급", "미이행 조치");
+                .as("값이 없는 '미이행 조치'는 담지 않는다")
+                .containsExactlyInAnyOrder("장소", "설비", "공정/작업유형", "최근 평가 등급")
+                .doesNotContain("미이행 조치");
     }
 
     @Test

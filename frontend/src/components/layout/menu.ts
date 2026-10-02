@@ -40,10 +40,10 @@ export const LANDING_PATH = "/";
 /** 사용자 선호가 없을 때 접힌 채로 여는 화면 — 대화+트레이스 2열이 폭을 다 쓴다. */
 export const COLLAPSED_BY_DEFAULT = new Set<string>();
 
-export const SITE_NAME = "청우정밀 창원공장";
+export const SITE_NAME = "(주)샘플정밀 데모공장";
 
 /** 로그인 사용자(인증 범위 밖이라 고정). 화면 하단 사용자 행에 쓴다 */
-export const CURRENT_USER = { name: "이정훈", role: "안전관리자" };
+export const CURRENT_USER = { name: "홍길동", role: "안전관리자" };
 
 /** 사용자 선호가 있으면 그것, 없으면 화면별 기본값(작업계획서만 접힘). */
 export function resolveSidebarCollapsed(pref: boolean | null, pathname: string): boolean {

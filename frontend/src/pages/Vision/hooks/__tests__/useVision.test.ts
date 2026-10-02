@@ -38,7 +38,7 @@ const cand: VisionCandidate = {
   riskLevel: "HIGH", ruleTrace: "r", adopted: true, alreadyKnown: false, gateStatus: "PHOTO", acceptable: false,
   suggestedAction: { content: "c", lawRef: "l", lawTitle: null, guideRef: "B-5-2011", priority: "ENGINEERING" }, action: null, priorOpenAction: null,
 };
-const done = { assessmentId: 40, status: "ANALYZED", assessedOn: "2026-10-02", inspector: "이정훈", participants: [], equipmentId: 1, candidates: [cand], demoMode: false };
+const done = { assessmentId: 40, status: "ANALYZED", assessedOn: "2026-10-02", inspector: "홍길동", participants: [], equipmentId: 1, candidates: [cand], demoMode: false };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -80,7 +80,7 @@ describe("useVision", () => {
   it("점검자는 로그인 사용자로 시작하고, 분석이 끝나면 최근 점검을 다시 읽는다", async () => {
     const { result } = renderHook(() => useVision(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.inspector).toBe("이정훈");
+    expect(result.current.inspector).toBe("홍길동");
     expect(mockRecent).toHaveBeenCalledTimes(1);
 
     await act(async () => { result.current.pick(new File(["a"], "a.jpg", { type: "image/jpeg" })); });
@@ -97,14 +97,14 @@ describe("useVision", () => {
 
   it("점검이 생긴 뒤 참여 근로자를 바꾸면 서버에 저장하고 결과를 서버 값으로 덮는다", async () => {
     mockFetch.mockResolvedValue(sseResponse([env("assess.done", 1, done)]));
-    vi.mocked(visionApi.updateInspection).mockResolvedValue({ assessmentId: 40, inspector: "이정훈", participants: ["김철수"] });
+    vi.mocked(visionApi.updateInspection).mockResolvedValue({ assessmentId: 40, inspector: "홍길동", participants: ["김철수"] });
     const { result } = renderHook(() => useVision(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => { result.current.pick(new File(["a"], "a.jpg", { type: "image/jpeg" })); });
     await waitFor(() => expect(result.current.stream.result?.assessmentId).toBe(40));
 
     await act(async () => { result.current.changeParticipants(["김철수"]); });
-    expect(visionApi.updateInspection).toHaveBeenCalledWith(40, { inspector: "이정훈", participants: ["김철수"] });
+    expect(visionApi.updateInspection).toHaveBeenCalledWith(40, { inspector: "홍길동", participants: ["김철수"] });
     await waitFor(() => expect(result.current.stream.result?.participants).toEqual(["김철수"]));
   });
 

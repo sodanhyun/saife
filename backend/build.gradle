@@ -95,5 +95,7 @@ dependencies {
 }
 
 tasks.named('test') {
+    // SeedExporterTest가 근거 청크 4만 행을 한 번에 내보내 기본 힙(512MB)에서 OOM이 난다
+    maxHeapSize = '2g'
     useJUnitPlatform()
 }

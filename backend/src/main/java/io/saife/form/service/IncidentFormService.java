@@ -185,9 +185,16 @@ public class IncidentFormService {
     private List<IncidentFormViews.PriorRow> priorRows(EquipmentHistoryRecaller.Recall recall, LocalDate occurredOn) {
         List<IncidentFormViews.PriorRow> rows = new ArrayList<>();
         for (EquipmentHistoryRecaller.PriorHazard h : recall.priorHazards()) {
-            Action action = actionRepository.findByHazardId(h.hazardId()).stream()
+            List<Action> known = actionRepository.findByHazardId(h.hazardId()).stream()
                     .filter(a -> a.getCreatedAt() == null || !a.getCreatedAt().atZoneSameInstant(KST).toLocalDate().isAfter(occurredOn))
-                    .max(Comparator.comparing(Action::getId))
+                    .toList();
+            // 사고 시점에 끝나지 않은 감소대책이 있으면 그것이 이 표의 요점이다(기한이 가장 이른 것).
+            // 없으면 가장 최근 대책. 한 위험요인에 예전에 끝낸 대책이 더 있어도 미이행이 가려지지 않게 한다
+            Action action = known.stream()
+                    .filter(a -> a.getCompletedAt() == null
+                            || a.getCompletedAt().atZoneSameInstant(KST).toLocalDate().isAfter(occurredOn))
+                    .min(Comparator.comparing(Action::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                    .or(() -> known.stream().max(Comparator.comparing(Action::getId)))
                     .orElse(null);
 
             String status = "";

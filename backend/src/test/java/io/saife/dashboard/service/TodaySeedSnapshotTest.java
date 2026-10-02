@@ -1,11 +1,18 @@
 package io.saife.dashboard.service;
 
 import io.saife.core.domain.Action;
+import io.saife.core.domain.ActionStatus;
 import io.saife.core.domain.Assessment;
 import io.saife.core.domain.AssessmentKind;
 import io.saife.core.repository.ActionRepository;
 import io.saife.core.repository.AssessmentRepository;
 import io.saife.dashboard.dto.TodayDtos;
+import io.saife.incident.domain.Incident;
+import io.saife.incident.domain.ReportStatus;
+import io.saife.incident.repository.IncidentRepository;
+import io.saife.workplan.domain.WorkPlan;
+import io.saife.workplan.domain.WorkPlanStatus;
+import io.saife.workplan.repository.WorkPlanRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,33 +23,22 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * "오늘 할 일" 시드 스냅샷 — Phase 3 §3-3 (R55 수정판).
+ * "오늘 할 일" 시드 스냅샷 (V14, V15 데모 규모 시드 기준).
  *
- * <p><b>왜 고정된 개수로 박지 않는가.</b> 설계서({@code docs/SAIFE_연결성_개선_프롬프트.md}
- * "## Phase 4")의 기대표는 V2 시드가 최초 적용된 날(2026-09-21)을 "오늘"로 가정해
- * 계산됐다. 그런데 이 시드 시스템은 <b>마이그레이션마다 다른 실제 적용일에 상대
- * 날짜가 고정된다</b> — V2(2026-09-21)와 V10(2026-09-29)이 8일 차이가 난다. 그 결과
- * 예를 들어 action 5(고소작업대, V2의 "+7일")의 기한은 시드 당시엔 미래였지만
- * <b>오늘이 하루씩 지날 때마다 그 기한과의 거리도 매일 줄어든다</b> — action 5가
- * OVERDUE_ACTION으로 넘어가는 날짜, PERIODIC_DUE의 D-n 값 전부 실행 날짜에 따라
- * 계속 바뀐다. 이 값을 텍스트로 못박으면 테스트가 내일부터 깨진다(2026-09-29
- * 최초 작성 시 이미 겪음 — OVERDUE_ACTION 1건 기대가 실측 2건으로 나왔다).
+ * <p><b>왜 고정된 개수로 박지 않는가.</b> 시드 날짜는 마이그레이션이 적용된 날 기준 상대값이다.
+ * 테스트 DB는 며칠 전에 마이그레이션됐을 수 있고, 그 사이 기한 7일 남은 조치가 기한 경과로 넘어간다.
+ * 그래서 숫자 대신 <b>시드 행 자체와 KST "오늘"에서 매번 다시 계산한 불변식</b>으로 검증한다.
+ * 새 볼륨에서 시드 당일 기준으로는 12건이다(작업 보류 1, 기한 경과 3, 14일 내 마감 3, 승인 대기 2,
+ * 조사표 1, 월 순회점검 1, 정기평가 1).
  *
- * <p>그래서 <b>시드 행 자체와 KST "오늘"에서 매번 다시 계산한 불변식</b>으로
- * 검증한다 — "숫자가 얼마인가"가 아니라 "그 항목이 그 조건을 만족하면 반드시
- * 보이고, 안 만족하면 반드시 안 보인다"를 확인한다. 이러면 실행 날짜가 몇 일이든
- * 테스트가 깨지지 않는다.
- *
- * <p>PATROL_DUE·PERIODIC_DUE·REPORT_DUE 등 규칙 조건 자체의 경계값(기한 당일,
- * 14일째, ≤3일 CRITICAL 등)은 {@link TodayServiceTest}가 자체 주입 데이터로
- * 이미 검증한다 — 이 클래스는 "시드가 실제로 그 불변식을 만족하는 상태로
- * 있는가"만 본다.
+ * <p>규칙 자체의 경계값은 {@link TodayServiceTest}가 자체 주입 데이터로 검증한다. 이 클래스는
+ * "시드가 실제로 그 불변식을 만족하는 상태로 있는가"만 본다.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -50,6 +46,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TodaySeedSnapshotTest {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    /** V15: 천장크레인 사고(물체에 맞음, 휴업 14일). 조사표 작성 필요 */
+    private static final Long CRANE_INCIDENT = 6L;
+    /** V15: 사고 6 뒤 작업 보류된 천장크레인 인양 */
+    private static final Long HELD_WORK_PLAN = 42L;
 
     @Autowired
     private TodayService todayService;
@@ -57,91 +57,89 @@ class TodaySeedSnapshotTest {
     private ActionRepository actionRepository;
     @Autowired
     private AssessmentRepository assessmentRepository;
+    @Autowired
+    private WorkPlanRepository workPlanRepository;
+    @Autowired
+    private IncidentRepository incidentRepository;
 
     @Test
-    @DisplayName("시드 불변식 — action 1/4/5, assessment 3/ROUTINE 이번 달 여부에서 today() 결과가 그대로 따라 나온다")
+    @DisplayName("시드 불변식: 기한 경과, 14일 내 마감, 승인 대기, 작업 보류, 조사표, 순회점검, 정기평가가 시드 행에서 그대로 따라 나온다")
     void todayReflectsSeedRowsAsInvariants() {
         LocalDate today = LocalDate.now(KST);
         TodayDtos.TodayView view = todayService.today();
 
-        // ── action 1(사다리 A) — 시드 자체가 기한 초과·PENDING이라 날짜와 무관하게 항상 OVERDUE_ACTION ──
-        assertThat(refIdsOf(view, "OVERDUE_ACTION"))
-                .as("action 1(사다리 A, 안전대 부착설비 미설치)은 시드가 이미 기한을 넘긴 채 PENDING이라 "
-                        + "실행 날짜와 무관하게 항상 떠야 한다")
-                .contains(1L);
+        // ── 시연 설비(사다리 A)의 기한 경과 조치 1은 날짜와 무관하게 항상 뜬다 ──
+        assertThat(refIdsOf(view, "OVERDUE_ACTION")).contains(1L);
 
-        // ── action 5(고소작업대) — 기한이 이미 지났는지 여부에 따라 OVERDUE_ACTION/DUE_ACTION이 갈린다 ──
-        Action action5 = actionRepository.findById(5L).orElseThrow();
-        boolean action5Overdue = action5.getDueDate().isBefore(today);
-        if (action5Overdue) {
-            assertThat(refIdsOf(view, "OVERDUE_ACTION"))
-                    .as("action 5 기한(%s)이 오늘(%s)보다 이전이면 OVERDUE_ACTION에 있어야 한다",
-                            action5.getDueDate(), today)
-                    .contains(5L);
-        } else {
-            assertThat(refIdsOf(view, "OVERDUE_ACTION"))
-                    .as("action 5 기한(%s)이 아직 안 지났으면 OVERDUE_ACTION에 없어야 한다",
-                            action5.getDueDate())
-                    .doesNotContain(5L);
+        // ── 미이행 조치마다: 기한이 지났으면 기한 경과, 14일 안이면 마감 임박 ──
+        for (Action action : actionRepository.findAll()) {
+            if (action.getId() > 54 || action.getStatus() == ActionStatus.DONE || action.getDueDate() == null) {
+                continue;
+            }
+            boolean overdue = action.getStatus() == ActionStatus.OVERDUE || action.getDueDate().isBefore(today);
+            if (overdue) {
+                assertThat(refIdsOf(view, "OVERDUE_ACTION"))
+                        .as("조치 %d 기한 %s, 오늘 %s", action.getId(), action.getDueDate(), today)
+                        .contains(action.getId());
+            } else if (!action.getDueDate().isAfter(today.plusDays(14))) {
+                assertThat(refIdsOf(view, "DUE_ACTION"))
+                        .as("조치 %d 기한 %s는 14일 창 안", action.getId(), action.getDueDate())
+                        .contains(action.getId());
+            } else {
+                assertThat(refIdsOf(view, "DUE_ACTION")).doesNotContain(action.getId());
+            }
         }
+        // 이행 완료 조치는 어디에도 뜨지 않는다
+        List<Long> doneIds = actionRepository.findAll().stream()
+                .filter(a -> a.getStatus() == ActionStatus.DONE).map(Action::getId).toList();
+        assertThat(refIdsOf(view, "OVERDUE_ACTION")).doesNotContainAnyElementsOf(doneIds);
+        assertThat(refIdsOf(view, "DUE_ACTION")).doesNotContainAnyElementsOf(doneIds);
 
-        // ── action 4(지게차) — DUE_ACTION 창(오늘~오늘+14일) 안에 있는지로 갈린다 ──
-        Action action4 = actionRepository.findById(4L).orElseThrow();
-        boolean action4InDueWindow = !action4.getDueDate().isBefore(today)
-                && !action4.getDueDate().isAfter(today.plusDays(14));
-        if (action4InDueWindow) {
-            assertThat(refIdsOf(view, "DUE_ACTION"))
-                    .as("action 4 기한(%s)이 오늘(%s)~+14일 창 안이면 DUE_ACTION에 있어야 한다",
-                            action4.getDueDate(), today)
-                    .contains(4L);
-        } else {
-            assertThat(refIdsOf(view, "DUE_ACTION"))
-                    .as("action 4 기한(%s)이 창 밖이면 DUE_ACTION에 없어야 한다", action4.getDueDate())
-                    .doesNotContain(4L);
-        }
+        // ── 승인 대기: SUBMITTED 작업 전 점검 전부 ──
+        List<Long> submitted = workPlanRepository.findAll().stream()
+                .filter(p -> p.getStatus() == WorkPlanStatus.SUBMITTED).map(WorkPlan::getId).toList();
+        assertThat(submitted).as("V15는 오늘, 내일 작업 2건을 승인 대기로 둔다").contains(38L, 39L);
+        assertThat(refIdsOf(view, "PENDING_APPROVAL")).containsAll(submitted);
 
-        // ── assessment 3(INITIAL, 2025-11-21) — PERIODIC_DUE의 유일한 후보. V10은 ROUTINE만
-        //    추가했으므로(INITIAL/REGULAR 아님) "가장 최근 INITIAL/REGULAR"는 항상 assessment 3다 ──
-        Assessment assessment3 = assessmentRepository.findById(3L).orElseThrow();
-        boolean notThisYear = assessment3.getAssessedOn().getYear() < today.getYear();
+        // ── 작업 보류: 사고 6 뒤 보류된 천장크레인 인양 ──
+        assertThat(workPlanRepository.findById(HELD_WORK_PLAN).orElseThrow().getStatus()).isEqualTo(WorkPlanStatus.HOLD);
+        assertThat(refIdsOf(view, "WORK_HOLD")).contains(HELD_WORK_PLAN);
+        assertThat(view.items().get(0).kind()).as("작업 보류는 긴급 중에서도 맨 위").isEqualTo("WORK_HOLD");
+
+        // ── 조사표: 제출 전 사고만 뜬다. V10 사고 1과 V15 사고 5는 제출 완료라 뜨지 않는다 ──
+        Incident crane = incidentRepository.findById(CRANE_INCIDENT).orElseThrow();
+        assertThat(crane.getReportStatus()).isIn(ReportStatus.REQUIRED, ReportStatus.OVERDUE);
+        assertThat(refIdsOf(view, "REPORT_DUE")).contains(CRANE_INCIDENT).doesNotContain(1L, 5L);
+
+        // ── 정기평가: 가장 최근 최초/정기 평가가 올해가 아니면 연말 기한으로 1건 ──
+        Assessment latestPeriodic = assessmentRepository.findBySiteIdOrderByAssessedOnDesc(1L).stream()
+                .filter(a -> a.getKind() == AssessmentKind.INITIAL || a.getKind() == AssessmentKind.REGULAR)
+                .max(Comparator.comparing(Assessment::getAssessedOn)).orElseThrow();
         List<TodayDtos.TodayItem> periodicItems = itemsOfKind(view, "PERIODIC_DUE");
-        if (notThisYear) {
-            assertThat(periodicItems).as("assessment 3(%s)가 올해 평가가 아니면 '올해 정기평가 미실시'가 1건이어야 한다",
-                    assessment3.getAssessedOn()).hasSize(1);
-            assertThat(periodicItems.get(0).refId()).isEqualTo(3L);
+        if (latestPeriodic.getAssessedOn().getYear() < today.getYear()) {
+            assertThat(periodicItems).hasSize(1);
+            assertThat(periodicItems.get(0).refId()).isEqualTo(latestPeriodic.getId());
             assertThat(periodicItems.get(0).dueDate()).isEqualTo(LocalDate.of(today.getYear(), 12, 31));
         } else {
-            assertThat(periodicItems).as("assessment 3(%s)가 올해 평가면 PERIODIC_DUE는 없어야 한다",
-                    assessment3.getAssessedOn()).isEmpty();
+            assertThat(periodicItems).isEmpty();
         }
 
-        // ── PATROL_DUE — "이번 달 ROUTINE 평가가 있는가"를 시드에서 직접 다시 계산해 대조한다 ──
+        // ── 월 순회점검: 이번 달 ROUTINE 평가가 없으면 1건 ──
         YearMonth thisMonth = YearMonth.from(today);
-        boolean routineThisMonthExists = assessmentRepository.findBySiteIdOrderByAssessedOnDesc(1L).stream()
+        boolean routineThisMonth = assessmentRepository.findBySiteIdOrderByAssessedOnDesc(1L).stream()
                 .anyMatch(a -> a.getKind() == AssessmentKind.ROUTINE
                         && YearMonth.from(a.getAssessedOn()).equals(thisMonth));
-        List<TodayDtos.TodayItem> patrolItems = itemsOfKind(view, "PATROL_DUE");
-        if (routineThisMonthExists) {
-            assertThat(patrolItems)
-                    .as("이번 달(%s)에 이미 ROUTINE 평가가 있으면 PATROL_DUE는 없어야 한다", thisMonth)
-                    .isEmpty();
-        } else {
-            assertThat(patrolItems)
-                    .as("이번 달(%s)에 ROUTINE 평가가 없으면 PATROL_DUE가 1건 있어야 한다"
-                            + "(site.regular_track=true는 V2 시드에 고정돼 있다)", thisMonth)
-                    .hasSize(1);
-        }
+        assertThat(itemsOfKind(view, "PATROL_DUE")).hasSize(routineThisMonth ? 0 : 1);
 
-        // ── V10 이야기가 고정한 사실들 — 날짜와 무관하게 항상 성립해야 한다 ──
-        assertThat(itemsOfKind(view, "REPORT_DUE"))
-                .as("V10의 사고(incident 1)는 report_status=SUBMITTED다 — 제출 완료된 조사표는 절대 뜨면 안 된다")
-                .isEmpty();
+        // ── 시연 설비에는 오늘 이후 작업 전 점검이 없다(녹화에서 새로 만든다) ──
+        assertThat(workPlanRepository.findAll().stream()
+                .filter(p -> p.getId() <= 42 && Long.valueOf(1L).equals(p.getEquipmentId()))).isEmpty();
+        assertThat(refIdsOf(view, "RISKY_WORK_PLAN")).as("시드의 다가오는 작업은 미이행 조치 없는 설비에만 있다")
+                .allMatch(id -> id > 42);
+
         // 화면 문자열 규칙: 대시, 가운뎃점, 따옴표 등급을 쓰지 않는다
         view.items().forEach(i -> assertThat(i.title() + " " + i.detail())
-                .as("오늘 할 일 문자열").doesNotContain("\u2014", "\u2013", "\u00B7", "'상'", "상시평가 트랙"));
-        assertThat(itemsOfKind(view, "RISKY_WORK_PLAN"))
-                .as("V10의 work_plan 1은 작업일이 -50일이라 오늘로부터 7일 창을 이미 한참 벗어났다")
-                .isEmpty();
+                .as("오늘 할 일 문자열").doesNotContain("—", "–", "·", "'상'", "상시평가 트랙"));
     }
 
     private List<Long> refIdsOf(TodayDtos.TodayView view, String kind) {
@@ -149,7 +147,6 @@ class TodaySeedSnapshotTest {
     }
 
     private List<TodayDtos.TodayItem> itemsOfKind(TodayDtos.TodayView view, String kind) {
-        Predicate<TodayDtos.TodayItem> matches = i -> i.kind().equals(kind);
-        return view.items().stream().filter(matches).toList();
+        return view.items().stream().filter(i -> i.kind().equals(kind)).toList();
     }
 }

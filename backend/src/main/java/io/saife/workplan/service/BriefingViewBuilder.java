@@ -209,6 +209,9 @@ public class BriefingViewBuilder {
                     if (d.riskLevel() != RiskLevel.LOW) out.add("창과 문을 열어 환기하고, 주변에 불씨를 두지 않습니다");
                 }
                 case CAUGHT -> out.add("정비 전에 전원을 끄고 잠급니다");
+                // 제38조 대상(지게차 하역, 크레인 인양) 작업도 지킬 것이 비지 않게 한다
+                case DROP -> out.add("인양물이나 적재물 아래로 들어가지 않습니다");
+                case STRUCK -> out.add("보행자는 구획된 통로로 다니고 유도자가 신호합니다");
                 case PPE -> ppe = ppeLine(d.ruleTrace());
                 default -> { }
             }

@@ -16,7 +16,7 @@ function sseResponse(chunks: string[]): Response {
     cancel: async () => {}, releaseLock: () => {} }) } } as unknown as Response;
 }
 
-const done = { assessmentId: 7, status: "ANALYZED", assessedOn: "2026-10-02", inspector: "이정훈", participants: ["김철수"], equipmentId: 3, candidates: [], demoMode: false };
+const done = { assessmentId: 7, status: "ANALYZED", assessedOn: "2026-10-02", inspector: "홍길동", participants: ["김철수"], equipmentId: 3, candidates: [], demoMode: false };
 
 beforeEach(() => { mockFetch.mockReset(); });
 
@@ -25,12 +25,12 @@ describe("useVisionStream", () => {
     mockFetch.mockResolvedValue(sseResponse([env("assess.progress", 1, { phase: "ANALYZING" }), env("assess.done", 2, done)]));
     const { result: r } = renderHook(() => useVisionStream());
     await act(async () => {
-      await r.current.analyze(new File(["x"], "a.jpg", { type: "image/jpeg" }), { equipmentId: 3, inspector: " 이정훈 ", participants: ["김철수", "박민수"] });
+      await r.current.analyze(new File(["x"], "a.jpg", { type: "image/jpeg" }), { equipmentId: 3, inspector: " 홍길동 ", participants: ["김철수", "박민수"] });
     });
     const body = mockFetch.mock.calls[0][1]!.body as FormData;
     expect(body).toBeInstanceOf(FormData);
     expect(body.get("equipmentId")).toBe("3");
-    expect(body.get("inspector")).toBe("이정훈");
+    expect(body.get("inspector")).toBe("홍길동");
     expect(body.getAll("participants")).toEqual(["김철수", "박민수"]);
     expect(r.current.result?.assessmentId).toBe(7);
     expect(r.current.analyzing).toBe(false);
@@ -49,8 +49,8 @@ describe("useVisionStream", () => {
   it("patchInspection은 결과의 점검자와 참여 근로자를 서버 값으로 덮는다", async () => {
     mockFetch.mockResolvedValue(sseResponse([env("assess.done", 1, done)]));
     const { result: r } = renderHook(() => useVisionStream());
-    await act(async () => { await r.current.analyze(new File(["x"], "a.jpg"), { equipmentId: 3, inspector: "이정훈", participants: [] }); });
-    act(() => { r.current.patchInspection("이정훈", ["김철수", "박민수"]); });
+    await act(async () => { await r.current.analyze(new File(["x"], "a.jpg"), { equipmentId: 3, inspector: "홍길동", participants: [] }); });
+    act(() => { r.current.patchInspection("홍길동", ["김철수", "박민수"]); });
     expect(r.current.result?.participants).toEqual(["김철수", "박민수"]);
   });
 });

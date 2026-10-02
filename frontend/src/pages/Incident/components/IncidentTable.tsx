@@ -35,7 +35,7 @@ export default function IncidentTable({ incidents, selectedId = null, onOpen }: 
       width: "w-24",
       render: (i) => (
         <span className="tabular-nums">
-          {i.severity === "FATALITY" ? SEVERITY_LABEL.FATALITY : i.leaveDays === null ? "미입력" : `${i.leaveDays}일`}
+          {i.severity === "FATALITY" || i.severity === "NEAR_MISS" ? SEVERITY_LABEL[i.severity] : i.leaveDays === null ? "미입력" : `${i.leaveDays}일`}
         </span>
       ),
     },

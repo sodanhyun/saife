@@ -39,8 +39,10 @@ export default function EquipmentCard({ card, index = 0 }: Props) {
   const level = card.currentRiskLevel;
   const chip = cardChip(card);
   const verb = (path: string) => () => navigate(`${path}?equipmentId=${card.id}`);
-  const assessed = [card.currentRiskAxis ? ACCIDENT_LABEL[card.currentRiskAxis] : null, card.lastAssessedOn ? card.lastAssessedOn.slice(5) : null]
-    .filter(Boolean).join(", ");
+  // 발생형태와 평가일은 두 줄로 쌓는다. 한 줄로 두면 긴 설비명("기계식 프레스 1호")이 두 줄로 꺾인다
+  const axisLabel = card.currentRiskAxis ? ACCIDENT_LABEL[card.currentRiskAxis] : null;
+  const assessedOn = card.lastAssessedOn ? card.lastAssessedOn.slice(5) : null;
+  const assessed = axisLabel || assessedOn;
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card transition-colors hover:border-slate-300 animate-rise-in"
@@ -48,7 +50,7 @@ export default function EquipmentCard({ card, index = 0 }: Props) {
       <span className={cn("absolute inset-y-0 left-0 w-1.5", level ? riskColor(level).solid : "bg-slate-200")} aria-hidden />
       <div className="flex items-start justify-between gap-3 pl-6 pr-5 pt-4">
         <div className="min-w-0">
-          <h3 className="text-base font-semibold text-slate-900">
+          <h3 className="truncate text-base font-semibold text-slate-900" title={card.name}>
             <Link to={`/equipment/${card.id}`}
               className="after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-progress-border group-hover:underline">
               {card.name}
@@ -57,7 +59,12 @@ export default function EquipmentCard({ card, index = 0 }: Props) {
           <p className="mt-0.5 truncate text-xs text-slate-500">{plainText(card.locationTag) || "위치 미등록"}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2.5">
-          {assessed && <p className="text-right text-xs text-slate-400">{assessed}</p>}
+          {assessed && (
+            <p className="text-right text-xs leading-tight text-slate-400">
+              {axisLabel && <span className="block whitespace-nowrap">{axisLabel}</span>}
+              {assessedOn && <span className="block tabular-nums">{assessedOn}</span>}
+            </p>
+          )}
           {level ? <RiskGradeMark level={level} /> : (
             <span className="grid h-10 w-10 place-items-center rounded-lg border border-dashed border-slate-300 text-xs text-slate-400">미평가</span>
           )}
