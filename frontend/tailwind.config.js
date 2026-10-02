@@ -29,10 +29,10 @@ export default {
       },
       fontSize: {
         // 무대 밀도 — 프로젝터에서 읽혀야 하는 트레이스 패널·타임라인 본문 전용.
-        stage: ["15px", { lineHeight: "1.5" }],
+        stage: ["0.9375rem", { lineHeight: "1.5" }],
         // 결과 카드·히어로 제목 — 영상(1080p)에서 한눈에 읽혀야 하는 한 줄
-        display: ["30px", { lineHeight: "1.25", letterSpacing: "-0.01em", fontWeight: "700" }],
-        headline: ["22px", { lineHeight: "1.35", letterSpacing: "-0.005em", fontWeight: "700" }],
+        display: ["1.875rem", { lineHeight: "1.25", letterSpacing: "-0.01em", fontWeight: "700" }],
+        headline: ["1.375rem", { lineHeight: "1.35", letterSpacing: "-0.005em", fontWeight: "700" }],
       },
       borderRadius: { sm: "6px", md: "8px", lg: "10px", xl: "12px" },
       boxShadow: {

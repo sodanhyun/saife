@@ -4,7 +4,8 @@ globs: ["src/components/**", "src/pages/**"]
 
 # 디자인 시스템 규칙 (SAIFE)
 
-SAIFE는 **무대 밀도** 한 표면이다. 프로젝터(1280×720)에서 읽혀야 한다 — 본문 14px, 트레이스·타임라인·강조 문장은 `text-stage`(15px).
+SAIFE는 **무대 밀도** 한 표면이다. 프로젝터(1280x720)와 시연 영상(1920x1080)에서 읽혀야 한다. 본문 14px, 트레이스와 타임라인과 강조 문장은 `text-stage`(15px), 결과 카드 제목은 `text-headline`(22px), 화면의 결정적 한 줄(예고된 사고)은 `text-display`(30px).
+글자 크기 토큰은 모두 rem이다. 영상 녹화는 html font-size를 125%로 올려 1920 네이티브로 찍는다(px 고정 크기를 새로 만들지 않는다).
 
 ## 색 — 편차에만 쓴다
 
@@ -18,13 +19,17 @@ SAIFE는 **무대 밀도** 한 표면이다. 프로젝터(1280×720)에서 읽�
 | `pending` | 되묻기 슬롯 · 승인 대기 · 제출 필요 | SlotPrompt, StatusBadge |
 | `progress` | 도구 실행 중 · 활성 네비 · 선택/연결 강조 | 트레이스 점, 사이드바, 타임라인 링 |
 | `neutral` | 그 밖의 전부 | Badge 기본, 이벤트 타입 태그 |
+| `brand` | 제품 강조(상태 의미 없음) | 주요 버튼, 사이드바, 에이전트 흐름 진행선, 결과 카드 머리 |
 
 상태→클래스 매핑은 `@/utils/statusColors`(`toneColor`, `riskColor`, `workPlanStatusTone`, `emphasisTone`, `reportDutyTone`)로만 한다. 컴포넌트에서 상태를 직접 색으로 분기하지 않는다.
 
 ## 형태
 
 - 반경 `rounded-sm`(6) · `md`(8) · `lg`(10) · `xl`(12)까지. `2xl` 이상 금지. 알약(`rounded-full`)은 상태 점만.
-- 그림자는 `shadow-card` 하나. `shadow-modal`·`shadow-toast`는 해당 컴포넌트 전용.
+- 그림자는 `shadow-card`. 화면의 주인공 면 하나(결과 카드, 사고 히어로)만 `shadow-lift`. `shadow-modal`, `shadow-toast`는 해당 컴포넌트 전용.
+- 모션: `animate-rise-in`(새 결과 등장, 지연으로 순차), `animate-fade-in`, `animate-ping-soft`(실행 중 점), `animate-grow-x/y`(연쇄 진행선). 이동은 8px 이내.
+- 등급의 큰 표식은 `RiskGradeMark`, 옆에 룰 근거를 반드시 같이 둔다.
+- 화면 문자열에 가운뎃점, 대시(—, –)를 쓰지 않는다. 쉼표, 슬래시, 괄호로 쓴다.
 - 금지: 그라데이션, `backdrop-blur`(Modal 배경 제외), 이모지, 장식 아이콘, 임의 픽셀 클래스(`text-[10px]` 등).
 - 배지는 각진 태그(`Badge`). 카드는 `Card`(흰 배경 + slate-200 테두리).
 
