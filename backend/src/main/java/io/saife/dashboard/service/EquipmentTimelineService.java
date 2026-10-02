@@ -263,9 +263,9 @@ public class EquipmentTimelineService {
                 linked.add("incident-" + triggerIncidentId);
             }
 
-            String detail = entry.getValue().size() + "건의 위험요인 평가"
-                    + (worst != null && worst.getRuleTrace() != null
-                            ? " · " + worst.getRuleTrace() : "");
+            // 룰 근거는 detail에 섞지 않고 ruleTrace로 따로 낸다. 화면이 등급 옆에 근거를 붙여 띄운다
+            String detail = "위험요인 %d건 평가".formatted(entry.getValue().size());
+            String ruleTrace = worst == null ? null : plainSeparators(worst.getRuleTrace());
 
             out.add(new TimelineEvent(eventId, EventType.ASSESSMENT,
                     assessment.getAssessedOn(), assessment.getCreatedAt(),
@@ -274,7 +274,7 @@ public class EquipmentTimelineService {
                     worst == null ? null : axisOf(hazardById, worst.getHazardId()),
                     assessment.getStatus(), assessment.getId(), linked, List.of(),
                     triggerIncidentId != null ? ORDER_FOLLOW_UP : ORDER_ASSESSMENT,
-                    level == RiskLevel.HIGH ? Emphasis.WARNING : Emphasis.NORMAL));
+                    level == RiskLevel.HIGH ? Emphasis.WARNING : Emphasis.NORMAL, ruleTrace));
         }
         return out;
     }
@@ -293,22 +293,20 @@ public class EquipmentTimelineService {
                 linked.add(source);
             }
 
-            boolean overdue = action.getStatus() == ActionStatus.OVERDUE;
-            String detail = switch (action.getStatus()) {
-                case DONE -> "이행 완료";
-                case OVERDUE -> "기한 경과 · 미이행";
-                case PENDING -> "이행 예정";
-            };
+            boolean overdue = isOverdue(action);
+            String detail = action.getStatus() == ActionStatus.DONE ? "이행 완료"
+                    : overdue ? "기한 경과, 미이행" : "이행 예정";
             if (action.getGuideRef() != null && !action.getGuideRef().isBlank()) {
-                detail += " · 근거 " + action.getGuideRef();
+                detail += " (근거 " + action.getGuideRef() + ")";
             }
 
             out.add(new TimelineEvent("action-" + action.getId(), EventType.ACTION,
                     action.getDueDate(), action.getCreatedAt(),
                     action.getContent(), detail, null, null,
-                    action.getStatus().name(), action.getId(), linked, List.of(),
+                    overdue ? ActionStatus.OVERDUE.name() : action.getStatus().name(),
+                    action.getId(), linked, List.of(),
                     ORDER_ACTION,
-                    overdue ? Emphasis.CRITICAL : Emphasis.NORMAL));
+                    overdue ? Emphasis.CRITICAL : Emphasis.NORMAL, null));
         }
         return out;
     }
@@ -339,7 +337,7 @@ public class EquipmentTimelineService {
                     ? "브리핑 확인 완료 (TBM 이행 기록)"
                     : "브리핑 미확인";
             if (!linked.isEmpty()) {
-                detail += " · 미이행 조치 %d건을 경고".formatted(linked.size());
+                detail += ", 미이행 조치 %d건 경고".formatted(linked.size());
             }
 
             out.add(new TimelineEvent("workplan-" + plan.getId(), EventType.WORK_PLAN,
@@ -347,7 +345,7 @@ public class EquipmentTimelineService {
                     plan.getWorkName(), detail, null, null,
                     plan.getStatus().name(), plan.getId(), linked, List.of(),
                     ORDER_WORK_PLAN,
-                    acknowledged && !linked.isEmpty() ? Emphasis.WARNING : Emphasis.NORMAL));
+                    acknowledged && !linked.isEmpty() ? Emphasis.WARNING : Emphasis.NORMAL, null));
         }
         return out;
     }
@@ -385,7 +383,7 @@ public class EquipmentTimelineService {
             }
             if (incident.getReportDueDate() != null) {
                 if (detail.length() > 0) {
-                    detail.append(" · ");
+                    detail.append(", ");
                 }
                 detail.append("조사표 제출 기한 ").append(incident.getReportDueDate());
             }
@@ -398,7 +396,7 @@ public class EquipmentTimelineService {
                     incidentTitle(incident, hazardById), detail.toString(),
                     null, incident.getAccidentType(),
                     incident.getReportStatus().name(), incident.getId(), linked, List.of(),
-                    ORDER_INCIDENT, Emphasis.CRITICAL));
+                    ORDER_INCIDENT, Emphasis.CRITICAL, null));
         }
         return out;
     }
@@ -427,7 +425,7 @@ public class EquipmentTimelineService {
                     .toList();
             out.add(new TimelineEvent(e.id(), e.type(), e.at(), e.occurredAt(),
                     e.title(), e.detail(), e.riskLevel(), e.accidentType(), e.status(),
-                    e.refId(), e.linkedEventIds(), labels, e.causalOrder(), e.emphasis()));
+                    e.refId(), e.linkedEventIds(), labels, e.causalOrder(), e.emphasis(), e.ruleTrace()));
         }
         return out;
     }
@@ -453,14 +451,14 @@ public class EquipmentTimelineService {
             lastAssessedOn = latestAssessment.at();
         }
 
-        int overdue = (int) actions.stream().filter(a -> a.getStatus() == ActionStatus.OVERDUE).count();
+        int overdue = (int) actions.stream().filter(EquipmentTimelineService::isOverdue).count();
         int unfinished = (int) actions.stream().filter(a -> a.getStatus() != ActionStatus.DONE).count();
         int assessmentCount = (int) events.stream()
                 .filter(e -> e.type() == EventType.ASSESSMENT).count();
 
         return new TimelineDtos.TimelineSummary(current, currentAxis, lastAssessedOn,
                 assessmentCount, workPlans.size(), incidents.size(), unfinished, overdue,
-                headline(current, incidents, overdue, hazards));
+                headline(current, incidents, overdue, unfinished, hazards));
     }
 
     /**
@@ -470,7 +468,7 @@ public class EquipmentTimelineService {
      * 조용하다고 말하는 게 맞다.
      */
     private String headline(RiskLevel current, List<Incident> incidents,
-                            int overdue, List<Hazard> hazards) {
+                            int overdue, int unfinished, List<Hazard> hazards) {
         if (!incidents.isEmpty() && overdue > 0) {
             return ("사고 %d건이 발생했고, 기한이 지난 미이행 조치가 %d건 남아 있습니다. "
                     + "평가에서 지적된 위험이 조치로 이어지지 않았습니다.")
@@ -485,6 +483,9 @@ public class EquipmentTimelineService {
         }
         if (current == RiskLevel.HIGH) {
             return "최근 평가에서 위험성 '상'으로 판정된 설비입니다.";
+        }
+        if (unfinished > 0) {
+            return "기한이 남은 미이행 조치가 %d건 있습니다.".formatted(unfinished);
         }
         if (hazards.isEmpty()) {
             return "등록된 위험요인이 없습니다. 최초 평가가 필요합니다.";
@@ -520,6 +521,34 @@ public class EquipmentTimelineService {
             case MEDIUM -> 2;
             case LOW -> 1;
         };
+    }
+
+    /**
+     * 기한 경과 판정. 상태값이 OVERDUE이거나, 기한(KST)이 지났는데 아직 완료가 아니면 경과다.
+     *
+     * <p>"오늘 할 일"(TodayService 규칙 1)과 같은 기준이다. 상태 갱신 배치가 없어 PENDING으로 남은
+     * 조치가 홈에서는 "기한 경과", 타임라인에서는 "이행 예정"으로 갈리면 심사위원이 바로 짚는다.
+     */
+    static boolean isOverdue(Action action) {
+        if (action.getStatus() == ActionStatus.OVERDUE) {
+            return true;
+        }
+        return action.getStatus() != ActionStatus.DONE
+                && action.getDueDate() != null
+                && action.getDueDate().isBefore(LocalDate.now(ZoneId.of("Asia/Seoul")));
+    }
+
+    /**
+     * 화면 문장 구분자 정리. 룰 근거 원문(시드·룰 엔진)에 섞인 가운뎃점과 대시를
+     * 쉼표로 바꾼다. 화면 어디에도 이 두 기호를 띄우지 않는 것이 표기 규칙이다.
+     */
+    static String plainSeparators(String text) {
+        if (text == null) {
+            return null;
+        }
+        return text.replaceAll("\\s*[\u2014\u2013]\\s*", ", ")
+                .replaceAll("\\s+\u00B7\\s+", ", ")
+                .replace("\u00B7", "/");
     }
 
     private String nvl(String v, String fallback) {

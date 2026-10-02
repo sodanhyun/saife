@@ -39,6 +39,7 @@ export interface TimelineSummary {
  * @property linkedEventIds 연결선의 반대쪽 끝. 백엔드가 계산한다
  * @property linkedLabels   그 대상을 사람이 읽는 말로. 화면에는 이쪽을 띄운다
  * @property causalOrder    같은 날짜 안의 인과 순서 (백엔드가 정렬까지 마쳐서 준다)
+ * @property ruleTrace      평가 사건의 최고 등급 룰 근거. 평가가 아닌 사건은 null
  */
 export interface TimelineEvent {
   id: string;
@@ -55,6 +56,7 @@ export interface TimelineEvent {
   linkedLabels: string[];
   causalOrder: number;
   emphasis: Emphasis;
+  ruleTrace: string | null;
 }
 
 export interface EquipmentTimeline {
@@ -118,7 +120,7 @@ export type TodayKind =
   | "PATROL_DUE"
   | "PERIODIC_DUE";
 
-/** 클릭 시 이동 대상 종류. 화면 쪽 라우팅 표는 `TodayInbox.tsx`의 `resolveTodayLink`가 정한다. */
+/** 클릭 시 이동 대상 종류. 화면 쪽 행동 버튼 표는 `pages/EquipmentHome/utils/todayModel.ts`가 정한다. */
 export type TodayLinkType = "EQUIPMENT" | "WORK_PLAN" | "INCIDENT" | "ASSESSMENT";
 
 export interface TodayItem {

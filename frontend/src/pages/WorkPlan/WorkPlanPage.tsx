@@ -1,4 +1,8 @@
 // WorkPlanPage.tsx — UC3 대화형 작업계획서. 좌 대화 / 우 에이전트 작업 흐름이 시연 레이아웃이다.
+import { useEffect, useRef } from "react";
+
+import { useSearchParams } from "react-router-dom";
+
 import Button from "@/components/ui/Button";
 import Callout from "@/components/ui/Callout";
 import LinkButton from "@/components/ui/LinkButton";
@@ -24,6 +28,17 @@ export default function WorkPlanPage() {
   const entry = useEntryEquipment();
   const agent = useAgentStream(entry.equipmentId);
   const plans = useWorkPlans();
+
+  // 홈 "승인 검토"에서 ?planId=로 들어오면 그 계획서의 승인 화면을 바로 연다(한 번만)
+  const [searchParams] = useSearchParams();
+  const openedPlanRef = useRef(false);
+  const openDetail = plans.openDetail;
+  useEffect(() => {
+    const raw = searchParams.get("planId");
+    if (openedPlanRef.current || !raw || !Number.isFinite(Number(raw))) return;
+    openedPlanRef.current = true;
+    openDetail(Number(raw));
+  }, [searchParams, openDetail]);
 
   if (plans.loading && plans.plans.length === 0) return <WorkPlanSkeleton />;
 

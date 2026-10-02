@@ -11,11 +11,11 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-const card = (emphasis: EquipmentCardType["emphasis"]): EquipmentCardType => ({
+const card = (over: Partial<EquipmentCardType> = {}): EquipmentCardType => ({
   id: 1,
   name: "이동식 사다리 A",
   locationTag: "공장동 후면 차양부",
-  processName: "도장",
+  processName: "절단·가공 라인",
   currentRiskLevel: "HIGH",
   currentRiskAxis: "FALL",
   lastAssessedOn: "2026-08-01",
@@ -24,8 +24,9 @@ const card = (emphasis: EquipmentCardType["emphasis"]): EquipmentCardType => ({
   upcomingWorkPlanCount: 0,
   incidentCount: 0,
   lastEventOn: "2026-08-01",
-  emphasis,
-  headline: "최근 평가 '상'(추락) · 미이행 조치 1건(기한 38일 경과)",
+  emphasis: "CRITICAL",
+  headline: "기한이 지난 미이행 조치가 1건 있습니다 · 사고 전에 닫아야 합니다",
+  ...over,
 });
 
 function renderCard(c: EquipmentCardType) {
@@ -36,37 +37,34 @@ function renderCard(c: EquipmentCardType) {
   );
 }
 
-describe("EquipmentCard — 카드 테두리·배지 톤은 emphasis로만 정한다", () => {
-  beforeEach(() => {
-    mockNavigate.mockReset();
+describe("EquipmentCard", () => {
+  beforeEach(() => mockNavigate.mockReset());
+
+  it("등급 표식과 왼쪽 띠는 현재 등급 톤이고, 기한 경과 수를 따로 알린다", () => {
+    const { container } = renderCard(card());
+    expect(screen.getByLabelText("위험성 상")).toBeInTheDocument();
+    expect(container.querySelector("span.bg-risk-high")).not.toBeNull();
+    expect(screen.getByText("기한 경과 1")).toBeInTheDocument();
   });
 
-  it("CRITICAL이면 위험 톤 배지 '긴급'과 위험 테두리를 가진다", () => {
-    const { container } = renderCard(card("CRITICAL"));
-    const badge = screen.getByText("긴급");
-    expect(badge.className).toContain("risk-high");
-    expect(container.querySelector('[role="button"]')!.className).toContain("border-risk-high-border");
+  it("서버 문장의 가운뎃점은 쉼표로 바꿔 보인다", () => {
+    renderCard(card());
+    expect(screen.getByText("기한이 지난 미이행 조치가 1건 있습니다, 사고 전에 닫아야 합니다")).toBeInTheDocument();
   });
 
-  it("WARNING이면 대기 톤 배지 '주의'를 가진다", () => {
-    const { container } = renderCard(card("WARNING"));
-    const badge = screen.getByText("주의");
-    expect(badge.className).toContain("pending");
-    expect(container.querySelector('[role="button"]')!.className).toContain("border-pending-border");
+  it("사실이 없는 NORMAL 설비는 헤드라인 대신 흐린 '이상 없음' 문장을 쓴다", () => {
+    renderCard(card({ emphasis: "NORMAL", unfinishedActionCount: 0, overdueActionCount: 0, headline: "현재 미이행 조치와 사고 이력이 없습니다." }));
+    expect(screen.getByText("미이행 조치와 사고 이력 없음").className).toContain("text-slate-400");
   });
 
-  it("NORMAL이면 강조 배지가 없다", () => {
-    renderCard(card("NORMAL"));
-    expect(screen.queryByText("긴급")).toBeNull();
-    expect(screen.queryByText("주의")).toBeNull();
-  });
-
-  it("카드를 클릭하면 설비 상세로 이동하고, 동사 버튼은 자기 경로로 이동하며 카드 클릭을 막는다", () => {
-    renderCard(card("CRITICAL"));
+  it("제목은 설비 상세 링크이고, 동사 버튼은 설비 ID를 들고 각 화면으로 간다", () => {
+    renderCard(card());
+    expect(screen.getByRole("link", { name: "이동식 사다리 A" })).toHaveAttribute("href", "/equipment/1");
     fireEvent.click(screen.getByRole("button", { name: "작업 신고" }));
     expect(mockNavigate).toHaveBeenCalledWith("/work-plan?equipmentId=1");
-    mockNavigate.mockReset();
-    fireEvent.click(screen.getByText("이동식 사다리 A"));
-    expect(mockNavigate).toHaveBeenCalledWith("/equipment/1");
+    fireEvent.click(screen.getByRole("button", { name: "사진 점검" }));
+    expect(mockNavigate).toHaveBeenCalledWith("/vision?equipmentId=1");
+    fireEvent.click(screen.getByRole("button", { name: "사고 신고" }));
+    expect(mockNavigate).toHaveBeenCalledWith("/incident?equipmentId=1");
   });
 });
