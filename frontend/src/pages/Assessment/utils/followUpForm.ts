@@ -33,13 +33,14 @@ export function defaultDue(today: string): string {
   return dayjs(today).add(14, "day").format("YYYY-MM-DD");
 }
 
-/** 처음 상태: 저장된 값, 없으면 기준표 대책과 기존 대책의 담당으로 채운다 */
+/** 처음 상태: 저장된 값, 없으면 기준표 대책과 기존 대책의 담당으로 채운다. 기한이 남은 기존 대책이 있으면 비운다 */
 export function initialFollowUpForm(d: FollowUpDetail, today: string): FollowUpFormState {
   const hazards: Record<number, HazardDraft> = {};
   for (const h of d.hazards) {
     hazards[h.hazardId] = {
       acceptable: h.acceptable,
-      content: h.action?.content ?? h.suggestion?.content ?? h.priorAction?.content ?? "",
+      // 기한이 남은 기존 대책이 있으면 새 대책은 선택이라 비워 둔다(같은 대책이 두 번 생기지 않게)
+      content: h.action?.content ?? (priorStillValid(h, today) ? "" : h.suggestion?.content ?? h.priorAction?.content ?? ""),
       owner: h.action?.owner ?? h.priorAction?.owner ?? "",
       dueDate: h.action?.dueDate ?? defaultDue(today),
     };

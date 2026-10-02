@@ -27,6 +27,18 @@ describe("initialFollowUpForm", () => {
   });
 });
 
+describe("initialFollowUpForm, 기한이 남은 기존 대책", () => {
+  it("새 대책 칸을 비워 같은 대책이 두 번 생기지 않는다", () => {
+    const base = followUpFixture();
+    const prior = { ...base.hazards[0].priorAction!, dueDate: "2026-10-21" };
+    const d = { ...base, hazards: [{ ...base.hazards[0], priorAction: prior }, base.hazards[1]] };
+    const f = initialFollowUpForm(d, TODAY);
+    expect(f.hazards[1].content).toBe("");
+    const req = toFollowUpRequest(d, { ...f, participants: ["김철수"] });
+    expect(req.hazards[0].content).toBeNull();
+  });
+});
+
 describe("validateFollowUp", () => {
   it("참여 근로자가 없으면 오류", () => {
     const d = followUpFixture();

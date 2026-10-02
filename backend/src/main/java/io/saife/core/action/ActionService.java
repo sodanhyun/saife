@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -141,10 +142,17 @@ public class ActionService {
         if (hazardId == null) {
             return Optional.empty();
         }
-        return actionRepository.findByHazardId(hazardId).stream()
+        List<Action> open = actionRepository.findByHazardId(hazardId).stream()
                 .filter(a -> a.getStatus() != ActionStatus.DONE)
                 .filter(a -> exceptAssessmentId == null || !exceptAssessmentId.equals(a.getAssessmentId()))
-                .min(Comparator.comparing(Action::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())));
+                .toList();
+        // 기한이 남은 대책이 있으면 그것이 지금의 계획이다(가장 늦은 기한). 모두 지났으면 가장 오래 밀린 것
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+        Optional<Action> current = open.stream()
+                .filter(a -> a.getDueDate() != null && !a.getDueDate().isBefore(today))
+                .max(Comparator.comparing(Action::getDueDate));
+        if (current.isPresent()) return current;
+        return open.stream().min(Comparator.comparing(Action::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())));
     }
 
     /** 요청에 평가가 있으면 그 평가에 이 위험요인이 있는지 확인하고, 없으면 가장 최근 평가를 고른다 */
