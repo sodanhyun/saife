@@ -80,7 +80,7 @@ export default function PremonitionHero({ r }: { r: IncidentRegisterResponse }) 
                   {p.hazard.missingControl ?? p.hazard.description}
                 </p>
                 {p.hazard.lastRuleTrace && (
-                  <p className="mt-1.5 rounded-md bg-panel px-2 py-1 font-mono text-xs text-slate-600">{plain(p.hazard.lastRuleTrace)}</p>
+                  <p className="mt-1.5 rounded-md bg-panel px-2.5 py-1.5 text-sm text-slate-700">{plain(p.hazard.lastRuleTrace)}</p>
                 )}
               </div>
             </div>

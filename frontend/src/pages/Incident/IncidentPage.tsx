@@ -16,7 +16,7 @@ export default function IncidentPage() {
   return (
     <PageLayout>
       <PageHeader
-        eyebrow="UC2 사고 신고"
+        eyebrow="사고 신고"
         title="산업재해 등록"
         description={
           s.response

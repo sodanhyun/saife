@@ -40,7 +40,7 @@ export default function FollowUpCard({ followUp, id }: { followUp: FollowUpView;
                       ? `종전 '${RISK_LABEL[g.before]}'에서 ${gradeTo(g.after)} 변경`
                       : `종전 '${RISK_LABEL[g.before]}' 유지`}
                 </p>
-                <p className="mt-1 rounded-md bg-panel px-2 py-1 font-mono text-xs leading-relaxed text-slate-600">{plain(g.ruleTrace)}</p>
+                <p className="mt-1 rounded-md bg-panel px-2.5 py-1.5 text-sm text-slate-700">{plain(g.ruleTrace)}</p>
               </div>
             </li>
           ))}
