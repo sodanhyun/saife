@@ -86,6 +86,9 @@ export default function Modal({
     >
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === "string" ? title : undefined}
         className={cn(
           "bg-white w-full overflow-hidden flex flex-col",
           "rounded-xl",
@@ -103,6 +106,8 @@ export default function Modal({
               {title}
             </h3>
             <button
+              type="button"
+              aria-label="닫기"
               onClick={onClose}
               className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
             >

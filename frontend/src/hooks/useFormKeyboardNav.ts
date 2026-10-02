@@ -83,11 +83,11 @@ export function useFormKeyboardNav({
       ? container.querySelector<HTMLElement>(autoFocusSelector)
       : null;
     if (preferred) {
-      preferred.focus();
+      preferred.focus({ preventScroll: true });
       return;
     }
     const focusables = getFocusableFormElements(container);
-    focusables[0]?.focus();
+    focusables[0]?.focus({ preventScroll: true });
   }, [enabled, autoFocus, autoFocusKey, autoFocusSelector, containerRef]);
 
   // 2) 키다운(화살표 이동 + Enter 저장) — 컨테이너 스코프.
