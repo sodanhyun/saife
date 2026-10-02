@@ -343,7 +343,7 @@ public class EquipmentTimelineService {
                 }
             }
 
-            String detail = acknowledged ? "TBM 실시" : "TBM 미실시";
+            String detail = tbmDetail(plan, acknowledged);
 
             out.add(new TimelineEvent("workplan-" + plan.getId(), EventType.WORK_PLAN,
                     plan.getWorkDate(), plan.getBriefingAckAt(),
@@ -353,6 +353,16 @@ public class EquipmentTimelineService {
                     acknowledged && !linked.isEmpty() ? Emphasis.WARNING : Emphasis.NORMAL, null));
         }
         return out;
+    }
+
+    /** TBM 표기. 작업일 전이면 예정, 보류는 재개 조건, 작업일이 지났는데 기록이 없으면 미실시 */
+    private static String tbmDetail(WorkPlan plan, boolean acknowledged) {
+        if (acknowledged) return "TBM 실시";
+        if (plan.getStatus() == WorkPlanStatus.HOLD) return "수시평가 확정 후 재개";
+        if (plan.getStatus() == WorkPlanStatus.REJECTED) return "반려";
+        if (plan.getStatus() == WorkPlanStatus.SUBMITTED || plan.getStatus() == WorkPlanStatus.DRAFT) return "승인 후 TBM";
+        if (plan.getWorkDate().isAfter(LocalDate.now(ZoneId.of("Asia/Seoul")))) return "작업 예정";
+        return "TBM 미실시";
     }
 
     /** 사고 사건. 항상 CRITICAL이고, 예고되어 있었다면 그 근거들과 선으로 이어진다 */

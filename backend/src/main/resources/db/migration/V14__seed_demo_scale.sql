@@ -89,7 +89,7 @@ UPDATE assessment_hazard SET risk_level = 'HIGH', rule_trace = '발판 높이 3.
 UPDATE assessment_hazard SET risk_level = 'MEDIUM', rule_trace = '통로와 차량 동선 중첩 (제22조, 제172조)' WHERE assessment_id = 2 AND hazard_id = 6;
 UPDATE assessment_hazard SET risk_level = 'HIGH', rule_trace = '작업대 안전난간 일부 결손 (제186조)' WHERE assessment_id = 2 AND hazard_id = 7;
 UPDATE assessment_hazard SET risk_level = 'MEDIUM', rule_trace = '보안경 미착용 판독 (제32조)' WHERE assessment_id = 2 AND hazard_id = 8;
-UPDATE assessment_hazard SET risk_level = 'MEDIUM', rule_trace = '인화성 증기, 점화원 관리, 실내 환기, 방독마스크 (제232조, 제450조)' WHERE assessment_id = 3 AND hazard_id = 3;
+UPDATE assessment_hazard SET risk_level = 'MEDIUM', rule_trace = '조색실 인화성 증기 체류, 점화원 관리 기준 없음 (제232조, 제450조)' WHERE assessment_id = 3 AND hazard_id = 3;
 UPDATE assessment_hazard SET risk_level = 'HIGH', rule_trace = '작업대 안전난간 일부 결손 (제186조)' WHERE assessment_id = 4 AND hazard_id = 7;
 UPDATE assessment_hazard SET risk_level = 'HIGH', rule_trace = '떨어짐 사고 발생, 휴업예상 28일, 사고 전 상' WHERE assessment_id = 5 AND hazard_id = 7;
 UPDATE assessment_hazard SET risk_level = 'MEDIUM', rule_trace = '작업대 안전난간 보수 완료, 안전대 착용 (제186조, 제32조)' WHERE assessment_id = 6 AND hazard_id = 7;
@@ -229,20 +229,20 @@ INSERT INTO assessment_hazard (assessment_id, hazard_id, frequency, severity, ri
   (2, 37, 3, 3, 'HIGH', '저장소 출입구 소화기 압력 미달, 예비 소화기 없음 (제243조)', NULL),
   (6, 11, 1, 2, 'LOW', '척 방호덮개 닫고 운전 확인 (제87조)', NULL),
   (6, 35, 1, 2, 'LOW', '테일 풀리 방호덮개 설치 확인 (제87조)', NULL),
-  (7, 2, 2, 2, 'MEDIUM', '사다리 작업 시 안전모 착용 지도 (제32조)', NULL),
-  (7, 3, 2, 2, 'MEDIUM', '인화성 증기, 점화원 관리, 실내 환기, 방독마스크 (제232조, 제450조)', NULL),
-  (7, 5, 1, 2, 'LOW', '금형 교체 시 안전블록 사용 (제104조)', NULL),
-  (7, 9, 1, 2, 'LOW', '광전자식 방호장치 설치 (제103조)', NULL),
-  (7, 11, 1, 2, 'LOW', '척 방호덮개 닫고 운전, 작업 표준 게시 (제87조)', NULL),
-  (7, 17, 1, 2, 'LOW', 'V벨트, 풀리 방호덮개 설치 (제87조제11항)', NULL),
-  (7, 20, 2, 2, 'MEDIUM', '용접 불티 비산, 화재감시자 배치, 방화포 비치 (제241조, 제241조의2)', NULL),
-  (7, 23, 1, 2, 'LOW', '용기 고정 체인 체결, 충전 용기와 빈 용기 구분 보관 (제234조)', NULL),
-  (7, 24, 2, 2, 'MEDIUM', '줄걸이 용구 월 1회 점검, 손상 시 즉시 폐기 (제169조)', NULL),
-  (7, 31, 1, 2, 'LOW', '적재물 결속, 상단 적재 제한 표지 (제393조)', NULL),
-  (7, 35, 1, 2, 'LOW', '테일 풀리 방호덮개 유지 (제87조)', NULL),
-  (7, 36, 2, 2, 'MEDIUM', '용기 밀폐 보관, 국소배기 설치, 점화원 관리 (제232조)', NULL),
-  (7, 38, 1, 2, 'LOW', '교반부 방호덮개, 덮개 열림 시 정지 장치 (제87조제8항)', NULL),
-  (7, 40, 2, 2, 'MEDIUM', '지붕 높이 6m, 구명줄 설치 후 안전대 착용 (제32조, 제44조)', NULL),
+  (7, 2, 2, 2, 'MEDIUM', '사다리 작업 중 안전모 미착용 확인 (제32조)', NULL),
+  (7, 3, 2, 2, 'MEDIUM', '조색실 인화성 증기 체류 가능, 환기 설비 없음 (제232조, 제450조)', NULL),
+  (7, 5, 1, 2, 'LOW', '금형 교체 시 안전블록 사용 중 (제104조)', NULL),
+  (7, 9, 1, 2, 'LOW', '광전자식 방호장치 설치, 작동 양호 (제103조)', NULL),
+  (7, 11, 1, 2, 'LOW', '척 방호덮개 닫힘 운전, 작업 표준 게시 (제87조)', NULL),
+  (7, 17, 1, 2, 'LOW', 'V벨트, 풀리 방호덮개 설치 상태 양호 (제87조제11항)', NULL),
+  (7, 20, 2, 2, 'MEDIUM', '용접 불티 비산 범위에 가연물, 화재감시자 미지정 (제241조, 제241조의2)', NULL),
+  (7, 23, 1, 2, 'LOW', '용기 고정 체인 체결, 충전 용기와 빈 용기 구분 보관 중 (제234조)', NULL),
+  (7, 24, 2, 2, 'MEDIUM', '줄걸이 용구 월 1회 점검 운영 중, 섬유벨트 마모 진행 (제169조)', NULL),
+  (7, 31, 1, 2, 'LOW', '적재물 결속, 상단 적재 제한 표지 부착 (제393조)', NULL),
+  (7, 35, 1, 2, 'LOW', '테일 풀리 방호덮개 설치 상태 유지 (제87조)', NULL),
+  (7, 36, 2, 2, 'MEDIUM', '용기 개방 보관 사례, 국소배기 없음 (제232조)', NULL),
+  (7, 38, 1, 2, 'LOW', '교반부 방호덮개, 덮개 열림 시 정지 장치 작동 (제87조제8항)', NULL),
+  (7, 40, 2, 2, 'MEDIUM', '지붕 높이 6m, 구명줄 설치, 안전대 착용 관리 미흡 (제32조, 제44조)', NULL),
   (8, 9, 3, 3, 'HIGH', '광전자식 방호장치 설치 전, 양수조작 버튼 한 손 조작 가능 (제103조)', NULL),
   (8, 12, 2, 2, 'MEDIUM', '절삭 중 보안경 미착용 (제32조)', NULL),
   (8, 42, 2, 2, 'MEDIUM', '유기용제 희석 중 방독마스크 미착용 (제450조)', NULL),
@@ -274,7 +274,7 @@ INSERT INTO assessment_hazard (assessment_id, hazard_id, frequency, severity, ri
   (17, 39, 1, 2, 'LOW', '조색 중 방독마스크 착용 확인 (제450조)', NULL),
   (17, 15, 1, 2, 'LOW', '덮개 조정편 간격 조정, 비산 방지판 설치 (제122조)', NULL),
   (17, 16, 1, 2, 'LOW', '연삭 중 보안경 착용 확인 (제32조)', NULL),
-  (17, 20, 2, 2, 'MEDIUM', '용접 불티 비산, 화재감시자 배치, 방화포 사용 (제241조, 제241조의2)', NULL),
+  (17, 20, 2, 2, 'MEDIUM', '용접 불티 비산 범위 넓음, 화재감시자 배치, 방화포 사용 중 (제241조, 제241조의2)', NULL),
   (17, 21, 1, 2, 'LOW', '용접 보안면 착용 확인 (제32조)', NULL),
   (18, 13, 2, 2, 'MEDIUM', '도어 열림 시 정지 기능 확인 기록 없음, 확인 후 판정', NULL),
   (18, 14, 2, 2, 'MEDIUM', '설비와 기둥 사이 통로 폭 부족 (제22조)', NULL),

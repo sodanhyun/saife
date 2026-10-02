@@ -106,6 +106,23 @@ public class HazardAnalysisTools {
         });
     }
 
+    /** 사례 후보 풀. 리랭크를 통과한 상위 후보에서 최종 3건을 고른다 */
+    static final int CASE_POOL = 6;
+    static final int CASE_LIMIT = 3;
+
+    /**
+     * 상위 {@code limit}건에 사진 사례가 없고, 후보 풀(리랭크 통과분)에 사진 사례가 있으면 마지막 자리를
+     * 그 사례로 바꾼다. 현장 사진은 글 요약보다 상황 전달이 빠르다. 순서는 원래 순위를 유지한다.
+     */
+    static List<Evidence> withPhotoCase(List<Evidence> ranked, int limit) {
+        if (ranked.size() <= limit) return ranked;
+        List<Evidence> top = new ArrayList<>(ranked.subList(0, limit));
+        if (top.stream().anyMatch(e -> e.thumbnailUrl() != null)) return top;
+        ranked.stream().skip(limit).filter(e -> e.thumbnailUrl() != null).findFirst()
+                .ifPresent(photo -> top.set(limit - 1, photo));
+        return top;
+    }
+
     @Tool(description = """
             <tool-description>
             <purpose>유사한 실제 사고사례를 공단 데이터에서 찾아 근거 번호와 함께 첨부합니다. 사진이 있는 사례는 [사진]으로 표시됩니다. query가 없으면 equipment(사용 설비)·workType(작업 유형)으로 대체 질의를 만듭니다 — 위치가 아니라 발생형태·설비·작업이 매칭 축입니다.</purpose>
@@ -141,9 +158,10 @@ public class HazardAnalysisTools {
                 }
             }
             String cid = AgentContextKeys.conversationId(toolContext);
-            List<Evidence> found = safeSearch(SearchRequest.cases(q, axis, blankToNull(business), 3));
+            List<Evidence> found = safeSearch(SearchRequest.cases(q, axis, blankToNull(business), CASE_POOL));
             // 업종 필터(최종 리뷰 F7)로 비면 업종 없이 한 번 더 — 업종이 없던 요청은 같은 검색을 되풀이하지 않는다
-            if (found.isEmpty() && blankToNull(business) != null) found = safeSearch(SearchRequest.cases(q, axis, null, 3));
+            if (found.isEmpty() && blankToNull(business) != null) found = safeSearch(SearchRequest.cases(q, axis, null, CASE_POOL));
+            found = withPhotoCase(found, CASE_LIMIT);
             if (found.isEmpty()) return ToolResult.of("해당 발생형태의 유사 사고사례를 찾지 못했습니다.");
             List<Evidence> numbered = registerSafely(cid, found);
             if (numbered.isEmpty()) return ToolResult.of("해당 발생형태의 유사 사고사례를 찾지 못했습니다.");

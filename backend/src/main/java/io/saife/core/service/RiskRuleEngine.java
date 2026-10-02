@@ -318,7 +318,7 @@ public class RiskRuleEngine {
     private Decision decideDrop(Map<String, String> slots) {
         return switch (kindOf(slots)) {
             case KIND_CRANE -> new Decision(RiskLevel.MEDIUM, (short) 2, (short) 3,
-                    "인양물 하부 출입 금지, 훅 해지장치 사용, 달기구 점검 (제146조, 제137조, 제163조)");
+                    "인양물 낙하 위험, 하부 출입 통제와 훅 해지장치 필요 (제146조, 제137조, 제163조)");
             case KIND_FORKLIFT -> new Decision(RiskLevel.MEDIUM, (short) 2, (short) 2,
                     "적재 화물 무너짐, 적재 높이 제한 (제173조, 제393조)");
             default -> new Decision(RiskLevel.MEDIUM, (short) 2, (short) 2, "적재물 낙하 가능 구역 (제14조, 제393조)");
@@ -347,35 +347,40 @@ public class RiskRuleEngine {
             return new Decision(RiskLevel.HIGH, (short) 3, (short) 3, "인화성 증기와 인근 화기 작업 (제239조, 제241조)");
         }
         if (hotWork) {
-            return new Decision(RiskLevel.MEDIUM, (short) 2, (short) 3, "용접 불티 비산, 화재감시자 (제241조, 제241조의2)");
+            return new Decision(RiskLevel.MEDIUM, (short) 2, (short) 3, "용접 불티 비산, 화재감시자 필요 (제241조, 제241조의2)");
         }
         if (Boolean.TRUE.equals(solvent)) {
             return new Decision(RiskLevel.MEDIUM, (short) 2, (short) 3,
-                    "인화성 증기, 점화원 관리, 실내 환기, 방독마스크 (제232조, 제450조)");
+                    "유기용제 도료 사용, 실내 인화성 증기 체류 가능 (제232조)");
         }
         return new Decision(RiskLevel.LOW, (short) 1, (short) 2, "인화성 물질과 점화원 특이사항 없음");
     }
 
-    /** 보호구: 오늘 작업 조건에서 필요한 보호구를 그대로 적는다 */
+    /** 보호구: 오늘 작업 조건과 그 조건에서 필요한 보호구. "높이 3.2m, 유기용제 취급: 안전모, 안전대, 방독마스크 필요" */
     private Decision decidePpe(Map<String, String> slots) {
+        List<String> conditions = new ArrayList<>();
         List<String> items = new ArrayList<>();
         Double height = parseHeight(slots.get(SlotKeys.WORK_HEIGHT));
         String kind = kindOf(slots);
         if (KIND_CRANE.equals(kind) || KIND_FORKLIFT.equals(kind)) {
+            conditions.add(KIND_CRANE.equals(kind) ? "인양 작업" : "하역 작업");
             items.add("안전모, 안전화");
         } else if (height != null && height >= HEIGHT_2M) {
+            conditions.add("높이 " + meters(height));
             items.add(KIND_MOBILE_SCAFFOLD.equals(kind) || KIND_TRESTLE.equals(kind) ? "안전모" : "안전모, 안전대");
         }
         if (isHotWork(slots)) {
+            conditions.add("용접, 용단");
             items.add("보안면, 용접용 장갑");
         }
         boolean mask = Boolean.TRUE.equals(solventOf(slots));
         if (mask) {
+            conditions.add("유기용제 취급");
             items.add("방독마스크");
         }
         String trace = items.isEmpty()
                 ? "작업에 맞는 보호구 착용 확인 (제32조)"
-                : String.join(", ", items) + " 착용 (" + (mask ? "제32조, 제450조" : "제32조") + ")";
+                : String.join(", ", conditions) + ": " + String.join(", ", items) + " 필요 (" + (mask ? "제32조, 제450조" : "제32조") + ")";
         return new Decision(RiskLevel.MEDIUM, (short) 2, (short) 2, trace);
     }
 

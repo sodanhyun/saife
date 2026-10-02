@@ -15,14 +15,19 @@ interface Props {
 
 /** 최근 평가 등급, 미이행 조치 수, 사고 수. 펼침과 접힘이 같은 칩을 쓴다 */
 function Chips({ recall }: { recall: RecallView }) {
-  const latest = recall.priorHazards.find((h) => h.lastRiskLevel !== null);
+  // 설비 현황 카드와 같은 기준: 위험요인별 최근 등급 중 가장 높은 것
+  const rank = { HIGH: 3, MEDIUM: 2, LOW: 1 } as const;
+  const latest = recall.priorHazards
+    .filter((h) => h.lastRiskLevel !== null)
+    .reduce<(typeof recall.priorHazards)[number] | undefined>(
+      (top, h) => (!top || rank[h.lastRiskLevel!] > rank[top.lastRiskLevel!] ? h : top), undefined);
   const unfinished = recall.unfinishedActions.length;
   const incidents = recall.priorIncidents.length;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {latest?.lastRiskLevel && (
         <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
-          최근 평가 <RiskBadge level={latest.lastRiskLevel} />
+          현재 등급 <RiskBadge level={latest.lastRiskLevel} />
         </span>
       )}
       {unfinished > 0 && <Badge variant="high">미이행 {unfinished}</Badge>}

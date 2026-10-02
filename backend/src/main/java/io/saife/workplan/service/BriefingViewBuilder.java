@@ -336,10 +336,12 @@ public class BriefingViewBuilder {
         };
     }
 
-    /** 보호구 판정 문구("안전모, 안전대, 방독마스크 착용 (제32조)")를 말로 바꾼다 */
+    /** 보호구 판정 문구("높이 3.2m, 유기용제 취급: 안전모, 안전대, 방독마스크 필요 (제32조)")를 말로 바꾼다 */
     private static String ppeLine(String trace) {
-        if (trace == null || !trace.contains(" 착용")) return "작업에 맞는 보호구를 갖추고 시작합니다";
-        String items = trace.substring(0, trace.indexOf(" 착용")).trim();
+        if (trace == null || !trace.contains(" 필요")) return "작업에 맞는 보호구를 갖추고 시작합니다";
+        String items = trace.substring(0, trace.indexOf(" 필요")).trim();
+        int colon = items.indexOf(": ");
+        if (colon >= 0) items = items.substring(colon + 2).trim();
         if (items.startsWith("작업에 맞는")) return "작업에 맞는 보호구를 갖추고 시작합니다";
         return items + objectParticle(items) + " 착용합니다";
     }

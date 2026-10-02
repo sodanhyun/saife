@@ -124,8 +124,8 @@ class RiskRuleEngineTest {
         slots.put(SlotKeys.PRODUCT_NAME, "유성 에나멜 페인트");
         RiskRuleEngine.Decision fire = engine.decide(AccidentType.FIRE, slots);
         assertThat(fire.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
-        assertThat(fire.ruleTrace()).isEqualTo("인화성 증기, 점화원 관리, 실내 환기, 방독마스크 (제232조, 제450조)");
-        assertThat(engine.decide(AccidentType.PPE, slots).ruleTrace()).isEqualTo("안전모, 안전대, 방독마스크 착용 (제32조, 제450조)");
+        assertThat(fire.ruleTrace()).isEqualTo("유기용제 도료 사용, 실내 인화성 증기 체류 가능 (제232조)");
+        assertThat(engine.decide(AccidentType.PPE, slots).ruleTrace()).isEqualTo("높이 3.2m, 유기용제 취급: 안전모, 안전대, 방독마스크 필요 (제32조, 제450조)");
     }
 
     @Test
@@ -187,7 +187,7 @@ class RiskRuleEngineTest {
     void 용접_작업과_CO2_용접기는_화재_최소_중이고_근거는_화재감시자다() {
         RiskRuleEngine.Decision byEquipment = engine.decide(AccidentType.FIRE, derived("CO2 용접기 1호", "작업대 보강"));
         assertThat(byEquipment.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
-        assertThat(byEquipment.ruleTrace()).isEqualTo("용접 불티 비산, 화재감시자 (제241조, 제241조의2)");
+        assertThat(byEquipment.ruleTrace()).isEqualTo("용접 불티 비산, 화재감시자 필요 (제241조, 제241조의2)");
 
         RiskRuleEngine.Decision byWork = engine.decide(AccidentType.FIRE, derived("천장크레인 1호", "브래킷 용단"));
         assertThat(byWork.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
@@ -204,9 +204,9 @@ class RiskRuleEngineTest {
         Map<String, String> slots = derived("천장크레인 1호", "금형 인양 (1.2톤)");
         assertThat(slots).containsEntry(SlotKeys.EQUIPMENT_KIND, RiskRuleEngine.KIND_CRANE);
         RiskRuleEngine.Decision d = engine.decide(AccidentType.DROP, slots);
-        assertThat(d.ruleTrace()).isEqualTo("인양물 하부 출입 금지, 훅 해지장치 사용, 달기구 점검 (제146조, 제137조, 제163조)");
+        assertThat(d.ruleTrace()).isEqualTo("인양물 낙하 위험, 하부 출입 통제와 훅 해지장치 필요 (제146조, 제137조, 제163조)");
         assertThat(engine.recommendation(AccidentType.DROP, slots, d)).contains("해지장치").contains("제137조");
-        assertThat(engine.decide(AccidentType.PPE, slots).ruleTrace()).isEqualTo("안전모, 안전화 착용 (제32조)");
+        assertThat(engine.decide(AccidentType.PPE, slots).ruleTrace()).isEqualTo("인양 작업: 안전모, 안전화 필요 (제32조)");
     }
 
     @Test

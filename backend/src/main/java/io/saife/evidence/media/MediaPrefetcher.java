@@ -140,9 +140,9 @@ public class MediaPrefetcher {
                 // HazardAnalysisTools.searchCases·BriefingComposer의 대체 질의와 같은 모양: 축 라벨 + 설비명
                 String q = axis.getSearchTerm() + " " + e.getName();
                 List<SearchRequest> requests = List.of(
-                        SearchRequest.cases(q, axis, MANUFACTURING, 3),                    // 도구 4(리랭크)
-                        SearchRequest.cases(q, axis, MANUFACTURING, 3).withoutRerank(),    // UC1·브리핑(비리랭크)
-                        SearchRequest.cases(q, axis, null, 3),                             // 업종 없이 재시도 경로
+                        SearchRequest.cases(q, axis, MANUFACTURING, 6),                    // 도구 4(리랭크)
+                        SearchRequest.cases(q, axis, MANUFACTURING, 6).withoutRerank(),    // UC1·브리핑(비리랭크)
+                        SearchRequest.cases(q, axis, null, 6),                             // 업종 없이 재시도 경로
                         SearchRequest.guides(q, 3));                                       // 도구 3 지침
                 for (SearchRequest r : requests) {
                     for (Evidence ev : safeSearch(r)) {

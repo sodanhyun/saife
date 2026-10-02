@@ -1,9 +1,8 @@
 # CLAUDE.md — SAIFE (세이프)
 
-소규모 제조 사업장 산재 예방을 위한 **위험성평가 AI Agent**. 제4회 경남 AI·SW 경진대회 출품작.
+제조 사업장 **위험성평가 AI Agent**. 제4회 경남 AI/SW 경진대회 출품작.
 
-**한 줄 논지**: 현장의 안전 문서들은 서로를 기억하지 못한다. SAIFE는 기억한다.
-위험성평가·위험작업 작업계획서·산업재해조사표를 **하나의 설비 ID** 위에서 잇는다.
+작업 전 안전점검표(TBM), 위험성평가표, 산업재해조사표를 **하나의 설비 ID** 기준으로 연결.
 
 기획서(승인본): `~/.gstack/projects/SAIFE/taeli-unknown-design-20260920-163000.md`
 
@@ -56,7 +55,7 @@ docker compose up -d --build
 
 - **REST**: frontend `/api/*` → (dev: Vite 프록시 / prod: nginx) → backend `:8080`
 - **SSE**: 에이전트 도구 호출 트레이스 + 토큰 스트리밍 (`SseEmitter` ↔ fetch ReadableStream)
-- **인증**: JWT (HS256), 역할 2종 `WORKER` / `MANAGER`. 테넌시 없음(가상 사업장 1곳)
+- **인증**: 없음. 단일 사업장, 내부망 기준(공개 네트워크 배포 대상 아님)
 
 ## 도메인 모듈
 
@@ -64,12 +63,12 @@ docker compose up -d --build
 |--------|------|
 | `core/site` `core/process` `core/equipment` | **데이터 코어** — 사업장·공정/장소·설비. 모든 것이 설비 ID로 묶인다 |
 | `core/hazard` `core/assessment` `core/action` | 위험요인·평가·감소대책. 평가 종류(최초/수시/정기/상시) |
-| `workplan` | **UC3** 위험작업 작업계획서. 대화형 등록 → 브리핑 → 승인 → 완료 |
-| `incident` | **UC2** 산재 사후 등록. 설비 이력 자동 소환 → 수시평가 자동 생성 → 법정 기한 |
+| `workplan` | **UC3** 작업 전 점검. 대화형 등록 → 판정 → 관리감독자 승인(잠정조치) → TBM. 제38조 대상 작업만 작업계획서 |
+| `incident` | **UC2** 사고 보고. 사고 시점 기준 이력 조회 → 수시평가 생성 → 조사표 기한 → 같은 설비 작업 보류, 수시평가 확정 시 해제 |
 | `dashboard` | **UC4** 설비 1개 타임라인 뷰 (평가→작업계획→사고→재평가). `dashboard.service`의
   `EquipmentTimelineService`(카드 summary), `RecallService`(진입 회상 — `ai.recall`과 같은 payload를
   카드 클릭 없이도 재사용), `TodayService`(홈 "오늘 할 일" 인박스 — OVERDUE_ACTION/DUE_ACTION/
-  RISKY_WORK_PLAN/PENDING_APPROVAL/REPORT_DUE/PATROL_DUE/PERIODIC_DUE 8종 규칙(WORK_HOLD 포함)) |
+  PENDING_APPROVAL/REPORT_DUE/PATROL_DUE/PERIODIC_DUE/WORK_HOLD 규칙) |
 | `ai/agent` | 에이전트 오케스트레이션 (도구 호출 루프, 슬롯 되묻기) |
 | `ai/tools` | Spring AI `@Tool` 6종 + `ToolRegistry` |
 | `ai/vision` | 사진 → **빠진 안전조치 탐지** (Gemini 멀티모달) |
@@ -158,8 +157,7 @@ Inufleet이 2.5 세대에서 겪은 차단이 3.x 세대에서는 완화된 것�
 
 ## 대회 제약 (잊지 말 것)
 
-- **9/29(화) 12:00 접수 마감** — 신청서·재직확인·동의서. 놓치면 참가 무산
-- **10/4 코드 프리즈**, 10/5 제출, 10/6 버퍼, **10/12(월) 라이브 발표심사**
-- 사업장·설비·서식·인물은 **전부 가상**. 회사 자산 사용 금지
+- **10/6(화) 12:00 제출 마감**(구글폼 + zip 1개), **10/12(월) 본선 발표 6분**
+- 데모 사업장·설비·인물은 시연용 데이터. 회사 자산 사용 금지
 - 무대에서 **외부 API 라이브 호출 0** — 전량 로컬 캐시. 모델은 라이브(폴백으로 픽스처)
-- 별지2 출처·AI 활용 신고서에 **쓴 모델·데이터·오픈소스를 전부 정직하게** 기재
+- 기술명세서 정보출처에 **쓴 모델·데이터·오픈소스를 전부 정직하게** 기재

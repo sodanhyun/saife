@@ -38,14 +38,14 @@ export default function EvidenceGrid({ items, title = "근거", collapsedByDefau
     <section className={cn("mt-2", className)} aria-label={title}>
       <button
         type="button"
-        className="text-xs font-semibold text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border"
+        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-sm font-semibold text-slate-700 shadow-card hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-progress-border"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
         {title} {items.length}건 {open ? "▴" : "▾"}
       </button>
       {open && (
-        <div className={cn("mt-2 grid gap-2", items.length >= 4 ? "md:grid-cols-2" : "grid-cols-1")}>
+        <div className={cn("mt-2 grid items-start gap-2", items.length >= 4 ? "md:grid-cols-2" : "grid-cols-1")}>
           {items.map((e) => (
             <EvidenceCard key={`${e.kind}-${e.refKey}-${e.no}`} e={e} scope={scope} onOpenPhoto={setPhoto} />
           ))}

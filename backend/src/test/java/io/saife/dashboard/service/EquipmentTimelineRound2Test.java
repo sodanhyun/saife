@@ -115,7 +115,7 @@ class EquipmentTimelineRound2Test {
     }
 
     @Test
-    @DisplayName("예정 작업 — 작업 보류(HOLD)는 세지 않는다. TBM을 안 한 점검은 'TBM 미실시'")
+    @DisplayName("예정 작업 — 작업 보류(HOLD)는 세지 않는다. TBM 표기는 보류면 재개 조건, 작업일 전이면 예정")
     void upcomingExcludesHoldAndTbmLabel() {
         Equipment eq = newEquipment();
         workPlanRepository.save(WorkPlan.builder().siteId(SITE).equipmentId(eq.getId())
@@ -129,6 +129,7 @@ class EquipmentTimelineRound2Test {
 
         assertThat(service.timeline(eq.getId()).events())
                 .filteredOn(e -> e.type() == TimelineDtos.EventType.WORK_PLAN)
-                .allMatch(e -> e.detail().equals("TBM 미실시"));
+                .extracting(TimelineDtos.TimelineEvent::detail)
+                .containsExactlyInAnyOrder("수시평가 확정 후 재개", "작업 예정");
     }
 }
