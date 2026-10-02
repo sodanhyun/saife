@@ -59,7 +59,7 @@ public class FormDataService {
                     + "위험성 등급은 생성형 모델이 아니라 사전 정의된 규칙 엔진이 판정했습니다.";
 
     private static final String RETENTION_NOTICE =
-            "산업안전보건법 시행규칙 제37조에 따라 유해·위험요인, 위험성 결정 내용, "
+            "산업안전보건법 시행규칙 제37조에 따라 유해위험요인, 위험성 결정 내용, "
                     + "조치 내용을 포함하여 3년간 보존합니다.";
 
     private static final String TBM_NOTICE =
@@ -91,14 +91,19 @@ public class FormDataService {
 
         AtomicInteger no = new AtomicInteger(1);
         List<FormViews.AssessmentRow> rows = new ArrayList<>();
+        int rejected = 0;
 
         for (AssessmentHazard link : assessmentHazardRepository.findByAssessmentId(assessmentId)) {
             Hazard hazard = hazardRepository.findById(link.getHazardId()).orElse(null);
             if (hazard == null) {
                 continue;
             }
-            Action action = actionRepository.findByHazardId(hazard.getId()).stream()
-                    .findFirst().orElse(null);
+            // 사람이 반려한 AI 후보는 유해위험요인이 아니다. 서식에 올리지 않고 건수만 고지한다
+            if (hazard.isAiSuggested() && Boolean.FALSE.equals(hazard.getAiAdopted())) {
+                rejected++;
+                continue;
+            }
+            Action action = actionFor(hazard.getId(), assessmentId);
 
             rows.add(new FormViews.AssessmentRow(
                     no.getAndIncrement(),
@@ -115,8 +120,13 @@ public class FormDataService {
                     action == null ? null : action.getDueDate(),
                     action == null ? null : actionStatusLabel(action.getStatus()),
                     hazard.isAiSuggested(),
-                    adoptedLabel(hazard.getAiAdopted())));
+                    adoptedLabel(hazard.getAiAdopted()),
+                    action == null ? null : action.getGuideRef(),
+                    action == null || action.getCompletedAt() == null ? null : format(action.getCompletedAt())));
         }
+
+        String aiNotice = rejected == 0 ? AI_NOTICE
+                : AI_NOTICE + " AI 후보 중 사람이 반려한 %d건은 이 표에서 제외했습니다.".formatted(rejected);
 
         return new FormViews.AssessmentForm(
                 site == null ? "-" : site.getName(),
@@ -127,7 +137,24 @@ public class FormDataService {
                 assessment.getAssessedOn(),
                 nvl(assessment.getParticipants(), "-"),
                 assessmentStatusLabel(assessment.getStatus()),
-                rows, RETENTION_NOTICE, AI_NOTICE);
+                rows, RETENTION_NOTICE, aiNotice);
+    }
+
+    /**
+     * ③ 조치 내용에 넣을 조치. <b>이 평가에서 등록한 조치</b>가 우선이고, 없으면 그 위험요인의
+     * 미이행 조치, 그것도 없으면 가장 최근 조치. 다른 평가의 조치를 아무거나 집으면
+     * 사진 점검에서 막 등록한 대책 대신 몇 달 전 대책이 서식에 찍힌다.
+     */
+    private Action actionFor(Long hazardId, Long assessmentId) {
+        List<Action> actions = actionRepository.findByHazardId(hazardId);
+        return actions.stream()
+                .filter(a -> assessmentId.equals(a.getAssessmentId()))
+                .max(java.util.Comparator.comparing(Action::getId))
+                .or(() -> actions.stream()
+                        .filter(a -> a.getStatus() != ActionStatus.DONE)
+                        .max(java.util.Comparator.comparing(Action::getId)))
+                .or(() -> actions.stream().max(java.util.Comparator.comparing(Action::getId)))
+                .orElse(null);
     }
 
     /**
@@ -302,7 +329,7 @@ public class FormDataService {
         return switch (status) {
             case PENDING -> "이행 예정";
             case DONE -> "이행 완료";
-            case OVERDUE -> "기한 경과·미이행";
+            case OVERDUE -> "기한 경과, 미이행";
         };
     }
 

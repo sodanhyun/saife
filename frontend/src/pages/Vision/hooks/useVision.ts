@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from "react";
 
 import { useSearchParams } from "react-router-dom";
 
+import { actionApi } from "@/api/actionApi";
 import { equipmentApi } from "@/api/equipmentApi";
 import { visionApi } from "@/api/visionApi";
 import { useApiData } from "@/hooks/useApiData";
 import { useToastStore } from "@/stores/useToastStore";
 import { getServerMessage } from "@/utils/errorMessage";
 import { useVisionStream } from "@/pages/Vision/hooks/useVisionStream";
+import type { VisionCandidate } from "@/types/vision";
+
+/** 감소대책 등록 폼 입력 */
+export interface ActionInput { content: string; owner: string; dueDate: string }
 
 /** 진입 컨텍스트 — 설비 홈·상세에서 "사진 점검" 버튼으로 들어오면 ?equipmentId=가 붙는다. */
 function initialEquipmentIdFromQuery(raw: string | null): number | undefined {
@@ -71,5 +76,39 @@ export function useVision() {
     }
   };
 
-  return { equipment: equipment.data ?? [], loading: equipment.loading, loadError: equipment.error, equipmentId, setEquipmentId: setSelectedId, rate: rate.data, preview, pick, decide, busyId, stream };
+  /** 감소대책 등록. 평가는 이 판독이 만든 평가에 묶는다. 응답(서버 값)으로 카드를 덮는다 */
+  const createAction = async (c: VisionCandidate, input: ActionInput) => {
+    setBusyId(c.hazardId);
+    try {
+      const action = await visionApi.createAction(c.hazardId, {
+        assessmentId: stream.result?.assessmentId ?? null,
+        content: input.content.trim(),
+        owner: input.owner.trim() || null,
+        dueDate: input.dueDate || null,
+        guideRef: c.suggestedAction?.guideRef ?? null,
+      });
+      stream.patchCandidate(c.hazardId, { action });
+    } catch (e) {
+      toastError(getServerMessage(e) ?? "감소대책을 등록하지 못했습니다");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** 이행 완료. 서버가 멱등이라 연타해도 완료 시각이 밀리지 않는다 */
+  const completeAction = async (hazardId: number, actionId: number) => {
+    setBusyId(hazardId);
+    try {
+      const action = await actionApi.complete(actionId);
+      stream.patchCandidate(hazardId, { action });
+    } catch (e) {
+      toastError(getServerMessage(e) ?? "이행 완료를 기록하지 못했습니다");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const selectedEquipment = equipment.data?.find((e) => e.id === equipmentId) ?? null;
+
+  return { selectedEquipment, createAction, completeAction, equipment: equipment.data ?? [], loading: equipment.loading, loadError: equipment.error, equipmentId, setEquipmentId: setSelectedId, rate: rate.data, preview, pick, decide, busyId, stream };
 }

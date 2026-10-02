@@ -11,7 +11,7 @@
 <body>
 <main class="sheet">
   <h1>위 험 성 평 가 표</h1>
-  <p class="subtitle">산업안전보건법 제36조 · 같은 법 시행규칙 제37조</p>
+  <p class="subtitle">산업안전보건법 제36조, 같은 법 시행규칙 제37조</p>
 
   <table>
     <tr>
@@ -40,18 +40,18 @@
     </tr>
   </table>
 
-  <div class="section-title">유해·위험요인 파악 및 위험성 결정</div>
+  <div class="section-title">유해위험요인 파악, 위험성 결정, 감소대책</div>
 
   <table>
     <thead>
     <tr>
       <th style="width:26px">번호</th>
-      <th style="width:120px">설비·장소</th>
+      <th style="width:120px">설비/장소</th>
       <th style="width:54px">발생형태</th>
-      <th>① 유해·위험요인</th>
+      <th>① 유해위험요인</th>
       <th style="width:210px">② 위험성 결정 내용</th>
       <th>③ 조치 내용</th>
-      <th style="width:72px">담당·기한</th>
+      <th style="width:72px">담당/기한</th>
       <th style="width:62px">이행 상태</th>
     </tr>
     </thead>
@@ -63,19 +63,27 @@
       <td>
         <span th:text="${row.hazard}">-</span>
         <div class="flag" th:if="${row.aiSuggested}">
-          [AI 후보 · <span th:text="${row.aiAdoptedLabel}">판단 전</span>]
+          [AI 후보, <span th:text="${row.aiAdoptedLabel}">판단 전</span>]
         </div>
       </td>
-      <td class="pre">
-        <span th:classappend="${row.riskLabel == '상'} ? 'risk-high' : (${row.riskLabel == '중'} ? 'risk-medium' : 'risk-low')"
-              th:text="${row.decision}">-</span>
+      <td>
+        <!-- 등급만 색으로 강조하고, 빈도, 강도, 판정 근거는 본문 글씨로 둔다 -->
+        <div th:classappend="${row.riskLabel == '상'} ? 'risk-high' : (${row.riskLabel == '중'} ? 'risk-medium' : 'risk-low')"
+             th:text="|위험성 '${row.riskLabel}'|">-</div>
+        <div class="pre" style="font-size:8.5pt" th:text="${row.decision}">-</div>
       </td>
-      <td th:text="${row.action}">-</td>
+      <td>
+        <span th:text="${row.action}">-</span>
+        <div class="flag" th:if="${row.actionGuideRef}">근거 KOSHA GUIDE <span style="white-space:nowrap" th:text="${row.actionGuideRef}">-</span></div>
+      </td>
       <td>
         <span th:text="${row.actionOwner} ?: '-'">-</span><br>
         <span th:text="${row.actionDueDate} ?: '-'">-</span>
       </td>
-      <td style="text-align:center" th:text="${row.actionStatusLabel} ?: '-'">-</td>
+      <td style="text-align:center">
+        <span th:text="${row.actionStatusLabel} ?: '-'">-</span>
+        <div class="flag" th:if="${row.actionCompletedAt}" th:text="${row.actionCompletedAt}">-</div>
+      </td>
     </tr>
     <tr th:if="${#lists.isEmpty(form.rows)}">
       <td colspan="8" style="text-align:center; padding:18px">등록된 유해·위험요인이 없습니다.</td>

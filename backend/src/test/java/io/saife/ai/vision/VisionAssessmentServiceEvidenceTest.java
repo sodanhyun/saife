@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import io.saife.common.config.DemoModeConfig;
 import io.saife.common.service.SseService;
+import io.saife.core.action.ActionService;
 import io.saife.core.domain.AccidentType;
 import io.saife.core.domain.Assessment;
 import io.saife.core.domain.AssessmentHazard;
@@ -38,10 +39,12 @@ class VisionAssessmentServiceEvidenceTest {
     private final PhotoRiskTable riskTable = mock(PhotoRiskTable.class);
     private final DemoModeConfig demo = mock(DemoModeConfig.class);
     private final CandidateEvidenceCollector collector = mock(CandidateEvidenceCollector.class);
+    private final ActionService actionService = mock(ActionService.class);
 
     @SuppressWarnings("unchecked")
     private final VisionAssessmentService service = new VisionAssessmentService(assessments, links, hazards,
-            mock(VisionAnalyzer.class), riskTable, mock(SseService.class), demo, collector, mock(ObjectProvider.class));
+            mock(VisionAnalyzer.class), riskTable, mock(SseService.class), demo, collector, actionService,
+            mock(ObjectProvider.class));
 
     private final Evidence card = new Evidence(1, EvidenceKind.GUIDE, 3L, "G-1#0", "[KOSHA GUIDE G-1] 추락", "s",
             null, null, null, Origin.CACHE, 0.8, OffsetDateTime.now(), Map.of());
@@ -67,6 +70,24 @@ class VisionAssessmentServiceEvidenceTest {
 
         assertThat(r.candidates()).hasSize(1);
         assertThat(r.candidates().get(0).evidenceItems()).containsExactly(card);
+        // 감소대책 초안: 축과 빠진 조치로 고정 표에서 고르고, 지침 번호는 근거 카드의 지침에서 온다
+        assertThat(r.candidates().get(0).suggestedAction().content()).contains("안전난간");
+        assertThat(r.candidates().get(0).suggestedAction().guideRef()).isEqualTo("G-1");
+        assertThat(r.candidates().get(0).action()).isNull();
+    }
+
+    @Test
+    void persist는_등급_다음에_근거_순서로_진행을_알린다() {
+        common();
+        when(hazards.findByEquipmentIdOrderByCreatedAtDesc(6L)).thenReturn(List.of());
+        when(hazards.save(any(Hazard.class))).thenReturn(hazard);
+        List<String> phases = new java.util.ArrayList<>();
+
+        service.persist(5L, 1L, 6L, null,
+                List.of(new VisionAnalyzer.Finding(AccidentType.FALL, "안전난간 미설치", "난간 없음", 0.9)), "p.jpg",
+                (phase, message) -> phases.add(phase));
+
+        assertThat(phases).containsExactly(VisionAssessmentService.PHASE_GRADING, VisionAssessmentService.PHASE_EVIDENCE);
     }
 
     @Test

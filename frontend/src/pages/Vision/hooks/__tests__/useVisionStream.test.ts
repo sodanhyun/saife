@@ -39,4 +39,18 @@ describe("useVisionStream", () => {
     expect(r.current.error).toBe("모델 응답 없음");
     expect(r.current.analyzing).toBe(false);
   });
+
+  it("assess.progress의 phase로 단계를 기록하고 done에서 DONE으로 끝난다", async () => {
+    const result = { assessmentId: 7, status: "ANALYZED", candidates: [], demoMode: false };
+    mockFetch.mockResolvedValue(sseResponse([
+      env("assess.progress", 1, { phase: "ANALYZING", message: "모델 판독" }),
+      env("assess.progress", 2, { phase: "GRADING", message: "등급" }),
+      env("assess.progress", 3, { phase: "EVIDENCE", message: "근거" }),
+      env("assess.done", 4, result),
+    ]));
+    const { result: r } = renderHook(() => useVisionStream());
+    await act(async () => { await r.current.analyze(new File(["x"], "a.jpg", { type: "image/jpeg" }), null); });
+    expect(r.current.stage).toBe("DONE");
+    expect(r.current.stageLog.map((m) => m.stage)).toEqual(["UPLOADING", "ANALYZING", "GRADING", "EVIDENCE", "DONE"]);
+  });
 });

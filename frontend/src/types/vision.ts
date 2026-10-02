@@ -1,3 +1,4 @@
+import type { ActionView, SuggestedAction } from "@/types/action";
 import type { AccidentType, RiskLevel } from "@/types/domain";
 import type { Evidence } from "@/types/evidence";
 
@@ -16,6 +17,9 @@ export type GateStatus = "PHOTO" | "CHECKLIST";
  *   새 배열은 `evidenceItems`로 받는다(아래) — B1 담당자는 백엔드 DTO 필드명도
  *   `evidenceItems`로 맞추거나, 프론트 쪽에서 응답 매핑을 한 번 거쳐야 한다.
  * @property evidenceItems 근거(RAG) 카드 배열. B1 Task 6이 cut-line 후보라 응답에 없을 수 있다(optional)
+ * @property suggestedAction 감소대책 초안(룰 표). 채택 후 등록 폼을 미리 채운다
+ * @property action          이 평가에서 등록한 감소대책. 없으면 null
+ * @property priorOpenAction 다른 평가에서 걸어 둔 미이행 조치. 재확인 후보에 경고로 띄운다
  */
 export interface VisionCandidate {
   hazardId: number;
@@ -31,6 +35,17 @@ export interface VisionCandidate {
   gateStatus: GateStatus;
   gateNote: string | null;
   evidenceItems?: Evidence[];
+  suggestedAction: SuggestedAction | null;
+  action: ActionView | null;
+  priorOpenAction: ActionView | null;
+}
+
+/** assess.progress 단계. 백엔드 VisionAssessmentService.PHASE_* */
+export type VisionPhase = "ANALYZING" | "GRADING" | "EVIDENCE";
+
+export interface VisionProgress {
+  phase?: VisionPhase;
+  message?: string;
 }
 
 export interface VisionAnalysisResult {

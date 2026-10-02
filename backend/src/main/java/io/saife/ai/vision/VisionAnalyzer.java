@@ -144,13 +144,19 @@ public class VisionAnalyzer {
                 }
                 Double confidence = node.hasNonNull("confidence")
                         ? node.path("confidence").asDouble() : null;
-                out.add(new Finding(axis, missing.trim(),
-                        node.path("evidence").asText(null), confidence));
+                // 화면 문구 규칙: 가운뎃점 구분자를 쉼표로 바꾼다 ("유도 표식·구획선" → "유도 표식, 구획선")
+                out.add(new Finding(axis, missing.trim().replaceAll("\\s*·\\s*", ", "),
+                        dotless(node.path("evidence").asText(null)), confidence));
             }
         } catch (Exception e) {
             log.warn("[UC1] 판독 결과 파싱 실패: {}", e.toString());
         }
         return out;
+    }
+
+    /** 화면 문구 규칙: 모델 서술의 가운뎃점("수직·수평")을 슬래시로 바꾼다 */
+    private static String dotless(String text) {
+        return text == null ? null : text.replace("·", "/");
     }
 
     /** 모델이 ```json 펜스를 붙이는 경우가 있다 */
