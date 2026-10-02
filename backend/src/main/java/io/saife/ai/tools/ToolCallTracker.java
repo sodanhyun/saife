@@ -24,6 +24,17 @@ public final class ToolCallTracker {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /**
+     * 도구가 실행 중에 남기는 한 줄 결과 요약. 트레이스 패널이 "무엇이 나왔나"를 보여주는 데 쓴다.
+     * 도구 본문은 {@link #execute}와 같은 스레드에서 동기로 돌기 때문에 ThreadLocal로 충분하다.
+     */
+    private static final ThreadLocal<String> SUMMARY = new ThreadLocal<>();
+
+    /** 도구 본문 안에서 호출한다. 화면에 그대로 뜨는 문장이라 짧게 쓴다. */
+    public static void summarize(String summary) {
+        SUMMARY.set(summary);
+    }
+
     private ToolCallTracker() {}
 
     /**
@@ -51,13 +62,16 @@ public final class ToolCallTracker {
         emit(sseService, sessionId, "ai.tool.start", conversationId, toolName,
                 Map.of("toolName", toolName, "params", paramsJson, "callOrder", callOrder));
 
+        SUMMARY.remove();
         long startMs = System.currentTimeMillis();
         boolean success = true;
+        String fullResult = null;
         String errorMessage = null;
         String resultPreview = null;
 
         try {
             String result = action.get();
+            fullResult = result;
             resultPreview = preview(result);
 
             // 예외 없이 빈 문자열을 돌려주는 경우가 실제로 있다. 부분 실패로 기록한다.
@@ -85,6 +99,17 @@ public final class ToolCallTracker {
             payload.put("durationMs", durationMs);
             if (errorMessage != null) {
                 payload.put("errorMessage", errorMessage);
+            }
+            // 결과 요약과 분기 — "필수 항목 누락 → 되묻기"가 트레이스에서 판단으로 보이게 한다
+            boolean incomplete = success && IncompleteResult.isIncomplete(fullResult);
+            payload.put("outcome", !success ? "FAILED" : incomplete ? "INCOMPLETE" : "OK");
+            if (incomplete) {
+                payload.put("missing", IncompleteResult.missingFields(fullResult));
+            }
+            String summary = SUMMARY.get();
+            SUMMARY.remove();
+            if (summary != null && !summary.isBlank()) {
+                payload.put("summary", summary);
             }
             emit(sseService, sessionId, "ai.tool.done", conversationId, toolName, payload);
 

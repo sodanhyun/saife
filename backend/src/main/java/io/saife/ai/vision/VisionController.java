@@ -2,6 +2,8 @@ package io.saife.ai.vision;
 
 import io.saife.common.error.ApiExceptions.InvalidRequestException;
 import io.saife.common.service.SseService;
+import io.saife.core.action.ActionDtos;
+import io.saife.core.action.ActionService;
 import io.saife.core.domain.Equipment;
 import io.saife.core.repository.EquipmentRepository;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class VisionController {
     private final VisionAssessmentService visionAssessmentService;
     private final EquipmentRepository equipmentRepository;
     private final SseService sseService;
+    private final ActionService actionService;
 
     /** 판독은 블로킹이라 요청 스레드를 붙잡지 않는다 */
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -104,6 +107,16 @@ public class VisionController {
     @PostMapping("/hazard/{hazardId}/reject")
     public ResponseEntity<VisionAssessmentService.Candidate> reject(@PathVariable Long hazardId) {
         return ResponseEntity.ok(visionAssessmentService.decideCandidate(hazardId, false));
+    }
+
+    /**
+     * 감소대책 등록. <b>채택한 위험요인에만</b> 걸 수 있다(아니면 409).
+     * 만든 조치는 PENDING으로 시작하고, 이행 완료는 {@code POST /api/action/{id}/complete}.
+     */
+    @PostMapping("/hazard/{hazardId}/action")
+    public ResponseEntity<ActionDtos.ActionView> createAction(
+            @PathVariable Long hazardId, @RequestBody ActionDtos.CreateActionRequest request) {
+        return ResponseEntity.ok(actionService.createForHazard(hazardId, request));
     }
 
     /** 후보 채택률 — 성과 지표. 정확도가 아니다 */

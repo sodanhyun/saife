@@ -53,7 +53,7 @@ public class RiskRuleEngine {
             case DROP -> fixed(RiskLevel.MEDIUM, (short) 2, (short) 2,
                     "낙하 축 기본값: 적재물 낙하 가능 구역 → '중'");
             case STRUCK -> fixed(RiskLevel.MEDIUM, (short) 2, (short) 2,
-                    "부딪힘 축 기본값: 통로·차량계 장비 동선 중첩 → '중'");
+                    "부딪힘 축 기본값: 통로, 차량계 장비 동선 중첩 → '중'");
             case PPE -> fixed(RiskLevel.MEDIUM, (short) 2, (short) 2,
                     "보호구 미착용 확인 → '중'. 상위 위험요인과 결합 시 상향");
         };
@@ -98,7 +98,7 @@ public class RiskRuleEngine {
         Boolean guard = parseBoolean(slots.get(SlotKeys.GUARD_INSTALLED));
         if (Boolean.FALSE.equals(guard)) {
             return new Decision(RiskLevel.HIGH, (short) 3, (short) 3,
-                    "회전·구동부 방호덮개 미설치 → '상'");
+                    "회전, 구동부 방호덮개 미설치 → '상'");
         }
         if (Boolean.TRUE.equals(guard)) {
             return new Decision(RiskLevel.LOW, (short) 1, (short) 3,
@@ -128,7 +128,7 @@ public class RiskRuleEngine {
                     "유기용제 취급 (증기는 공기보다 무거워 저지대 축적) → '중'");
         }
         return new Decision(RiskLevel.LOW, (short) 1, (short) 2,
-                "가연물·점화원 특이사항 없음 → '하'");
+                "가연물, 점화원 특이사항 없음 → '하'");
     }
 
     /**
@@ -244,7 +244,7 @@ public class RiskRuleEngine {
             Map<String, String> m = new LinkedHashMap<>();
             m.put(WORK_HEIGHT, "작업 높이는 대략 몇 m인가요?");
             m.put(ANCHOR_INSTALLED, "안전대 부착설비가 설치되어 있습니까?");
-            m.put(GUARD_INSTALLED, "회전·구동부에 방호덮개가 설치되어 있습니까?");
+            m.put(GUARD_INSTALLED, "회전, 구동부에 방호덮개가 설치되어 있습니까?");
             m.put(PRODUCT_NAME, "사용하는 제품명이 무엇인가요? 유기용제 여부를 확인하겠습니다.");
             m.put(SOLVENT_USED, "유기용제를 취급합니까?");
             m.put(IGNITION_NEARBY, "작업 구역 인근에 화기 작업이 있습니까?");

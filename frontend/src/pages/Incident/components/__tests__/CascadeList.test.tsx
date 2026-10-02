@@ -3,26 +3,37 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import CascadeList from "@/pages/Incident/components/CascadeList";
 import { CASCADE_ANCHOR_BY_KIND } from "@/pages/Incident/utils/cascadeAnchor";
+import type { CascadeCard } from "@/pages/Incident/utils/premonition";
 import type { CascadeStep } from "@/types/incident";
 
-function step(order: number, kind: CascadeStep["kind"], title: string): CascadeStep {
-  return { order, kind, title, detail: `상세 ${order}`, emphasis: "NORMAL", refId: null, refType: null };
-}
-
-// 입력 순서를 일부러 뒤섞는다 — 렌더 순서는 항상 order 오름차순이어야 한다(백엔드가 순서를 정한다)
-const steps: CascadeStep[] = [
-  step(3, "REPORT", "산업재해조사표 기한"),
-  step(1, "RECALL", "사전 기록 소환"),
-  step(4, "WORK_PLAN", "작업계획서 경고"),
-  step(2, "FOLLOW_UP", "수시평가 자동 생성"),
+const cards: CascadeCard[] = [
+  { kind: "RECALL", order: 1, label: "설비 이력 소환", value: "42일 경과", detail: "위험요인 2건" },
+  { kind: "FOLLOW_UP", order: 2, label: "수시평가 자동 생성", value: "#29", detail: "유지" },
+  { kind: "REPORT", order: 3, label: "산업재해조사표 기한", value: "D-31", detail: "2026-11-02까지" },
+  { kind: "WORK_PLAN", order: 4, label: "작업계획서 경고 부착", value: "4건", detail: "천장 페인트 작업 외 3건" },
 ];
+const steps: CascadeStep[] = [
+  { order: 1, kind: "RECALL", title: "", detail: "", emphasis: "CRITICAL", refId: null, refType: null },
+];
+
+function mockReducedMotion(matches: boolean) {
+  vi.spyOn(window, "matchMedia").mockReturnValue({
+    matches,
+    media: "(prefers-reduced-motion: reduce)",
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  } as unknown as MediaQueryList);
+}
 
 describe("CascadeList", () => {
   let scrollIntoViewMock: ReturnType<typeof vi.fn<(arg?: boolean | ScrollIntoViewOptions) => void>>;
 
   beforeEach(() => {
     scrollIntoViewMock = vi.fn<(arg?: boolean | ScrollIntoViewOptions) => void>();
-    // jsdom은 scrollIntoView를 구현하지 않는다
     Element.prototype.scrollIntoView = scrollIntoViewMock;
     for (const id of Object.values(CASCADE_ANCHOR_BY_KIND)) {
       const el = document.createElement("div");
@@ -36,62 +47,48 @@ describe("CascadeList", () => {
     vi.restoreAllMocks();
   });
 
-  it("4스텝을 order 순서대로(1→4) 렌더한다", () => {
-    render(<CascadeList steps={steps} />);
-    const titles = screen.getAllByRole("button").map((b) => b.textContent);
-    expect(titles[0]).toContain("사전 기록 소환");
-    expect(titles[1]).toContain("수시평가 자동 생성");
-    expect(titles[2]).toContain("산업재해조사표 기한");
-    expect(titles[3]).toContain("작업계획서 경고");
+  it("4단계를 순서대로, 스크린리더가 읽을 이름(단계, 라벨, 값, 설명)과 함께 렌더한다", () => {
+    render(<CascadeList cards={cards} steps={steps} />);
+    const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+    expect(names).toEqual([
+      "1단계 설비 이력 소환: 42일 경과. 위험요인 2건",
+      "2단계 수시평가 자동 생성: #29. 유지",
+      "3단계 산업재해조사표 기한: D-31. 2026-11-02까지",
+      "4단계 작업계획서 경고 부착: 4건. 천장 페인트 작업 외 3건",
+    ]);
   });
 
-  it("prefers-reduced-motion이면 마운트 즉시 전부 visible이다(등장 지연 없음)", () => {
-    vi.spyOn(window, "matchMedia").mockReturnValue({
-      matches: true,
-      media: "(prefers-reduced-motion: reduce)",
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    } as unknown as MediaQueryList);
+  it("카드가 차례로 뜬다: 350ms 간격의 등장 지연", () => {
+    mockReducedMotion(false);
+    render(<CascadeList cards={cards} />);
+    const delays = screen.getAllByRole("button").map((b) => b.style.animationDelay);
+    expect(delays).toEqual(["500ms", "850ms", "1200ms", "1550ms"]);
+  });
 
-    render(<CascadeList steps={steps} />);
-    const buttons = screen.getAllByRole("button");
-    // 타이머를 한 틱도 진행하지 않은 시점에 전부 opacity-100(visible) 상태여야 한다
-    for (const b of buttons) {
-      expect(b.className).toContain("opacity-100");
+  it("prefers-reduced-motion이면 애니메이션 없이 바로 보인다", () => {
+    mockReducedMotion(true);
+    render(<CascadeList cards={cards} />);
+    for (const b of screen.getAllByRole("button")) {
+      expect(b.className).not.toContain("animate-rise-in");
+      expect(b.style.animationDelay).toBe("");
     }
   });
 
-  it("클릭 시 해당 kind의 앵커 요소에 scrollIntoView가 호출된다", () => {
-    render(<CascadeList steps={steps} />);
-    fireEvent.click(screen.getByText("작업계획서 경고"));
-    const target = document.getElementById(CASCADE_ANCHOR_BY_KIND.WORK_PLAN);
+  it("CRITICAL 단계는 위험 톤으로 값이 칠해진다", () => {
+    render(<CascadeList cards={cards} steps={steps} />);
+    expect(screen.getByText("42일 경과").className).toContain("text-risk-high-text");
+    expect(screen.getByText("#29").className).toContain("text-slate-900");
+  });
+
+  it("클릭하면 해당 상세 카드로 스크롤한다", () => {
+    render(<CascadeList cards={cards} />);
+    fireEvent.click(screen.getByText("4건"));
     expect(scrollIntoViewMock).toHaveBeenCalled();
-    expect(scrollIntoViewMock.mock.instances[0]).toBe(target);
+    expect(scrollIntoViewMock.mock.instances[0]).toBe(document.getElementById(CASCADE_ANCHOR_BY_KIND.WORK_PLAN));
   });
 
-  // 네이티브 <button>은 Enter/Space에서 브라우저가 스스로 click을 낸다 — onKeyDown으로
-  // jumpTo를 한 번 더 부르면 같은 동작이 중복된다(scrollIntoView 두 번 호출, 결과는 멱등이라
-  // 무해하지만 코드가 거짓 정보를 준다). 그래서 onKeyDown을 두지 않는다 — jsdom은 이 네이티브
-  // 활성화를 흉내 내지 않으므로 여기서 키보드 입력을 별도로 재현하지 않는다.
-
-  it("workPlanAnchorOnSelf가 true면 WORK_PLAN 스텝의 li가 앵커 id를 갖는다", () => {
-    render(<CascadeList steps={[step(1, "WORK_PLAN", "작업계획서 경고")]} workPlanAnchorOnSelf />);
-    const li = screen.getByText("작업계획서 경고").closest("li")!;
-    expect(li.id).toBe(CASCADE_ANCHOR_BY_KIND.WORK_PLAN);
-  });
-
-  it("workPlanAnchorOnSelf 기본값(false)이면 WORK_PLAN 스텝의 li에 앵커 id를 달지 않는다 — 표 쪽 래퍼가 이미 그 id를 갖기 때문(중복 id 방지)", () => {
-    render(<CascadeList steps={[step(1, "WORK_PLAN", "작업계획서 경고")]} />);
-    const li = screen.getByText("작업계획서 경고").closest("li")!;
-    expect(li.id).toBe("");
-  });
-
-  it("cascade가 빈 배열이면 아무것도 렌더하지 않는다", () => {
-    render(<CascadeList steps={[]} />);
-    expect(screen.queryByRole("list")).toBeNull();
+  it("카드가 없으면 아무것도 렌더하지 않는다", () => {
+    const { container } = render(<CascadeList cards={[]} />);
+    expect(container.innerHTML).toBe("");
   });
 });

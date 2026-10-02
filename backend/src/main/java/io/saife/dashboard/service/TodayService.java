@@ -140,7 +140,8 @@ public class TodayService {
             }
             long daysRemaining = ChronoUnit.DAYS.between(today, action.getDueDate());
             Equipment equipment = equipmentOf(action, hazardById, equipmentById);
-            String title = "기한 초과 조치 — %s (%s)".formatted(action.getContent(), dDayLabel(daysRemaining));
+            // 제목은 조치 내용 그대로. 종류와 D-day는 화면이 kind/daysRemaining으로 붙인다
+            String title = action.getContent();
             out.add(new TodayDtos.TodayItem(KIND_OVERDUE_ACTION, Emphasis.CRITICAL, title,
                     "기한 " + action.getDueDate(),
                     equipment == null ? null : equipment.getId(),
@@ -167,7 +168,7 @@ public class TodayService {
             }
             long daysRemaining = ChronoUnit.DAYS.between(today, due);
             Equipment equipment = equipmentOf(action, hazardById, equipmentById);
-            String title = "조치 기한 %s — %s".formatted(dDayLabel(daysRemaining), action.getContent());
+            String title = action.getContent();
             out.add(new TodayDtos.TodayItem(KIND_DUE_ACTION, Emphasis.WARNING, title,
                     "기한 " + due,
                     equipment == null ? null : equipment.getId(),
@@ -207,9 +208,9 @@ public class TodayService {
             }
             long daysRemaining = ChronoUnit.DAYS.between(today, workDate);
             String qualifier = hasUnfinished
-                    ? "설비 미이행 조치 %d건".formatted(summary.unfinishedActionCount())
-                    : "설비 위험등급 '상'";
-            String title = "%s 작업 — %s (%s)".formatted(dDayLabel(daysRemaining), plan.getWorkName(), qualifier);
+                    ? "미이행 조치 %d건이 남은 설비에서 작업".formatted(summary.unfinishedActionCount())
+                    : "위험등급 '상' 설비에서 작업";
+            String title = plan.getWorkName();
             Equipment equipment = equipmentById.get(plan.getEquipmentId());
             out.add(new TodayDtos.TodayItem(KIND_RISKY_WORK_PLAN, Emphasis.CRITICAL, title, qualifier,
                     plan.getEquipmentId(), equipment == null ? null : equipment.getName(),
@@ -232,9 +233,9 @@ public class TodayService {
             Long daysRemaining = plan.getWorkDate() == null ? null
                     : ChronoUnit.DAYS.between(today, plan.getWorkDate());
             Equipment equipment = plan.getEquipmentId() == null ? null : equipmentById.get(plan.getEquipmentId());
-            String title = "승인 대기 — %s".formatted(plan.getWorkName());
+            String title = plan.getWorkName();
             out.add(new TodayDtos.TodayItem(KIND_PENDING_APPROVAL, Emphasis.WARNING, title,
-                    "작업일 " + plan.getWorkDate(),
+                    "작업일 %s, 승인 전에는 작업을 시작할 수 없습니다".formatted(plan.getWorkDate()),
                     plan.getEquipmentId(), equipment == null ? null : equipment.getName(),
                     plan.getWorkDate(), daysRemaining, LINK_WORK_PLAN, plan.getId()));
         }
@@ -265,10 +266,10 @@ public class TodayService {
                     : equipmentById.get(incident.getEquipmentId());
             String axisLabel = incident.getAccidentType() == null ? "" : incident.getAccidentType().getLabel();
             String equipmentName = equipment == null ? "" : equipment.getName();
-            String title = "조사표 제출 %s — %s %s".formatted(dDayLabel(daysRemaining), equipmentName, axisLabel)
+            String title = "%s %s 사고 산업재해조사표".formatted(equipmentName, axisLabel)
                     .replaceAll("\\s+", " ").strip();
             out.add(new TodayDtos.TodayItem(KIND_REPORT_DUE, emphasis, title,
-                    "기한 " + incident.getReportDueDate(),
+                    "제출 기한 %s (재해 발생 후 1개월)".formatted(incident.getReportDueDate()),
                     incident.getEquipmentId(), equipment == null ? null : equipment.getName(),
                     incident.getReportDueDate(), daysRemaining, LINK_INCIDENT, incident.getId()));
         }
@@ -291,8 +292,8 @@ public class TodayService {
         }
         LocalDate dueDate = thisMonth.atEndOfMonth();
         long daysRemaining = ChronoUnit.DAYS.between(today, dueDate);
-        String title = "이번 달 순회점검 미실시 (상시평가 요건)";
-        String detail = "월 1회 순회점검·아차사고 확인은 상시평가 트랙(수시·정기 면제)의 요건 중 하나입니다.";
+        String title = "이번 달 순회점검 미실시";
+        String detail = "월 1회 순회점검과 아차사고 확인은 상시평가 트랙(수시/정기 면제)의 요건입니다.";
         return List.of(new TodayDtos.TodayItem(KIND_PATROL_DUE, Emphasis.WARNING, title, detail,
                 null, null, dueDate, daysRemaining, LINK_ASSESSMENT, null));
     }
@@ -313,8 +314,8 @@ public class TodayService {
             return List.of();
         }
         long daysRemaining = ChronoUnit.DAYS.between(today, dueDate);
-        String title = "정기평가 %s".formatted(dDayLabel(daysRemaining));
-        String detail = "최근 %s 평가(%s) 기준 1년 주기 갱신 예정".formatted(
+        String title = "정기 위험성평가 갱신";
+        String detail = "최근 %s 평가(%s) 기준 1년 주기".formatted(
                 latest.getKind().getLabel(), latest.getAssessedOn());
         return List.of(new TodayDtos.TodayItem(KIND_PERIODIC_DUE, Emphasis.WARNING, title, detail,
                 null, null, dueDate, daysRemaining, LINK_ASSESSMENT, latest.getId()));
@@ -328,11 +329,6 @@ public class TodayService {
             return null;
         }
         return equipmentById.get(hazard.getEquipmentId());
-    }
-
-    /** {@code daysRemaining>=0}이면 "D-n", 음수면 "n일 경과" */
-    private String dDayLabel(long daysRemaining) {
-        return daysRemaining >= 0 ? "D-" + daysRemaining : (-daysRemaining) + "일 경과";
     }
 
     private int emphasisRank(Emphasis emphasis) {

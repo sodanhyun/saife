@@ -15,7 +15,10 @@ import io.saife.workplan.domain.WorkPlanWorker;
 import io.saife.workplan.repository.WorkPlanRepository;
 import io.saife.workplan.repository.WorkPlanSlotRepository;
 import io.saife.workplan.repository.WorkPlanWorkerRepository;
+import io.saife.core.repository.EquipmentRepository;
 import io.saife.workplan.service.BriefingComposer;
+import io.saife.workplan.service.WorkPlanService;
+import org.springframework.beans.factory.ObjectProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
@@ -63,6 +66,9 @@ public class WorkPlanTools {
     private final EvidenceLedger evidenceLedger;
     private final WorkPlanEvidenceRepository workPlanEvidenceRepository;
     private final ObjectMapper objectMapper;
+    private final EquipmentRepository equipmentRepository;
+    /** 제출 직후 결과 카드(ai.workplan)를 상세 조회와 같은 모양으로 내기 위해. 순환 의존을 피해 지연 조회한다 */
+    private final ObjectProvider<WorkPlanService> workPlanService;
 
     @Tool(description = """
             <tool-description>
@@ -90,7 +96,7 @@ public class WorkPlanTools {
             @ToolParam(description = "설비 ID. findLocationEquipment에서 확인된 경우", required = false) Long equipmentId,
             @ToolParam(description = "작업 높이(m). 2m 초과 여부로 추락 위험성 등급이 갈립니다. 추정하지 마세요", required = false) String workHeight,
             @ToolParam(description = "안전대 부착설비 설치 여부. 대장에 기록이 있어도 오늘 현장 상태를 확인하세요", required = false) String anchorInstalled,
-            @ToolParam(description = "사용 제품명. 유기용제 여부에 따라 화재·중독 위험과 보호구가 달라집니다. 추정하지 마세요", required = false) String productName,
+            @ToolParam(description = "사용 제품명. 유기용제 여부에 따라 화재, 중독 위험과 보호구가 달라집니다. 추정하지 마세요", required = false) String productName,
             ToolContext toolContext) {
 
         Long siteId = AgentContextKeys.siteId(toolContext);
@@ -111,7 +117,8 @@ public class WorkPlanTools {
 
             // 되묻기 때문에 이 도구는 여러 번 호출된다. 그게 정상 흐름이다.
             // 호출마다 새로 만들면 같은 작업의 계획서가 쪼개지고 슬롯이 흩어진다.
-            WorkPlan plan = upsertDraft(conversationId, siteId, equipmentId, workName, workPlace,
+            WorkPlan plan = upsertDraft(conversationId, siteId,
+                    resolveEquipmentId(equipmentId, conversationId, toolContext), workName, workPlace,
                     date, workHours, method);
 
             saveWorkers(plan.getId(), workers);
@@ -125,6 +132,7 @@ public class WorkPlanTools {
             if (!missing.isEmpty()) {
                 // 구조화된 불완전 결과. 모델이 이걸 받아 되묻고 재호출한다.
                 // 흐름은 모델이 쥔다 — 루프는 UI 힌트만 발행한다.
+                ToolCallTracker.summarize("초안 #" + plan.getId() + " 저장, 필수 항목 " + missing.size() + "개 비어 있음");
                 return ToolResult.of(IncompleteResult.of(
                         "필수 항목이 비어 있어 작업계획서가 등록되지 않았습니다. (초안 id=%d)"
                                 .formatted(plan.getId()),
@@ -132,6 +140,7 @@ public class WorkPlanTools {
                         "extractWorkPlan"));
             }
 
+            ToolCallTracker.summarize("초안 #" + plan.getId() + " 필수 항목 모두 채움");
             return ToolResult.of("작업계획서 항목 구조화 완료 [id=%d]. 필수 항목이 모두 채워졌습니다."
                     .formatted(plan.getId()));
         });
@@ -216,6 +225,8 @@ public class WorkPlanTools {
                 }
             }
 
+            ToolCallTracker.summarize("계획서 #" + plan.getId() + " 제출, 브리핑 생성, 승인 대기");
+            emitWorkPlanCard(plan.getId(), toolContext);
             return ToolResult.of("""
                     작업계획서 제출 완료 [id=%d] — 관리부 승인 큐에 등록되었습니다.
 
@@ -223,6 +234,36 @@ public class WorkPlanTools {
                     %s
                     """.formatted(plan.getId(), briefing));
         });
+    }
+
+    /**
+     * 모델이 넘긴 설비 ID를 그대로 믿지 않는다. 실제 설비가 아니면 진입 설비, 이 대화에서 확정된 설비 순으로 쓴다.
+     * 셋 다 없으면 null(설비 미지정 초안) — FK 위반으로 도구가 실패하는 것보다 낫다.
+     */
+    private Long resolveEquipmentId(Long requested, String conversationId, ToolContext toolContext) {
+        if (requested != null && equipmentRepository.existsById(requested)) return requested;
+        Long entry = AgentContextKeys.equipmentId(toolContext);
+        if (entry != null && equipmentRepository.existsById(entry)) return entry;
+        Long matched = MatchedEquipmentMemory.last(conversationId);
+        if (matched != null && equipmentRepository.existsById(matched)) return matched;
+        if (requested != null) log.warn("[WORKPLAN] 존재하지 않는 설비 ID {}를 무시합니다 cid={}", requested, conversationId);
+        return null;
+    }
+
+    /**
+     * 제출 결과 카드 — 상세 조회(GET /api/work-plan/{id})와 같은 DTO를 그대로 보낸다.
+     * 화면은 이걸로 등급 배지와 룰 근거를 그리고, 모델 문장은 보조 설명으로 접는다. 발행 실패는 제출 실패가 아니다.
+     */
+    private void emitWorkPlanCard(Long workPlanId, ToolContext toolContext) {
+        String conversationId = AgentContextKeys.conversationId(toolContext);
+        String sessionId = AgentContextKeys.sessionId(toolContext);
+        WorkPlanService service = workPlanService.getIfAvailable();
+        if (conversationId == null || sessionId == null || service == null) return;
+        try {
+            sseService.send(sessionId, SseService.SseEvent.of("ai.workplan", conversationId, conversationId, service.detail(workPlanId)));
+        } catch (Exception e) {
+            log.warn("[WORKPLAN] 결과 카드 발행 실패 id={}: {}", workPlanId, e.getMessage());
+        }
     }
 
     /**
@@ -276,22 +317,22 @@ public class WorkPlanTools {
             case RiskRuleEngine.SlotKeys.WORK_HEIGHT -> new IncompleteResult.MissingField(
                     key, "작업 높이(m). 숫자 또는 '약 3m' 형태",
                     "2m 초과 여부로 추락 위험성 등급과 안전대 부착설비 요구가 달라집니다",
-                    "바닥에서 작업면까지 줄자로 재거나, 사용하는 사다리의 단수·제원표로 확인할 수 있습니다",
+                    "바닥에서 작업면까지 줄자로 재거나, 사용하는 사다리의 단수, 제원표로 확인할 수 있습니다",
                     "3.2");
             case RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED -> new IncompleteResult.MissingField(
                     key, "설치 여부 (있음/없음)",
                     "안전대를 걸 구조물이 없으면 2m 초과 작업에서 위험성이 '상'으로 올라갑니다",
-                    "작업 위치 주변에 안전대를 체결할 앵커·구명줄이 실제로 있는지 눈으로 확인하세요",
+                    "작업 위치 주변에 안전대를 체결할 앵커, 구명줄이 실제로 있는지 눈으로 확인하세요",
                     "없음");
             case RiskRuleEngine.SlotKeys.PRODUCT_NAME -> new IncompleteResult.MissingField(
                     key, "제품명",
-                    "유기용제 여부에 따라 화재·중독 위험과 착용할 보호구가 달라집니다",
+                    "유기용제 여부에 따라 화재, 중독 위험과 착용할 보호구가 달라집니다",
                     "제품 용기 라벨이나 물질안전보건자료(MSDS)에 적혀 있습니다",
                     "○○ 유성페인트");
             case RiskRuleEngine.SlotKeys.GUARD_INSTALLED -> new IncompleteResult.MissingField(
                     key, "방호덮개 설치 여부 (있음/없음)",
-                    "회전·구동부에 덮개가 없으면 협착 위험성이 '상'으로 올라갑니다",
-                    "설비의 회전부·구동부에 덮개나 인터록이 실제로 있는지 확인하세요",
+                    "회전, 구동부에 덮개가 없으면 협착 위험성이 '상'으로 올라갑니다",
+                    "설비의 회전부, 구동부에 덮개나 인터록이 실제로 있는지 확인하세요",
                     "있음");
             default -> new IncompleteResult.MissingField(
                     key, RiskRuleEngine.SlotKeys.questions().getOrDefault(key, key),

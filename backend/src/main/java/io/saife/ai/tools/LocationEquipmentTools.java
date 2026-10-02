@@ -80,6 +80,7 @@ public class LocationEquipmentTools {
             }
 
             if (match.unmatched()) {
+                ToolCallTracker.summarize("대장에 없는 설비, 등록 정보를 되묻습니다");
                 return ToolResult.of("""
                         등록되지 않은 설비입니다. (unmatched)
                         작업자에게 설비명·위치·종류를 확인해 등록해야 합니다.
@@ -87,6 +88,7 @@ public class LocationEquipmentTools {
             }
 
             if (match.needsConfirmation()) {
+                ToolCallTracker.summarize("비슷한 설비 " + match.candidates().size() + "건, 어느 것인지 되묻습니다");
                 StringBuilder sb = new StringBuilder("비슷한 설비가 여러 건입니다. 어느 것인지 확인이 필요합니다.\n");
                 for (EquipmentMatcher.Candidate c : match.candidates()) {
                     sb.append("- [id=%d] %s (%s)\n".formatted(
@@ -100,7 +102,10 @@ public class LocationEquipmentTools {
             // 쏘기 전, 이 성공 분기 안에서 emitRecall을 호출한다(도구 레벨 발행이라
             // 모델이 문장에 담든 말든 회상 카드는 뜬다).
             emitRecall(eq.getId(), toolContext);
-            return ToolResult.of(describe(eq, match.process()));
+            MatchedEquipmentMemory.remember(AgentContextKeys.conversationId(toolContext), eq.getId());
+            String described = describe(eq, match.process());
+            ToolCallTracker.summarize(summaryOf(eq, described));
+            return ToolResult.of(described);
         });
     }
 
@@ -124,6 +129,16 @@ public class LocationEquipmentTools {
         } catch (Exception e) {
             log.warn("[RECALL] 회상 이벤트 발행 실패 equipmentId={}: {}", equipmentId, e.getMessage());
         }
+    }
+
+    /** 트레이스 한 줄: 설비 확정 + 이미 아는 이력 개수 */
+    private static String summaryOf(Equipment eq, String described) {
+        StringBuilder sb = new StringBuilder(eq.getName()).append(" 확정");
+        java.util.regex.Matcher h = java.util.regex.Pattern.compile("기존 위험요인 (\\d+)건").matcher(described);
+        if (h.find()) sb.append(", 위험요인 ").append(h.group(1)).append("건");
+        java.util.regex.Matcher a = java.util.regex.Pattern.compile("미이행 조치 (\\d+)건").matcher(described);
+        if (a.find()) sb.append(", 미이행 조치 ").append(a.group(1)).append("건");
+        return sb.toString();
     }
 
     /** 설비 + 그 설비에 걸린 이력을 사람이 읽는 형태로 */
@@ -168,7 +183,7 @@ public class LocationEquipmentTools {
         if (history.isEmpty()) {
             return "";
         }
-        return " — 최근 평가 등급 '%s'".formatted(history.get(0).getRiskLevel().getLabel());
+        return " (최근 평가 등급 '%s')".formatted(history.get(0).getRiskLevel().getLabel());
     }
 
     private String processLine(WorkProcess p) {

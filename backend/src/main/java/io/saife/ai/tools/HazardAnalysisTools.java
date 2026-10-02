@@ -93,7 +93,10 @@ public class HazardAnalysisTools {
                 sb.append("\n관련 법 조문:\n");
                 numberedLaws.forEach(l -> sb.append(line(l)).append('\n'));
             }
-            sb.append("\n※ 위험성 등급은 작업높이·안전대 부착설비 등 현장 확인 항목을 받은 뒤 룰 엔진이 결정합니다.\n");
+            sb.append("\n※ 위험성 등급은 작업높이, 안전대 부착설비 등 현장 확인 항목을 받은 뒤 룰 엔진이 결정합니다.\n");
+            ToolCallTracker.summarize("발생형태 " + axes.size() + "종 ("
+                    + String.join(", ", axes.stream().map(AccidentType::getLabel).toList())
+                    + "), 지침 " + guides.size() + "건, 조문 " + numberedLaws.size() + "건");
             return ToolResult.of(sb.toString());
         });
     }
@@ -139,6 +142,8 @@ public class HazardAnalysisTools {
             if (found.isEmpty()) return ToolResult.of("해당 발생형태의 유사 사고사례를 찾지 못했습니다.");
             List<Evidence> numbered = registerSafely(cid, found);
             if (numbered.isEmpty()) return ToolResult.of("해당 발생형태의 유사 사고사례를 찾지 못했습니다.");
+            long photos = numbered.stream().filter(e -> e.mediaUrl() != null).count();
+            ToolCallTracker.summarize(axis.getLabel() + " 사례 " + numbered.size() + "건" + (photos > 0 ? ", 사진 " + photos + "건" : ""));
             StringBuilder sb = new StringBuilder("유사 사고사례:\n");
             numbered.forEach(e -> sb.append(line(e)).append('\n'));
             safeCheckLatest("FATALITY").ifPresent(li -> sb.append("(공단 사고사망 게시판 최신 등재 ").append(li.totalCount()).append("건 기준, ")
@@ -177,6 +182,7 @@ public class HazardAnalysisTools {
                     f.origin(), 1.0, f.fetchedAt(), meta);
             List<Evidence> numberedList = registerSafely(AgentContextKeys.conversationId(toolContext), List.of(card));
             Evidence numbered = numberedList.isEmpty() ? card : numberedList.get(0);
+            ToolCallTracker.summarize(b.chemNameKor() + " MSDS 4개 항목" + (f.origin() == Origin.LIVE ? " (실시간)" : " (캐시)"));
             StringBuilder sb = new StringBuilder();
             // 번호가 없으면(conversationId 없음·원장 등록 실패 → no()==0) 접두사를 생략한다
             if (numbered.no() > 0) sb.append("#").append(numbered.no()).append(' ');
@@ -252,7 +258,7 @@ public class HazardAnalysisTools {
     }
 
     private static String sectionName(String s) {
-        return switch (s) { case "02" -> "유해성·위험성"; case "05" -> "폭발·화재시 대처방법"; case "07" -> "취급 및 저장방법"; case "08" -> "노출방지 및 개인보호구"; default -> "항목 " + s; };
+        return switch (s) { case "02" -> "유해성, 위험성"; case "05" -> "폭발, 화재시 대처방법"; case "07" -> "취급 및 저장방법"; case "08" -> "노출방지 및 개인보호구"; default -> "항목 " + s; };
     }
 
     /**

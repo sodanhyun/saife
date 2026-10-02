@@ -12,55 +12,53 @@ interface Props {
   className?: string;
 }
 
-/** 톤은 미이행 조치 유무로만 정한다 — 화면마다 다르게 판단하면 시연에서 흔들린다. */
+/** 톤은 미이행 조치 유무로만 정한다. 화면마다 다르게 판단하면 시연에서 흔들린다. */
 export default function RecallCard({ recall, className }: Props) {
-  const tone = recall.unfinishedActions.length > 0 ? "high" : "neutral";
-  const c = toneColor(tone);
+  const urgent = recall.unfinishedActions.length > 0;
+  const c = toneColor(urgent ? "high" : "neutral");
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn(
-        "rounded-lg border p-4 transition-colors duration-200 motion-reduce:transition-none",
-        c.bg,
-        c.border,
-        className,
-      )}
-    >
-      <p className="text-stage font-semibold text-slate-900">{recall.headline}</p>
+    <div role="status" aria-live="polite"
+      className={cn("relative overflow-hidden rounded-xl border bg-white px-5 py-4 shadow-card animate-rise-in", c.border, className)}>
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", c.solid)} />
+      <p className={cn("text-xs font-bold tracking-wide", urgent ? "text-risk-high-text" : "text-slate-500")}>이 설비가 기억하는 것</p>
+      <p className="mt-1 text-lg font-bold text-slate-900">{recall.headline.replace(/ · /g, ", ")}</p>
 
-      {recall.priorHazards.length > 0 && (
-        <div className="mt-3 space-y-1.5">
-          {recall.priorHazards.map((hazard) => (
-            <div key={hazard.hazardId} className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
-              {hazard.accidentType && <Badge>{ACCIDENT_LABEL[hazard.accidentType]}</Badge>}
-              {hazard.missingControl && <span>{hazard.missingControl}</span>}
-              {hazard.lastRiskLevel && <RiskBadge level={hazard.lastRiskLevel} />}
-              {hazard.lastAssessedOn && <span className="text-xs text-slate-400">{formatDate(hazard.lastAssessedOn)}</span>}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {recall.unfinishedActions.length > 0 && (
-        <div className="mt-3 space-y-1.5">
-          {recall.unfinishedActions.map((action) => (
-            <div key={action.actionId} className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
-              <span>{action.content}</span>
-              {action.dueDate && <span className="text-xs text-slate-400">기한 {formatDate(action.dueDate)}</span>}
-              {action.overdueDays !== null && action.overdueDays > 0 && (
-                <Badge variant="high">{action.overdueDays}일 경과</Badge>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="mt-3 grid gap-x-8 gap-y-2 md:grid-cols-2">
+        {recall.priorHazards.length > 0 && (
+          <div className="space-y-1.5">
+            {recall.priorHazards.map((hazard) => (
+              <div key={hazard.hazardId} className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                {hazard.lastRiskLevel && <RiskBadge level={hazard.lastRiskLevel} />}
+                {hazard.accidentType && <Badge>{ACCIDENT_LABEL[hazard.accidentType]}</Badge>}
+                {hazard.missingControl && <span>{hazard.missingControl}</span>}
+                {hazard.lastAssessedOn && <span className="text-xs text-slate-400">{formatDate(hazard.lastAssessedOn)} 평가</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        {recall.unfinishedActions.length > 0 && (
+          <div className="space-y-1.5">
+            {recall.unfinishedActions.map((action) => (
+              <div key={action.actionId} className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                <span className="font-semibold text-slate-900">미이행</span>
+                <span>{action.content}</span>
+                {action.overdueDays !== null && action.overdueDays > 0 && (
+                  <Badge variant="high">기한 {action.overdueDays}일 경과</Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {recall.knownSlots.length > 0 && (
-        <p className={cn("mt-3 inline-block rounded border px-2 py-1 text-xs font-semibold", c.chip)}>
-          이미 알고 있어 묻지 않음: {recall.knownSlots.join(" · ")}
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
+          <span className="mr-1 text-xs font-semibold text-slate-500">묻지 않고 채운 값</span>
+          {recall.knownSlots.map((s) => (
+            <span key={s} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600">{s}</span>
+          ))}
+        </div>
       )}
     </div>
   );

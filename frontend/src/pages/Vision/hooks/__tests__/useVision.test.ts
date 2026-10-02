@@ -8,10 +8,12 @@ vi.mock("@/api/equipmentApi", () => ({
   equipmentApi: { list: vi.fn() },
 }));
 vi.mock("@/api/visionApi", () => ({
-  visionApi: { adoptionRate: vi.fn(), adopt: vi.fn(), reject: vi.fn() },
+  visionApi: { adoptionRate: vi.fn(), adopt: vi.fn(), reject: vi.fn(), createAction: vi.fn() },
 }));
+vi.mock("@/api/actionApi", () => ({ actionApi: { complete: vi.fn() } }));
 vi.mock("@/api/client", () => ({ fetchWithAuth: vi.fn(), ApiError: class extends Error {} }));
 
+import { actionApi } from "@/api/actionApi";
 import { equipmentApi } from "@/api/equipmentApi";
 import { fetchWithAuth } from "@/api/client";
 import { visionApi } from "@/api/visionApi";
@@ -112,5 +114,20 @@ describe("useVision", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.equipmentId).toBe(42);
+  });
+
+  it("감소대책 등록은 판독이 만든 평가와 초안의 지침 번호를 싣고, 이행 완료는 actionApi로 보낸다", async () => {
+    const view = { id: 9, hazardId: 1, assessmentId: null, equipmentId: 1, content: "c", owner: "관리부", dueDate: "2026-10-16", status: "PENDING" as const, guideRef: "B-5-2011", completedAt: null, createdAt: "t" };
+    vi.mocked(visionApi.createAction).mockResolvedValue(view);
+    vi.mocked(actionApi.complete).mockResolvedValue({ ...view, status: "DONE", completedAt: "t2" });
+    const { result } = renderHook(() => useVision(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const cand = { hazardId: 1, accidentType: "PPE" as const, accidentLabel: "보호구", missingControl: "안전대 미착용", evidence: null, confidence: null, riskLevel: "HIGH" as const, ruleTrace: "r", adopted: true, alreadyKnown: false, gateStatus: "PHOTO" as const, gateNote: null, suggestedAction: { content: "c", lawRef: "l", lawTitle: null, guideRef: "B-5-2011" }, action: null, priorOpenAction: null };
+    await act(async () => { await result.current.createAction(cand, { content: "  c  ", owner: "관리부", dueDate: "2026-10-16" }); });
+    expect(visionApi.createAction).toHaveBeenCalledWith(1, { assessmentId: null, content: "c", owner: "관리부", dueDate: "2026-10-16", guideRef: "B-5-2011" });
+
+    await act(async () => { await result.current.completeAction(1, 9); });
+    expect(actionApi.complete).toHaveBeenCalledWith(9);
   });
 });

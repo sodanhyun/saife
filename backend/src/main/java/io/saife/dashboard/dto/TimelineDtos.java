@@ -57,6 +57,8 @@ public final class TimelineDtos {
      *                       사고와 그 사고가 만든 수시평가가 같은 날일 때 순서가 뒤집힌다
      * @param emphasis       강조 수준. 프로젝터 가독성 때문에 <b>백엔드가 정한다</b> —
      *                       화면마다 다르게 판단하면 시연에서 색이 흔들린다
+     * @param ruleTrace      평가 사건에서 이 설비가 받은 최고 등급의 룰 근거. 화면은 등급 옆에 이 문장을
+     *                       그대로 띄운다. 평가가 아닌 사건은 null
      */
     public record TimelineEvent(String id,
                                 EventType type,
@@ -71,7 +73,8 @@ public final class TimelineDtos {
                                 List<String> linkedEventIds,
                                 List<String> linkedLabels,
                                 int causalOrder,
-                                Emphasis emphasis) {}
+                                Emphasis emphasis,
+                                String ruleTrace) {}
 
     /**
      * 설비 홈 카드 — 설비 하나의 현재 상태를 한 장으로.

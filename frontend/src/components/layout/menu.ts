@@ -43,7 +43,7 @@ export const MENU: MenuItem[] = MENU_GROUPS.flatMap((g) => g.items);
 export const LANDING_PATH = "/";
 
 /** 사용자 선호가 없을 때 접힌 채로 여는 화면 — 대화+트레이스 2열이 폭을 다 쓴다. */
-export const COLLAPSED_BY_DEFAULT = new Set(["/work-plan"]);
+export const COLLAPSED_BY_DEFAULT = new Set<string>();
 
 export const SITE_NAME = "가상 정밀금속 사업장";
 

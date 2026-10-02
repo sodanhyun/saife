@@ -23,6 +23,7 @@ export type SseEventType =
   | "ai.slot.request"
   | "ai.recall"
   | "ai.evidence"
+  | "ai.workplan"
   | "assess.progress"
   | "assess.done"
   | "assess.failed"
@@ -35,12 +36,20 @@ export interface ToolStartPayload {
   callOrder: number;
 }
 
+/**
+ * @property outcome INCOMPLETE면 도구는 성공했지만 필수 값이 비어 되묻기로 갈라진다(판단 분기)
+ * @property missing INCOMPLETE일 때 비어 있는 슬롯 키
+ * @property summary 도구가 남긴 한 줄 결과 요약. 트레이스 패널에 그대로 뜬다
+ */
 export interface ToolDonePayload {
   toolName: string;
   callOrder: number;
   success: boolean;
   durationMs: number;
   errorMessage?: string;
+  outcome?: "OK" | "INCOMPLETE" | "FAILED";
+  missing?: string[];
+  summary?: string;
 }
 
 /**
@@ -73,9 +82,15 @@ export interface ToolTraceRow {
   callOrder: number;
   toolName: string;
   params: string;
-  status: "running" | "ok" | "failed";
+  status: "running" | "ok" | "incomplete" | "failed";
   durationMs?: number;
   errorMessage?: string;
+  summary?: string;
+  missing?: string[];
+  /** 실행 시작 시각(ms). 실행 중 경과 시간을 그린다 */
+  startedAt: number;
+  /** 몇 번째 대화 턴에서 호출됐는지(1부터) */
+  turn: number;
 }
 
 /** 스트림 연결 상태 — useSSEStream이 관리한다. 재연결은 없다(POST 스트림은 재연결이 곧 재요청). */

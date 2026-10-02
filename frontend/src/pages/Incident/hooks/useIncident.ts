@@ -60,7 +60,16 @@ export function useIncident() {
     }
   };
 
+  // 결과를 닫고 새 사고 입력으로 돌아간다. 고른 설비는 남기고 시각만 지금으로 되돌린다
+  const reset = () => {
+    setResponse(null);
+    setError(null);
+    setForm({ ...defaultIncidentForm(), equipmentId: effectiveForm.equipmentId });
+    window.scrollTo({ top: 0 });
+  };
+
   return {
+    reset,
     equipment: equipment.data ?? [],
     plans: plans.data ?? [],
     incidents: incidents.data ?? [],

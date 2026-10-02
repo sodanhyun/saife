@@ -65,12 +65,14 @@ class EquipmentTimelineServiceTest {
     void cardsAreSortedByEmphasisThenLastEventOnThenId() {
         List<TimelineDtos.EquipmentCard> cards = service.cards(SITE);
 
-        // 시드 상태(2026-09-28 실측): 이동식 사다리 A(id=1)만 기한 초과 조치가 있어 CRITICAL
-        assertThat(cards.get(0).id()).isEqualTo(1L);
-        assertThat(cards.get(0).emphasis()).isEqualTo(Emphasis.CRITICAL);
-        assertThat(cards.get(0).overdueActionCount())
+        // 사다리 A(id=1)는 안전대 부착설비 조치가 기한을 넘겨 항상 CRITICAL이다. 맨 앞인지는 보지 않는다:
+        // 시드 날짜가 적용 시점 기준이라 오래된 볼륨에서는 고소작업대 조치도 기한을 넘겨 CRITICAL이 둘이 된다
+        TimelineDtos.EquipmentCard ladder = cards.stream().filter(c -> c.id() == 1L).findFirst().orElseThrow();
+        assertThat(ladder.emphasis()).isEqualTo(Emphasis.CRITICAL);
+        assertThat(ladder.overdueActionCount())
                 .as("사다리 A는 안전대 부착설비 조치(action id=1)가 기한을 넘겨 있어야 한다")
                 .isEqualTo(1);
+        assertThat(cards.get(0).emphasis()).isEqualTo(Emphasis.CRITICAL);
 
         for (int i = 1; i < cards.size(); i++) {
             int prevRank = emphasisRank(cards.get(i - 1).emphasis());

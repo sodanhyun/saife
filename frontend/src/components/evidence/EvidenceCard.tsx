@@ -7,6 +7,7 @@ import MsdsCard from "@/components/evidence/MsdsCard";
 import { originLabel, originTone, scoreLabel } from "@/components/evidence/evidenceMeta";
 import { StatusBadge } from "@/components/ui/Badge";
 import cn from "@/lib/cn";
+import { plainText } from "@/utils/plainText";
 import { EVIDENCE_KIND_LABEL, type Evidence } from "@/types/evidence";
 
 interface Props {
@@ -61,7 +62,7 @@ function GenericCard({ e, scope, onOpenPhoto, className }: Props) {
           <span className="text-xs text-slate-500">{EVIDENCE_KIND_LABEL[e.kind]}</span>
           <StatusBadge tone={originTone(e)}>{originLabel(e)}</StatusBadge>
         </div>
-        <p className="mt-1 text-stage font-semibold leading-snug">{e.title}</p>
+        <p className="mt-1 text-stage font-semibold leading-snug">{plainText(e.title)}</p>
         {e.snippet && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{e.snippet}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
           {score && <span>{score}</span>}

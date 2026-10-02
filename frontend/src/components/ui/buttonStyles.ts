@@ -5,7 +5,7 @@
 import cn from "@/lib/cn";
 
 export const buttonVariantStyles = {
-  primary: "bg-slate-900 hover:bg-slate-800 text-white rounded-lg",
+  primary: "bg-brand hover:bg-brand-strong text-white rounded-lg",
   secondary: "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 rounded-lg",
   danger: "bg-risk-high hover:bg-risk-high-text text-white rounded-lg",
   ghost: "text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg",
@@ -15,7 +15,7 @@ export const buttonVariantStyles = {
 } as const;
 
 export const buttonSizeStyles = {
-  sm: "px-3 py-1.5 text-xs",
+  sm: "px-3 py-1.5 text-xs font-semibold",
   md: "px-5 py-2 text-sm font-semibold",
   lg: "px-6 py-3 text-sm font-semibold",
 } as const;

@@ -1,5 +1,5 @@
 import type { Evidence } from "@/types/evidence";
-import type { WorkPlanStatus } from "@/types/domain";
+import type { AccidentType, RiskLevel, WorkPlanStatus } from "@/types/domain";
 
 /** 백엔드 WorkPlanDtos와 1:1 */
 
@@ -56,4 +56,35 @@ export interface WorkPlanDetail {
   evidence?: Evidence[];
   /** 사고 연쇄(UC2)가 붙인 경고 — 백엔드 `IncidentDtos.AffectedWorkPlan`이 같은 문구를 여기 남긴다 */
   warningNote?: string | null;
+  /** 브리핑의 구조화 뷰(등급 배지 + 룰 근거). 브리핑이 없는 초안이면 null */
+  briefingView?: BriefingView | null;
+}
+
+/** 백엔드 WorkPlanDtos.BriefingView와 1:1. 문장 브리핑과 같은 룰 엔진 판정에서 나온다 */
+export interface BriefingView {
+  pendingActions: PendingActionView[];
+  decisions: HazardDecision[];
+  msds: MsdsSummary | null;
+}
+
+export interface PendingActionView {
+  content: string;
+  dueDate: string | null;
+  overdueDays: number | null;
+  lastGrade: RiskLevel | null;
+}
+
+export interface HazardDecision {
+  accidentType: AccidentType;
+  label: string;
+  riskLevel: RiskLevel;
+  frequency: number;
+  severity: number;
+  ruleTrace: string;
+}
+
+export interface MsdsSummary {
+  chemName: string;
+  productName: string;
+  lines: { item: string; text: string }[];
 }

@@ -73,7 +73,7 @@ public class IncidentService {
             "작성 보조 결과입니다. 법률 자문이 아니며 최종 확정과 제출은 담당자가 합니다.";
 
     private static final String FOLLOW_UP_LEGAL_BASIS =
-            "산업안전보건법 제36조 — 재해가 발생한 작업은 재개 전 수시평가 대상입니다.";
+            "산업안전보건법 제36조에 따라 재해가 발생한 작업은 재개 전 수시평가 대상입니다.";
 
     /** 경고를 붙일 대상 상태 — 진행 중인 작업계획서만 (완료·반려·초안은 대상이 아니다) */
     private static final List<WorkPlanStatus> AFFECTED_WORK_PLAN_STATUSES =
@@ -445,7 +445,7 @@ public class IncidentService {
         }
 
         String accidentLabel = incident.getAccidentType() == null ? "" : incident.getAccidentType().getLabel();
-        String warning = "이 설비에서 %s %s 사고 발생 — 작업 재개 전 수시평가 #%d 확인"
+        String warning = "이 설비에서 %s %s 사고 발생, 작업 재개 전 수시평가 #%d 확인"
                 .formatted(incidentDate, accidentLabel, followUpAssessmentId);
 
         List<IncidentDtos.AffectedWorkPlan> out = new ArrayList<>();
@@ -508,7 +508,7 @@ public class IncidentService {
     /**
      * 1단계 — 이 설비의 사전 기록 소환. 예고됐던 사고면 CRITICAL, 미이행 조치만 있으면 WARNING.
      *
-     * <p>유사 사례가 있으면 " · 동종 유사 사고 N건(사진 M)"을 덧붙인다 — 소환된 사실(recall)에
+     * <p>유사 사례가 있으면 " 동종 유사 사고 N건(사진 M)."을 덧붙인다(사진이 없으면 괄호 생략) — 소환된 사실(recall)에
      * 외부 근거(similarCases)가 붙었다는 걸 한 줄에서 바로 보여준다.
      */
     private IncidentDtos.CascadeStep recallStep(TimelineDtos.RecallView recall, List<Evidence> similarCases) {
@@ -522,7 +522,9 @@ public class IncidentService {
             // 사진 유무는 thumbnailUrl로 센다(R54) — mediaUrl은 원본 프록시 경로라
             // GUIDE 같은 비사진 근거도 채워질 수 있다. 카드 목록·썸네일 렌더링과 같은 기준을 쓴다.
             long withPhoto = similarCases.stream().filter(e -> e.thumbnailUrl() != null).count();
-            detail += " · 동종 유사 사고 %d건(사진 %d)".formatted(similarCases.size(), withPhoto);
+            detail += withPhoto > 0
+                    ? " 동종 유사 사고 %d건(사진 %d).".formatted(similarCases.size(), withPhoto)
+                    : " 동종 유사 사고 %d건.".formatted(similarCases.size());
         }
         return new IncidentDtos.CascadeStep(1, "RECALL", "이 설비의 사전 기록 소환",
                 detail, emphasis, recall.equipmentId(), "EQUIPMENT");
@@ -541,7 +543,7 @@ public class IncidentService {
         String detail;
         TimelineDtos.Emphasis emphasis;
         if (reportDuty.dueDate() != null) {
-            detail = "D-%d · 산업안전보건법 시행규칙 제73조(휴업 3일 이상 1개월 이내)"
+            detail = "D-%d, 산업안전보건법 시행규칙 제73조(휴업 3일 이상 1개월 이내)"
                     .formatted(reportDuty.daysRemaining());
             emphasis = reportDuty.daysRemaining() != null && reportDuty.daysRemaining() <= 3
                     ? TimelineDtos.Emphasis.CRITICAL : TimelineDtos.Emphasis.WARNING;

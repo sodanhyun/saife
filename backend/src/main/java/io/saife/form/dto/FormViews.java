@@ -36,6 +36,8 @@ public final class FormViews {
      * @param decision      ② 위험성 결정 내용 (등급 + 빈도·강도 + 판정 근거)
      * @param action        ③ 조치 내용
      * @param aiSuggested   AI가 후보로 올린 항목인가. 서식에 표시한다
+     * @param actionGuideRef    감소대책의 근거 KOSHA GUIDE 번호. 없으면 null
+     * @param actionCompletedAt 이행 완료 시각(KST, "yyyy-MM-dd HH:mm"). 미이행이면 null
      */
     public record AssessmentRow(int no,
                                 String equipmentName,
@@ -48,7 +50,9 @@ public final class FormViews {
                                 LocalDate actionDueDate,
                                 String actionStatusLabel,
                                 boolean aiSuggested,
-                                String aiAdoptedLabel) {}
+                                String aiAdoptedLabel,
+                                String actionGuideRef,
+                                String actionCompletedAt) {}
 
     /** 산업재해조사표 */
     public record IncidentForm(String siteName,

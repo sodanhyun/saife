@@ -74,27 +74,39 @@ public final class IncompleteResult {
         }
     }
 
+    /**
+     * 도구 결과는 {@link ToolResult#of}로 한 번 더 감싸여 {@code {"result":"{\\"status\\":…}"}}처럼
+     * 이스케이프된 채 들어온다. 실행 기록의 미리보기는 400자에서 잘려 JSON 파싱도 못 한다.
+     * 그래서 이스케이프를 풀고 정규식으로 본다 — 잘린 문자열에서도 동작한다.
+     */
+    private static String unescape(String toolResult) {
+        return toolResult == null ? null : toolResult.replace("\\\"", "\"");
+    }
+
+    private static final java.util.regex.Pattern FIELD = java.util.regex.Pattern.compile("\"field\":\"([a-z_]+)\"");
+
     /** 이 결과가 불완전 결과인지 — 루프가 UI 힌트를 발행할지 판단할 때 쓴다 */
     public static boolean isIncomplete(String toolResult) {
-        return toolResult != null && toolResult.contains("\"status\":\"INCOMPLETE\"");
+        String t = unescape(toolResult);
+        return t != null && t.contains("\"status\":\"INCOMPLETE\"");
+    }
+
+    /** 빠진 항목 이름 전부. 트레이스 패널이 "무엇을 되묻는지"를 보여주는 데 쓴다 */
+    public static List<String> missingFields(String toolResult) {
+        if (!isIncomplete(toolResult)) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        java.util.regex.Matcher m = FIELD.matcher(unescape(toolResult));
+        while (m.find()) {
+            if (!out.contains(m.group(1))) out.add(m.group(1));
+        }
+        return out;
     }
 
     /** 첫 번째 빠진 항목의 이름. UI 힌트용이며 흐름을 제어하지 않는다 */
     public static String firstMissingField(String toolResult) {
-        if (!isIncomplete(toolResult)) {
-            return null;
-        }
-        try {
-            Map<?, ?> parsed = MAPPER.readValue(toolResult, Map.class);
-            Object missing = parsed.get("missing");
-            if (missing instanceof List<?> list && !list.isEmpty()
-                    && list.get(0) instanceof Map<?, ?> first) {
-                Object field = first.get("field");
-                return field != null ? field.toString() : null;
-            }
-        } catch (Exception ignored) {
-            // UI 힌트가 실패해도 대화는 계속된다
-        }
-        return null;
+        List<String> all = missingFields(toolResult);
+        return all.isEmpty() ? null : all.get(0);
     }
 }

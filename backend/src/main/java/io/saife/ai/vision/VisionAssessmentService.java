@@ -1,6 +1,9 @@
 package io.saife.ai.vision;
 
 import io.saife.common.config.DemoModeConfig;
+import io.saife.core.action.ActionDtos;
+import io.saife.core.action.ActionService;
+import io.saife.core.action.ActionSuggestionTable;
 import io.saife.common.service.SseService;
 import io.saife.core.domain.*;
 import io.saife.core.repository.AssessmentHazardRepository;
@@ -10,6 +13,7 @@ import io.saife.core.service.PhotoRiskTable;
 import io.saife.core.service.RiskRuleEngine;
 import io.saife.common.error.ApiExceptions.NotFoundException;
 import io.saife.evidence.Evidence;
+import io.saife.evidence.EvidenceKind;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -54,6 +58,11 @@ public class VisionAssessmentService {
     public static final String STATUS_ANALYZED = "ANALYZED";
     public static final String STATUS_FAILED = "FAILED";
 
+    /** {@code assess.progress} 단계. 화면의 진행 표시가 이 값으로 단계를 켠다 */
+    public static final String PHASE_ANALYZING = "ANALYZING";
+    public static final String PHASE_GRADING = "GRADING";
+    public static final String PHASE_EVIDENCE = "EVIDENCE";
+
     private final AssessmentRepository assessmentRepository;
     private final AssessmentHazardRepository assessmentHazardRepository;
     private final HazardRepository hazardRepository;
@@ -62,6 +71,7 @@ public class VisionAssessmentService {
     private final SseService sseService;
     private final DemoModeConfig demoModeConfig;
     private final CandidateEvidenceCollector evidenceCollector;
+    private final ActionService actionService;
 
     // 자기 호출로 @Transactional(REQUIRES_NEW)를 태우려면 프록시를 거쳐야 한다.
     // 순환 의존성은 @Lazy가 아니라 ObjectProvider로 푼다 (CLAUDE.md 규칙)
@@ -76,12 +86,20 @@ public class VisionAssessmentService {
      * @param evidenceItems 근거 카드 최대 3장(지침 1 · 조문 1 · 사진 있는 사례 1).
      *                      {@link CandidateEvidenceCollector}가 그때그때 계산한다 — 영속화하지
      *                      않는다. {@code evidence}(모델이 사진에서 근거로 든 서술)와는 다른 값이다
+     * @param suggestedAction 감소대책 초안. {@link ActionSuggestionTable}이 축과 빠진 조치로
+     *                        고른다(모델 호출 없음). 지침 번호는 위 근거 카드의 지침에서 가져온다
+     * @param action          이 평가에서 이 위험요인에 등록된 감소대책. 없으면 null
+     * @param priorOpenAction 다른 평가에서 걸어 둔 미이행 조치. 재확인 후보에서 "이미 대책이
+     *                        있는데 안 끝났다"를 보이는 근거다
      */
     public record Candidate(Long hazardId, AccidentType accidentType, String accidentLabel,
                             String missingControl, String evidence, Double confidence,
                             RiskLevel riskLevel, String ruleTrace, Boolean adopted,
                             boolean alreadyKnown, GateStatus gateStatus, String gateNote,
-                            List<Evidence> evidenceItems) {}
+                            List<Evidence> evidenceItems,
+                            ActionDtos.SuggestedAction suggestedAction,
+                            ActionDtos.ActionView action,
+                            ActionDtos.ActionView priorOpenAction) {}
 
     public record AnalysisResult(Long assessmentId, String status,
                                  List<Candidate> candidates, boolean demoMode) {}
@@ -98,7 +116,7 @@ public class VisionAssessmentService {
                 .kind(AssessmentKind.ROUTINE)
                 .triggerType(TRIGGER_PHOTO)
                 .assessedOn(LocalDate.now())
-                .participants("(사진 판독 — 점검자를 입력한 뒤 확정하십시오)")
+                .participants("(사진 판독, 점검자를 입력한 뒤 확정하십시오)")
                 .status(STATUS_ANALYZING)
                 .build());
         return assessment.getId();
@@ -114,13 +132,15 @@ public class VisionAssessmentService {
                         String sessionId, String correlationId) {
 
         emit(sessionId, "assess.progress", correlationId, assessmentId,
-                Map.of("phase", "ANALYZING", "message", "사진을 판독하고 있습니다"));
+                Map.of("phase", PHASE_ANALYZING, "message", "모델이 사진에서 빠진 안전조치를 찾고 있습니다"));
 
         try {
             List<VisionAnalyzer.Finding> findings = visionAnalyzer.analyze(imageBytes, contentType);
 
             AnalysisResult result = self.getObject().persist(
-                    assessmentId, siteId, equipmentId, processId, findings, photoPath);
+                    assessmentId, siteId, equipmentId, processId, findings, photoPath,
+                    (phase, message) -> emit(sessionId, "assess.progress", correlationId, assessmentId,
+                            Map.of("phase", phase, "message", message)));
 
             emit(sessionId, "assess.done", correlationId, assessmentId, result);
             log.info("[UC1] 평가 {} 판독 완료 — 후보 {}건", assessmentId, result.candidates().size());
@@ -146,6 +166,26 @@ public class VisionAssessmentService {
     @Transactional
     public AnalysisResult persist(Long assessmentId, Long siteId, Long equipmentId, Long processId,
                                   List<VisionAnalyzer.Finding> findings, String photoPath) {
+        return persist(assessmentId, siteId, equipmentId, processId, findings, photoPath, (p, m) -> {});
+    }
+
+    /** 진행 단계 알림. SSE {@code assess.progress}로 나간다 */
+    @FunctionalInterface
+    public interface ProgressSink {
+        void phase(String phase, String message);
+    }
+
+    /**
+     * @param progress 단계 알림. 등급 판정(GRADING) → 근거 수집(EVIDENCE) 순으로 부른다
+     */
+    @Transactional
+    public AnalysisResult persist(Long assessmentId, Long siteId, Long equipmentId, Long processId,
+                                  List<VisionAnalyzer.Finding> findings, String photoPath,
+                                  ProgressSink progress) {
+
+        progress.phase(PHASE_GRADING, findings.isEmpty()
+                ? "빠진 안전조치가 없습니다"
+                : "후보 %d건, 룰 엔진이 위험성 등급을 판정합니다".formatted(findings.size()));
 
         Map<String, Hazard> existing = new LinkedHashMap<>();
         if (equipmentId != null) {
@@ -154,7 +194,11 @@ public class VisionAssessmentService {
             }
         }
 
-        List<Candidate> candidates = new ArrayList<>();
+        // 1단계: 위험요인 저장과 등급 판정 (룰 엔진). 근거 검색은 다음 단계로 미뤄
+        // 진행 표시가 "등급, 근거" 순서를 실제 작업 순서대로 말하게 한다
+        record Graded(VisionAnalyzer.Finding finding, Hazard hazard, boolean alreadyKnown,
+                      RiskRuleEngine.Decision decision) {}
+        List<Graded> graded = new ArrayList<>();
         for (VisionAnalyzer.Finding finding : findings) {
             Hazard hazard = existing.get(hazardKey(finding.accidentType(), finding.missingControl()));
             boolean alreadyKnown = hazard != null;
@@ -187,15 +231,28 @@ public class VisionAssessmentService {
                     .ruleTrace(decision.ruleTrace())
                     .build());
 
+            graded.add(new Graded(finding, hazard, alreadyKnown, decision));
+        }
+
+        // 2단계: 후보마다 근거(지침, 조문, 사례)와 감소대책 초안
+        if (!graded.isEmpty()) {
+            progress.phase(PHASE_EVIDENCE, "근거를 모으고 있습니다 (KOSHA GUIDE, 법 조문, 사고사례)");
+        }
+        List<Candidate> candidates = new ArrayList<>();
+        for (Graded g : graded) {
+            VisionAnalyzer.Finding finding = g.finding();
             List<Evidence> evidenceItems =
                     evidenceCollector.forCandidate(finding.accidentType(), finding.missingControl());
 
-            candidates.add(new Candidate(hazard.getId(), finding.accidentType(),
+            candidates.add(new Candidate(g.hazard().getId(), finding.accidentType(),
                     finding.accidentType().getLabel(), finding.missingControl(),
                     finding.evidence(), finding.confidence(),
-                    decision.riskLevel(), decision.ruleTrace(), hazard.getAiAdopted(),
-                    alreadyKnown, GateStatus.of(finding.accidentType()),
-                    gateNote(finding.accidentType()), evidenceItems));
+                    g.decision().riskLevel(), g.decision().ruleTrace(), g.hazard().getAiAdopted(),
+                    g.alreadyKnown(), GateStatus.of(finding.accidentType()),
+                    gateNote(finding.accidentType()), evidenceItems,
+                    suggest(finding.accidentType(), finding.missingControl(), evidenceItems),
+                    actionView(g.hazard(), assessmentId),
+                    priorOpenActionView(g.hazard(), assessmentId)));
         }
 
         updateStatus(assessmentId, STATUS_ANALYZED);
@@ -232,13 +289,17 @@ public class VisionAssessmentService {
         log.info("[UC1] 위험요인 {} {}", hazardId, adopt ? "채택" : "반려");
         List<Evidence> evidenceItems =
                 evidenceCollector.forCandidate(hazard.getAccidentType(), hazard.getMissingControl());
+        Long latestAssessmentId = latest == null ? null : latest.getAssessmentId();
         return new Candidate(hazard.getId(), hazard.getAccidentType(),
                 hazard.getAccidentType().getLabel(), hazard.getMissingControl(),
                 hazard.getDescription(), null,
                 latest == null ? null : latest.getRiskLevel(),
                 latest == null ? null : latest.getRuleTrace(),
                 hazard.getAiAdopted(), true, GateStatus.of(hazard.getAccidentType()),
-                gateNote(hazard.getAccidentType()), evidenceItems);
+                gateNote(hazard.getAccidentType()), evidenceItems,
+                suggest(hazard.getAccidentType(), hazard.getMissingControl(), evidenceItems),
+                actionView(hazard, latestAssessmentId),
+                priorOpenActionView(hazard, latestAssessmentId));
     }
 
     /** 채택률 지표. 분모는 AI가 제안한 전체, 분자는 사람이 채택한 것 */
@@ -280,17 +341,65 @@ public class VisionAssessmentService {
 
         List<Candidate> candidates = new ArrayList<>();
         for (AssessmentHazard link : assessmentHazardRepository.findByAssessmentId(assessmentId)) {
-            hazardRepository.findById(link.getHazardId()).ifPresent(h -> candidates.add(
-                    new Candidate(h.getId(), h.getAccidentType(), h.getAccidentType().getLabel(),
-                            h.getMissingControl(), h.getDescription(), null,
-                            link.getRiskLevel(), link.getRuleTrace(), h.getAiAdopted(),
-                            h.getSource() != HazardSource.PHOTO,
-                            GateStatus.of(h.getAccidentType()),
-                            gateNote(h.getAccidentType()),
-                            evidenceCollector.forCandidate(h.getAccidentType(), h.getMissingControl()))));
+            hazardRepository.findById(link.getHazardId()).ifPresent(h -> {
+                List<Evidence> evidenceItems =
+                        evidenceCollector.forCandidate(h.getAccidentType(), h.getMissingControl());
+                candidates.add(new Candidate(h.getId(), h.getAccidentType(), h.getAccidentType().getLabel(),
+                        h.getMissingControl(), h.getDescription(), null,
+                        link.getRiskLevel(), link.getRuleTrace(), h.getAiAdopted(),
+                        h.getSource() != HazardSource.PHOTO,
+                        GateStatus.of(h.getAccidentType()),
+                        gateNote(h.getAccidentType()),
+                        evidenceItems,
+                        suggest(h.getAccidentType(), h.getMissingControl(), evidenceItems),
+                        actionView(h, assessmentId),
+                        priorOpenActionView(h, assessmentId)));
+            });
         }
         return new AnalysisResult(assessmentId, assessment.getStatus(), candidates,
                 demoModeConfig.isDemoMode());
+    }
+
+    /**
+     * 감소대책 초안. 지침 번호는 이 후보의 근거 카드 중 지침(GUIDE)에서 가져온다.
+     * 화면에 보이는 근거와 대책이 같은 지침을 가리켜야 한다.
+     */
+    private ActionDtos.SuggestedAction suggest(AccidentType axis, String missingControl,
+                                               List<Evidence> evidenceItems) {
+        String guideRef = evidenceItems == null ? null : evidenceItems.stream()
+                .filter(e -> e.kind() == EvidenceKind.GUIDE)
+                .map(VisionAssessmentService::guideNo)
+                .filter(g -> g != null && !g.isBlank())
+                .findFirst()
+                .orElse(null);
+        return ActionDtos.SuggestedAction.of(
+                ActionSuggestionTable.suggest(axis, missingControl, guideRef));
+    }
+
+    /** 지침 번호. 메타의 guideNo가 우선이고, 없으면 refKey("C-31-2017#c3")의 앞부분 */
+    static String guideNo(Evidence e) {
+        Object meta = e.meta() == null ? null : e.meta().get("guideNo");
+        if (meta != null && !String.valueOf(meta).isBlank()) {
+            return String.valueOf(meta);
+        }
+        String key = e.refKey();
+        if (key == null) {
+            return null;
+        }
+        int hash = key.indexOf('#');
+        return hash < 0 ? key : key.substring(0, hash);
+    }
+
+    private ActionDtos.ActionView actionView(Hazard hazard, Long assessmentId) {
+        return actionService.findFor(hazard.getId(), assessmentId)
+                .map(a -> ActionDtos.ActionView.of(a, hazard.getEquipmentId()))
+                .orElse(null);
+    }
+
+    private ActionDtos.ActionView priorOpenActionView(Hazard hazard, Long assessmentId) {
+        return actionService.findPriorOpen(hazard.getId(), assessmentId)
+                .map(a -> ActionDtos.ActionView.of(a, hazard.getEquipmentId()))
+                .orElse(null);
     }
 
     private void updateStatus(Long assessmentId, String status) {
@@ -309,7 +418,9 @@ public class VisionAssessmentService {
     }
 
     private String hazardKey(AccidentType axis, String missingControl) {
-        return axis + "|" + (missingControl == null ? "" : missingControl.replaceAll("\\s+", ""));
+        // 공백과 구분자(가운뎃점, 쉼표)를 무시한다. 시드의 "유도 표식·구획선"과
+        // 정규화된 판독 결과 "유도 표식, 구획선"이 같은 위험요인으로 묶여야 한다
+        return axis + "|" + (missingControl == null ? "" : missingControl.replaceAll("[\\s·,]+", ""));
     }
 
     private void emit(String sessionId, String type, String correlationId,

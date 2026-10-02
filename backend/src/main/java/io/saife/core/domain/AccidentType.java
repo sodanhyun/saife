@@ -13,12 +13,12 @@ package io.saife.core.domain;
  */
 public enum AccidentType {
 
-    FALL("추락", "안전대 부착설비 · 개구부 덮개 · 작업발판 난간 미설치"),
+    FALL("추락", "안전대 부착설비, 개구부 덮개, 작업발판 난간 미설치"),
     CAUGHT("협착", "방호덮개 미설치"),
-    DROP("낙하", "적재 불량 · 낙하물 방지망 미설치"),
-    STRUCK("부딪힘", "통로 폐색 · 유도 표식·구획선 미설치"),
-    FIRE("화재", "화기 근접 · 개구부·배기구 미확보 · 소화기 부재"),
-    PPE("보호구", "안전모 · 안전대 · 보안경 미착용");
+    DROP("낙하", "적재 불량, 낙하물 방지망 미설치"),
+    STRUCK("부딪힘", "통로 폐색, 유도 표식, 구획선 미설치"),
+    FIRE("화재", "화기 근접, 개구부, 배기구 미확보, 소화기 부재"),
+    PPE("보호구", "안전모, 안전대, 보안경 미착용");
 
     private final String label;
     private final String missingControlHint;

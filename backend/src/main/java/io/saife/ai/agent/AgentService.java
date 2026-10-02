@@ -142,7 +142,7 @@ public class AgentService {
         if (equipmentName == null) {
             return base;
         }
-        return base + "\n[시작 설비] id=%d %s — 이 설비로 findLocationEquipment를 먼저 확인하세요\n"
+        return base + "\n[시작 설비] id=%d %s: 이 설비로 findLocationEquipment를 먼저 확인하세요\n"
                 .formatted(entryEquipmentId, equipmentName);
     }
 
@@ -249,10 +249,16 @@ public class AgentService {
      * 사용자가 자유 입력으로 답하면 그만이다.
      */
     private void emitSlotHintIfAny(String sessionId, String conversationId) {
-        for (ToolCallContext.Record r : ToolCallContext.peek(conversationId)) {
+        // 이번 턴의 마지막 계획서 도구 결과만 본다 — 앞에서 INCOMPLETE였어도 뒤에서 채워졌으면 묻지 않는다
+        List<ToolCallContext.Record> records = ToolCallContext.peek(conversationId);
+        for (int i = records.size() - 1; i >= 0; i--) {
+            ToolCallContext.Record r = records.get(i);
+            if (!"extractWorkPlan".equals(r.toolName()) && !"createWorkPlan".equals(r.toolName())) {
+                continue;
+            }
             String field = IncompleteResult.firstMissingField(r.resultPreview());
             if (field == null) {
-                continue;
+                return;
             }
             Map<String, Object> payload = new HashMap<>();
             payload.put("slotKey", field);

@@ -55,7 +55,7 @@ public class PhotoRiskTable {
             // ── 협착 ──
             new Row(AccidentType.CAUGHT, "CAUGHT_GUARD", List.of("방호덮개", "덮개", "방호"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "회전·구동부 방호덮개 미설치는 접촉 즉시 협착으로 이어진다 (안전보건규칙 제87조)"),
+                    "회전, 구동부 방호덮개 미설치는 접촉 즉시 협착으로 이어진다 (안전보건규칙 제87조)"),
 
             // ── 낙하 ──
             new Row(AccidentType.DROP, "DROP_NET", List.of("방지망", "낙하물"),
@@ -71,7 +71,7 @@ public class PhotoRiskTable {
                     "통로 폐색으로 보행자와 차량계 장비의 동선이 겹친다"),
             new Row(AccidentType.STRUCK, "STRUCK_MARKING", List.of("구획", "표식", "유도"),
                     RiskLevel.MEDIUM, (short) 2, (short) 2,
-                    "구획선·표식 미설치. 동선 분리가 되지 않은 상태다"),
+                    "구획선, 표식 미설치. 동선 분리가 되지 않은 상태다"),
 
             // ── 화재 ──
             new Row(AccidentType.FIRE, "FIRE_IGNITION", List.of("화기", "불티", "용접"),
@@ -84,7 +84,7 @@ public class PhotoRiskTable {
             // ── 보호구 ──
             new Row(AccidentType.PPE, "PPE_HELMET", List.of("안전모"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
-                    "안전모 미착용. 머리 손상은 경미한 낙하·전도에서도 치명적이다"),
+                    "안전모 미착용. 머리 손상은 경미한 낙하, 전도에서도 치명적이다"),
             new Row(AccidentType.PPE, "PPE_HARNESS", List.of("안전대", "안전벨트"),
                     RiskLevel.HIGH, (short) 3, (short) 3,
                     "안전대 미착용. 고소작업에서 마지막 방호수단이 없는 상태다"),
@@ -107,10 +107,10 @@ public class PhotoRiskTable {
 
         if (matched == null) {
             return new RiskRuleEngine.Decision(RiskLevel.MEDIUM, (short) 2, (short) 2,
-                    "사진 판독 기준 잠정 등급 — 해당 축의 기준이 없어 '중'으로 둔다. 현장 확인 필요");
+                    "사진 판독 기준 잠정 등급: 해당 축의 기준이 없어 '중'으로 둔다. 현장 확인 필요");
         }
 
-        String trace = "사진 판독 기준 잠정 등급: %s. 작업높이·작업빈도는 사진으로 알 수 없어 현장 확인 시 조정된다"
+        String trace = "사진 판독 기준 잠정 등급: %s. 작업높이와 작업빈도는 사진으로 알 수 없어 현장 확인 시 조정된다"
                 .formatted(matched.basis());
 
         log.debug("[PHOTO-RULE] {} '{}' → {}", accidentType, missingControl, matched.riskLevel());

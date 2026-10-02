@@ -59,16 +59,21 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
   };
 
   const brand = (
-    <button onClick={() => go(LANDING_PATH)} className="flex flex-col items-start hover:opacity-80 transition-opacity">
-      <span className="text-lg font-bold tracking-tight text-white leading-none">SAIFE</span>
-      {!collapsed && <span className="mt-1 text-xs text-slate-400 whitespace-nowrap">설비 ID로 잇는 안전 데이터 코어</span>}
+    <button onClick={() => go(LANDING_PATH)} className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
+      <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-white text-sm font-extrabold tracking-tight text-brand-ink">S</span>
+      {!collapsed && (
+        <span className="flex flex-col items-start">
+          <span className="text-lg font-bold tracking-tight text-white leading-none">SAIFE</span>
+          <span className="mt-1 text-xs text-slate-400 whitespace-nowrap">설비 ID로 잇는 안전 데이터 코어</span>
+        </span>
+      )}
     </button>
   );
 
   const nav = (railCollapsed: boolean) => (
     <nav className={cn("flex-1 space-y-1 overflow-y-auto overflow-x-hidden py-2", railCollapsed ? "px-1.5" : "px-3")}>
       {MENU_GROUPS.map((group, gi) => (
-        <div key={group.key} className={gi > 0 ? "mt-3 border-t border-slate-800/60 pt-3" : undefined}>
+        <div key={group.key} className={gi > 0 ? "mt-3 border-t border-white/10 pt-3" : undefined}>
           {group.label && !railCollapsed && (
             <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</p>
           )}
@@ -86,13 +91,13 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
                 className={cn(
                   "relative w-full flex items-center rounded-lg transition-colors duration-200 group",
                   railCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
-                  active ? "text-white bg-slate-800/70" : "text-slate-500 hover:text-white hover:bg-slate-800/40",
+                  active ? "text-white bg-white/10" : "text-slate-400 hover:text-white hover:bg-white/5",
                 )}
               >
                 {active && !railCollapsed && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-progress rounded-r-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-brand-line rounded-r-full" />
                 )}
-                <Icon size={20} className={cn("shrink-0 transition-colors", active ? "text-progress-border" : "text-slate-500 group-hover:text-white")} />
+                <Icon size={19} className={cn("shrink-0 transition-colors", active ? "text-brand-line" : "text-slate-500 group-hover:text-white")} />
                 {!railCollapsed && <span className={cn("text-stage whitespace-nowrap", active ? "font-semibold" : "font-medium")}>{item.label}</span>}
               </button>
             );
@@ -103,13 +108,13 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
   );
 
   const footer = (railCollapsed: boolean) => (
-    <div className={cn("border-t border-slate-800/60 text-xs text-slate-500", railCollapsed ? "px-2 py-3 text-center" : "p-4")}>
+    <div className={cn("border-t border-white/10 text-xs text-slate-500", railCollapsed ? "px-2 py-3 text-center" : "p-4")}>
       {railCollapsed ? (
         "가상"
       ) : (
         <>
           <p className="text-slate-300 font-medium">{SITE_NAME}</p>
-          <p className="mt-0.5">가상 사업장 · 데이터 전부 가상</p>
+          <p className="mt-0.5">가상 사업장, 데이터 전부 가상</p>
         </>
       )}
     </div>
@@ -118,12 +123,12 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
   return (
     <>
       {/* 데스크톱 레일 — sticky 풀뷰포트 */}
-      <aside className={cn("hidden lg:flex flex-col h-screen sticky top-0 shrink-0 z-40 overflow-hidden bg-slate-950 text-white", collapsed ? "w-16" : "w-56")}>
-        <div className={cn("flex items-center border-b border-slate-800/60", collapsed ? "py-4 px-2 justify-center" : "h-16 px-4")}>{brand}</div>
+      <aside className={cn("hidden lg:flex flex-col h-screen sticky top-0 shrink-0 z-40 overflow-hidden bg-brand-ink text-white", collapsed ? "w-16" : "w-60")}>
+        <div className={cn("flex items-center border-b border-white/10", collapsed ? "py-4 px-2 justify-center" : "h-16 px-4")}>{brand}</div>
         {nav(collapsed)}
         {footer(collapsed)}
         {!collapsed && (
-          <div className="border-t border-slate-800/60">
+          <div className="border-t border-white/10">
             <SystemStatusLine status={systemStatus} onRefresh={refetchSystemStatus} refreshing={systemStatusLoading} />
           </div>
         )}
@@ -146,8 +151,8 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
 
       {/* 모바일 오버레이·드로어 */}
       {isOpen && <div className="fixed inset-0 z-[60] bg-black/50 lg:hidden" onClick={onClose} />}
-      <aside className={cn("fixed top-0 left-0 bottom-0 z-[70] w-72 lg:hidden bg-slate-950 text-white transition-transform duration-300", isOpen ? "translate-x-0" : "-translate-x-full")}>
-        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800/60">
+      <aside className={cn("fixed top-0 left-0 bottom-0 z-[70] w-72 lg:hidden bg-brand-ink text-white transition-transform duration-300", isOpen ? "translate-x-0" : "-translate-x-full")}>
+        <div className="h-16 px-4 flex items-center justify-between border-b border-white/10">
           {brand}
           <button onClick={onClose} aria-label="닫기" className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-md">
             <X size={22} />
@@ -155,7 +160,7 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
         </div>
         {nav(false)}
         {footer(false)}
-        <div className="border-t border-slate-800/60">
+        <div className="border-t border-white/10">
           <SystemStatusLine status={systemStatus} onRefresh={refetchSystemStatus} refreshing={systemStatusLoading} />
         </div>
       </aside>

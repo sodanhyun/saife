@@ -277,7 +277,7 @@ public class EquipmentHistoryRecaller {
      * 작업 신고 전(UC3 사전 회상) — 아직 사고가 없으므로 "예고" 문구를 쓰지 않는다.
      * 지금 알고 있는 등급·미이행 조치를 사실 그대로 요약한다.
      *
-     * <p>예: "최근 평가 '상'(추락) · 미이행 조치 1건(기한 32일 경과)"
+     * <p>예: "최근 평가 '상'(추락), 미이행 조치 1건(기한 32일 경과)"
      */
     private String preWorkHeadline(List<PriorHazard> priorHazards,
                                    List<UnfinishedAction> unfinished,
@@ -308,7 +308,7 @@ public class EquipmentHistoryRecaller {
         if (parts.isEmpty()) {
             return "이 설비에 기록된 위험요인이나 미이행 조치가 없습니다. 최초 평가부터 확인하십시오.";
         }
-        return String.join(" · ", parts);
+        return String.join(", ", parts);
     }
 
     private int severityRank(RiskLevel level) {
