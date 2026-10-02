@@ -165,4 +165,14 @@ class RiskRuleEngineTest {
                 .isEqualTo("맨 위 발판이나 그 바로 아래 칸에 올라섭니까?");
         assertThat(SlotKeys.question(SlotKeys.PRODUCT_NAME, null)).isEqualTo("페인트 통 라벨의 제품명을 알려 주세요.");
     }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("슬롯 칸에 맞지 않는 답은 저장하지 않는다(최상부 디딤대 칸의 높이 값)")
+    void rejectsAnswersForTheWrongSlot() {
+        org.assertj.core.api.Assertions.assertThat(RiskRuleEngine.isUsableAnswer(RiskRuleEngine.SlotKeys.TOP_STEP, "3.2m요")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(RiskRuleEngine.isUsableAnswer(RiskRuleEngine.SlotKeys.TOP_STEP, "맨 위 바로 아래 칸까지 올라가요")).isTrue();
+        org.assertj.core.api.Assertions.assertThat(RiskRuleEngine.isUsableAnswer(RiskRuleEngine.SlotKeys.TIP_GUARD, "따로 잡아주는 사람은 없어요")).isTrue();
+        org.assertj.core.api.Assertions.assertThat(RiskRuleEngine.isUsableAnswer(RiskRuleEngine.SlotKeys.WORK_HEIGHT, "높아요")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(RiskRuleEngine.isUsableAnswer(RiskRuleEngine.SlotKeys.WORK_HEIGHT, "3.2m요")).isTrue();
+    }
 }

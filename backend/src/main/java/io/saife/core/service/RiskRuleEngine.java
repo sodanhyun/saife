@@ -369,6 +369,21 @@ public class RiskRuleEngine {
         return null;
     }
 
+    /**
+     * 슬롯에 저장해도 되는 답인지. 모델이 다른 칸의 값(예: 최상부 디딤대 칸에 "3.2m")을 넣는 경우가 있어
+     * 판정에 쓸 수 없는 값은 저장하지 않는다. 그러면 슬롯이 빈 채로 남아 다시 묻게 된다(2026-10-02 실측).
+     */
+    public static boolean isUsableAnswer(String slotKey, String value) {
+        if (value == null || value.isBlank()) return false;
+        return switch (slotKey) {
+            case SlotKeys.WORK_HEIGHT -> value.matches("(?s).*\\d.*");
+            case SlotKeys.TOP_STEP -> !value.matches("(?s)\\s*[0-9.]+\\s*m.*") && parseTopStep(value) != null;
+            case SlotKeys.TIP_GUARD, SlotKeys.PLATFORM_GUARDRAIL, SlotKeys.ANCHOR_INSTALLED, SlotKeys.GUARD_INSTALLED ->
+                    !value.matches("(?s)\\s*[0-9.]+\\s*m.*") && parseBoolean(value) != null;
+            default -> true;
+        };
+    }
+
     /** 한국어 자유 답변을 boolean으로. 애매하면 null을 돌려 "미확인"으로 둔다 */
     static Boolean parseBoolean(String raw) {
         if (raw == null || raw.isBlank()) {

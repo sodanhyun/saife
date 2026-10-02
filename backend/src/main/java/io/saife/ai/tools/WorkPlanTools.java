@@ -467,7 +467,8 @@ public class WorkPlanTools {
      * 값이 바뀌었을 때만 시각을 갱신한다.
      */
     private void persistSlot(Long workPlanId, String slotKey, String value) {
-        if (value == null || value.isBlank()) {
+        if (!RiskRuleEngine.isUsableAnswer(slotKey, value)) {
+            if (value != null && !value.isBlank()) log.debug("[WORKPLAN] 판정에 쓸 수 없는 답이라 저장하지 않음 slot={} value={}", slotKey, value);
             return;
         }
         var existing = workPlanSlotRepository.findByWorkPlanIdAndSlotKey(workPlanId, slotKey);
