@@ -2,7 +2,7 @@
 
 제조 사업장 **위험성평가 AI Agent**. 제4회 경남 AI/SW 경진대회 출품작.
 
-작업 전 안전점검표(TBM), 위험성평가표, 산업재해조사표를 **하나의 설비 ID** 기준으로 연결.
+작업 전 안전점검표, 위험성평가표, 산업재해조사표를 **하나의 설비 ID** 기준으로 연결.
 
 기획서(승인본): `~/.gstack/projects/SAIFE/taeli-unknown-design-20260920-163000.md`
 
@@ -63,7 +63,7 @@ docker compose up -d --build
 |--------|------|
 | `core/site` `core/process` `core/equipment` | **데이터 코어** — 사업장·공정/장소·설비. 모든 것이 설비 ID로 묶인다 |
 | `core/hazard` `core/assessment` `core/action` | 위험요인·평가·감소대책. 평가 종류(최초/수시/정기/상시) |
-| `workplan` | **UC3** 작업 전 점검. 대화형 등록 → 판정 → 관리감독자 승인(잠정조치) → TBM. 제38조 대상 작업만 작업계획서 |
+| `workplan` | **UC3** 작업 전 점검. 대화형 등록 → 판정 → 관리감독자 승인(잠정조치) → 서식 출력(작업자 안내, 서명란). 제38조 대상 작업만 작업계획서. TBM 용어와 단계는 쓰지 않는다 |
 | `incident` | **UC2** 사고 보고. 사고 시점 기준 이력 조회 → 수시평가 생성 → 조사표 기한 → 같은 설비 작업 보류, 수시평가 확정 시 해제 |
 | `dashboard` | **UC4** 설비 1개 타임라인 뷰 (평가→작업계획→사고→재평가). `dashboard.service`의
   `EquipmentTimelineService`(카드 summary), `RecallService`(진입 회상 — `ai.recall`과 같은 payload를
