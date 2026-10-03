@@ -24,7 +24,7 @@ import java.time.ZoneId;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 2차 개선(B7, B6) — 현재 등급 규칙, 아차사고 분리, 예정 작업에서 보류 제외, TBM 미실시 표기.
+ * 2차 개선(B7, B6) — 현재 등급 규칙, 아차사고 분리, 예정 작업에서 보류 제외, 승인 상태 표기.
  * 시드에 기대지 않도록 테스트 전용 설비를 만들어 그 위에서만 본다(@Transactional 롤백).
  */
 @SpringBootTest
@@ -115,7 +115,7 @@ class EquipmentTimelineRound2Test {
     }
 
     @Test
-    @DisplayName("예정 작업 — 작업 보류(HOLD)는 세지 않는다. TBM 표기는 보류면 재개 조건, 작업일 전이면 예정")
+    @DisplayName("예정 작업 — 작업 보류(HOLD)는 세지 않는다. 표기는 보류면 재개 조건, 승인이면 승인")
     void upcomingExcludesHoldAndTbmLabel() {
         Equipment eq = newEquipment();
         workPlanRepository.save(WorkPlan.builder().siteId(SITE).equipmentId(eq.getId())
@@ -130,6 +130,6 @@ class EquipmentTimelineRound2Test {
         assertThat(service.timeline(eq.getId()).events())
                 .filteredOn(e -> e.type() == TimelineDtos.EventType.WORK_PLAN)
                 .extracting(TimelineDtos.TimelineEvent::detail)
-                .containsExactlyInAnyOrder("수시평가 확정 후 재개", "작업 예정");
+                .containsExactlyInAnyOrder("작업 보류, 수시평가 확정 후 재개", "승인");
     }
 }

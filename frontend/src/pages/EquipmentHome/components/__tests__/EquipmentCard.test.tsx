@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
@@ -48,17 +48,10 @@ describe("EquipmentCard", () => {
     expect(screen.getByText("기한 경과 1").className).toContain("text-risk-high-text");
   });
 
-  it("우상단은 '최근 평가 떨어짐 08-01' 한 줄이고, 아차사고는 사고 수와 따로 보인다", () => {
+  it("우상단은 '최근 평가 떨어짐 08-01' 한 줄이고, 0인 숫자 칸을 그리지 않는다", () => {
     renderCard(card({ incidentCount: 0, nearMissCount: 1 }));
     expect(screen.getByText("최근 평가 떨어짐 08-01")).toBeInTheDocument();
-    expect(screen.getByText("아차사고 1")).toBeInTheDocument();
-  });
-
-  it("바로가기 줄은 칩과 날짜 줄과 겹치지 않는 자기 줄이다(절대 위치로 덮지 않는다)", () => {
-    renderCard(card());
-    const bar = screen.getByRole("button", { name: "작업 전 점검" }).parentElement!;
-    expect(bar.className).not.toContain("absolute");
-    expect(screen.getByText("기한 경과 1")).toBeVisible();
+    expect(screen.queryByText("예정 작업")).toBeNull();
   });
 
   it("평가 기록이 없으면 등급 상자는 '미평가', 칩은 '최초 평가 필요'다", () => {
@@ -72,14 +65,9 @@ describe("EquipmentCard", () => {
     expect(container.textContent).not.toMatch(/습니다|없음/);
   });
 
-  it("제목은 설비 상세 링크이고, 동사 버튼은 설비 ID를 들고 각 화면으로 간다", () => {
+  it("카드 전체가 설비 상세 링크이고, 숨은 바로가기 버튼이 없다", () => {
     renderCard(card());
     expect(screen.getByRole("link", { name: "이동식 사다리 A" })).toHaveAttribute("href", "/equipment/1");
-    fireEvent.click(screen.getByRole("button", { name: "작업 전 점검" }));
-    expect(mockNavigate).toHaveBeenCalledWith("/work-plan?equipmentId=1");
-    fireEvent.click(screen.getByRole("button", { name: "순회점검" }));
-    expect(mockNavigate).toHaveBeenCalledWith("/vision?equipmentId=1");
-    fireEvent.click(screen.getByRole("button", { name: "사고 보고" }));
-    expect(mockNavigate).toHaveBeenCalledWith("/incident?equipmentId=1");
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });

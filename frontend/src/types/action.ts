@@ -1,4 +1,5 @@
 /** 백엔드 io.saife.core.action.ActionDtos와 1:1 */
+import type { AccidentType } from "@/types/domain";
 
 export type ActionStatus = "PENDING" | "DONE" | "OVERDUE";
 
@@ -57,4 +58,46 @@ export interface SuggestedAction {
   lawTitle: string | null;
   guideRef: string | null;
   priority: ControlPriority | null;
+}
+
+/** 개선대책 목록 필터. 백엔드 ActionListFilter. OPEN은 기한 경과를 포함한다 */
+export type ActionListFilter = "OPEN" | "OVERDUE" | "DONE" | "ALL";
+
+/**
+ * 개선대책 목록 한 줄. 백엔드 ActionDtos.ActionListItem
+ * @property status         판정 상태. 기한이 지난 미완료는 OVERDUE
+ * @property overdueDays    기한 경과 일수(KST 오늘 기준). 경과가 아니면 null
+ * @property accidentType   위험요인의 발생형태
+ * @property missingControl 위험요인의 빠진 안전조치
+ */
+export interface ActionListItem {
+  id: number;
+  content: string;
+  owner: string | null;
+  dueDate: string | null;
+  status: ActionStatus;
+  overdueDays: number | null;
+  completedAt: string | null;
+  priority: ControlPriority | null;
+  guideRef: string | null;
+  hazardId: number | null;
+  accidentType: AccidentType | null;
+  missingControl: string | null;
+  equipmentId: number | null;
+  equipmentName: string | null;
+  assessmentId: number | null;
+}
+
+/** 목록 탭 건수. 백엔드 ActionDtos.ActionCounts. open은 기한 경과를 포함한다 */
+export interface ActionCounts {
+  open: number;
+  overdue: number;
+  done: number;
+}
+
+export interface ActionSearchParams {
+  status: ActionListFilter;
+  keyword?: string;
+  page?: number;
+  size?: number;
 }

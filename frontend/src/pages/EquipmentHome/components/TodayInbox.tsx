@@ -76,8 +76,6 @@ export default function TodayInbox({ view, rows, filterLabel, onClearFilter, onR
       <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h2 className="text-headline text-slate-900">오늘 할 일 <span className="tabular-nums text-slate-400">{rows.length}</span></h2>
-          {view.criticalCount > 0 && <StatusBadge tone="high">긴급 {view.criticalCount}</StatusBadge>}
-          {view.warningCount > 0 && <StatusBadge tone="pending">주의 {view.warningCount}</StatusBadge>}
           {filterLabel && (
             <button type="button" onClick={onClearFilter}
               className="inline-flex items-center gap-1 rounded border border-brand-line bg-brand-soft px-1.5 py-0.5 text-xs font-bold text-brand hover:bg-white">

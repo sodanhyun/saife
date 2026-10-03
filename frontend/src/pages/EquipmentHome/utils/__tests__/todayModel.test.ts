@@ -55,25 +55,11 @@ describe("buildKpis / filterRows", () => {
     const byKey = Object.fromEntries(kpis.map((k) => [k.key, k]));
     expect(byKey.overdue.value).toBe(2);
     expect(byKey.overdue.note).toBe("최장 42일");
-    expect(byKey.week.value).toBe(1);
     expect(byKey.approval.value).toBe(1);
     expect(byKey.report.value).toBe(1);
     expect(byKey.report.note).toBe("기한 10-03");
     expect(byKey.highRisk.value).toBe(1);
-    expect(kpis.map((k) => k.label)).toEqual(["기한 경과 조치", "7일 내 마감", "승인 대기", "조사표 미제출", "고위험 설비"]);
-  });
-
-  it("7일 내 마감 KPI 숫자와 목록 필터 결과는 같은 규칙이다(접힌 행 기준)", () => {
-    const week = [
-      item({ kind: "DUE_ACTION", emphasis: "WARNING", daysRemaining: 3, refId: 4 }),
-      item({ kind: "DUE_ACTION", emphasis: "WARNING", daysRemaining: 10, refId: 5 }),
-      item({ kind: "RISKY_WORK_PLAN", linkType: "WORK_PLAN", refId: 30, daysRemaining: 2, dueDate: "2026-10-05" }),
-      item({ kind: "RISKY_WORK_PLAN", linkType: "WORK_PLAN", refId: 31, daysRemaining: 2, dueDate: "2026-10-05" }),
-    ];
-    const rows = buildTodayRows(week);
-    const kpi = buildKpis(rows, []).find((k) => k.key === "week")!;
-    expect(kpi.value).toBe(filterRows(rows, "week").length);
-    expect(kpi.value).toBe(2);
+    expect(kpis.map((k) => k.label)).toEqual(["기한 경과 조치", "승인 대기", "조사표 미제출", "고위험 설비"]);
   });
 
   it("고위험 설비 필터는 등급 상 설비만 남긴다", () => {

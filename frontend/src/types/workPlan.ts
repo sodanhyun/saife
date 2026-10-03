@@ -1,7 +1,7 @@
 import type { Evidence } from "@/types/evidence";
 import type { AccidentType, RiskLevel, WorkPlanStatus } from "@/types/domain";
 
-/** 백엔드 WorkPlanDtos와 1:1. 화면 이름은 「작업 전 안전점검표 (TBM)」 */
+/** 백엔드 WorkPlanDtos와 1:1. 화면 이름은 「작업 전 안전점검표」 */
 
 export interface WorkPlanListItem {
   id: number;
@@ -79,9 +79,9 @@ export interface BriefingView {
   pendingActions: PendingActionView[];
   decisions: HazardDecision[];
   msds: MsdsSummary | null;
-  /** TBM 위험 포인트(3개 이내) */
+  /** 작업자 안내: 주의할 점(3개 이내) */
   riskPoints: string[];
-  /** TBM 지킬 것(3개 이내) */
+  /** 작업자 안내: 안전수칙(3개 이내) */
   keepPoints: string[];
   /** 상 판정에 대책 미이행: 잠정조치를 적어야 승인할 수 있다(조건부 승인) */
   interimRequired: boolean;

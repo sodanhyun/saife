@@ -76,7 +76,7 @@ function relationOf(ev: TimelineEvent, target: TimelineEvent): StoryRelation {
     const axis = target.accidentType ? `${ACCIDENT_LABEL[target.accidentType]} ` : "";
     return { ...base, text: `${when} ${axis}사고 후속` };
   }
-  if (ev.type === "WORK_PLAN" && target.type === "ACTION") return { ...base, text: `TBM 시 안내한 미이행 조치: ${name}` };
+  if (ev.type === "WORK_PLAN" && target.type === "ACTION") return { ...base, text: `승인 당시 미이행 조치: ${name}` };
   return { ...base, text: `${when} ${name}` };
 }
 

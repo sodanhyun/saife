@@ -150,16 +150,6 @@ class WorkPlanServiceApprovalTest {
     }
 
     @Test
-    void 승인_전에는_TBM을_기록하지_않는다() {
-        WorkPlan plan = submitted();
-
-        assertThatThrownBy(() -> service.acknowledgeBriefing(7L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("승인 후 TBM을 실시합니다.");
-        assertThat(plan.getBriefingAckAt()).isNull();
-    }
-
-    @Test
     void 오류_문구에_내부_ID가_없다() {
         when(workPlanRepository.findById(99L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.detail(99L)).hasMessage("점검 기록을 찾을 수 없습니다.");

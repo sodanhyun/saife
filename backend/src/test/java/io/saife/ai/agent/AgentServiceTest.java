@@ -55,7 +55,7 @@ class AgentServiceTest {
     void 문서는_작업_전_안전점검표이고_등급을_말로_단정하지_않는다() {
         String prompt = service.systemPrompt(null);
 
-        assertThat(prompt).contains("작업 전 안전점검표(TBM)");
+        assertThat(prompt).contains("작업 전 안전점검표").doesNotContain("작업 전 안전점검표(TBM)");
         assertThat(prompt).contains("작업계획서\"라고 부르지 마세요");
         assertThat(prompt).contains("등급을 단정하거나");
         assertThat(prompt).contains("사다리 발판 높이가 바닥에서 몇 m입니까?");

@@ -4,11 +4,8 @@ import cn from "@/lib/cn";
 import { SLOT_LABEL, toStageViews, type StageState, type StageView } from "@/pages/WorkPlan/utils/flowStages";
 import type { ToolTraceRow } from "@/types/sse";
 
-interface EvidenceCount { total: number; photos: number; guides: number; laws: number; msds: number }
-
 interface Props {
   rows: ToolTraceRow[];
-  evidence: EvidenceCount;
 }
 
 const DOT: Record<StageState, string> = {
@@ -58,9 +55,8 @@ function StageRow({ view, index, isLast }: { view: StageView; index: number; isL
   );
 }
 
-export default function AgentFlowPanel({ rows, evidence }: Props) {
+export default function AgentFlowPanel({ rows }: Props) {
   const views = toStageViews(rows);
-  const cases = evidence.total - evidence.guides - evidence.laws - evidence.msds;
 
   return (
     <aside aria-label="진행" className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-card animate-fade-in">
@@ -68,21 +64,6 @@ export default function AgentFlowPanel({ rows, evidence }: Props) {
       <ol className="px-5 py-4">
         {views.map((v, i) => <StageRow key={v.stage.tool} view={v} index={i} isLast={i === views.length - 1} />)}
       </ol>
-      {evidence.total > 0 && (
-        <dl className="grid grid-cols-4 border-t border-slate-100 text-center">
-          {[
-            ["재해사례", cases],
-            ["지침", evidence.guides],
-            ["조문", evidence.laws],
-            ["MSDS", evidence.msds],
-          ].map(([label, value]) => (
-            <div key={label} className="flex flex-col-reverse px-2 py-3">
-              <dt className="text-xs text-slate-500">{label}</dt>
-              <dd className="text-lg font-bold tabular-nums text-slate-900">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
     </aside>
   );
 }

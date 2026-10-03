@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import Composer from "@/pages/WorkPlan/components/Composer";
-import { EXAMPLES } from "@/pages/WorkPlan/utils/examples";
 
 const PLACEHOLDER = "작업 내용 입력";
 
@@ -30,15 +29,11 @@ describe("Composer", () => {
     expect(screen.getByLabelText("작업 내용").tagName).toBe("TEXTAREA");
   });
 
-  it("플레이스홀더는 예시 칩과 같은 문장을 되풀이하지 않는다", () => {
+  it("대화 전에는 새 점검표 머리와 작성 버튼, 예시 칩은 없다", () => {
     render(<Composer disabled={false} onSend={() => {}} showExamples />);
-    expect(EXAMPLES).not.toContain(screen.getByLabelText("작업 내용").getAttribute("placeholder"));
-  });
-
-  it("빈 화면의 예시 칩을 누르면 입력창에 채운다", () => {
-    render(<Composer disabled={false} onSend={() => {}} showExamples />);
-    fireEvent.click(screen.getByRole("button", { name: EXAMPLES[0] }));
-    expect(screen.getByLabelText("작업 내용")).toHaveValue(EXAMPLES[0]);
+    expect(screen.getByText("새 점검표")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "작성" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
   it("확인이 필요한 항목이 있으면 짧게 표시하고 답을 그 항목으로 보낸다", () => {

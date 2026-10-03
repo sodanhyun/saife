@@ -3,9 +3,9 @@ import type { WorkPlanDetail } from "@/types/workPlan";
 
 export const ladderDetail: WorkPlanDetail = {
   id: 31, siteId: 1, equipmentId: 1, equipmentName: "이동식 사다리 A", conversationId: "c1", workName: "천장 페인트 작업",
-  workPlace: "공장동 후면 차양부", workDate: "2026-10-03", workHours: null, method: null, notes: null, briefing: "TBM",
+  workPlace: "공장동 후면 차양부", workDate: "2026-10-03", workHours: null, method: null, notes: null, briefing: "작업자 안내",
   briefingAckAt: null, status: "SUBMITTED", approvalNote: null, approvedBy: null, approvedAt: null,
-  documentType: "TBM_CHECKLIST", documentTitle: "작업 전 안전점검표 (TBM)", supervisor: "김철수", holdAssessmentId: null,
+  documentType: "TBM_CHECKLIST", documentTitle: "작업 전 안전점검표", supervisor: "김철수", holdAssessmentId: null,
   slots: [
     { slotKey: "work_height", label: "발판 높이", displayValue: "3.2 m", question: "사다리 발판 높이가 바닥에서 몇 m입니까?", ledgerValue: null, answeredValue: "3.2m요", conflicted: false, answeredAt: null },
     { slotKey: "top_step", label: "최상부 디딤대", displayValue: "사용", question: "맨 위 발판이나 그 바로 아래 칸에 올라섭니까?", ledgerValue: null, answeredValue: "맨 위 바로 아래 칸까지 올라가요", conflicted: false, answeredAt: null },

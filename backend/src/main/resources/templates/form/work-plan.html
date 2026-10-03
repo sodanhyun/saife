@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <!--
-  작업 전 안전점검표 (TBM).
+  작업 전 안전점검표.
 
   사다리 천장 도장처럼 안전보건규칙 제38조 작업계획서 대상이 아닌 작업의 기록이다.
-  근거: 안전보건규칙 제42조, 법 제36조제4항(작업 전 안전점검회의로 근로자 공유), 고시 제13조.
+  근거: 안전보건규칙 제42조, 법 제36조제4항(위험성평가 결과 근로자 공유), 고시 제13조.
   제38조 대상 작업이면 같은 서식이 제목과 근거만 「작업계획서」로 바뀐다(값은 WorkPlanFormService).
 -->
 <html lang="ko" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{form/_layout :: layout(${form.documentTitle}, ~{::main})}">
 <body>
 <main class="sheet">
-  <h1 th:if="${#strings.contains(form.documentTitle, ' (')}"><span th:text="${#strings.substringBefore(form.documentTitle, ' (')}">작업 전 안전점검표</span> <span class="ls0" th:text="'(' + ${#strings.substringAfter(form.documentTitle, ' (')}">(TBM)</span></h1>
+  <h1 th:if="${#strings.contains(form.documentTitle, ' (')}"><span th:text="${#strings.substringBefore(form.documentTitle, ' (')}">작업 전 안전점검표</span> <span class="ls0" th:text="'(' + ${#strings.substringAfter(form.documentTitle, ' (')}">(작업계획서)</span></h1>
   <h1 th:unless="${#strings.contains(form.documentTitle, ' (')}" th:text="${form.documentTitle}">작업 전 안전점검표</h1>
   <p class="subtitle" th:text="${form.documentBasis}">근거</p>
 
@@ -105,16 +105,16 @@
     </tbody>
   </table>
 
-  <div class="section-title">작업 전 안전점검회의 (TBM)</div>
+  <div class="section-title">작업자 안내</div>
   <table>
     <tr>
-      <td class="label">위험 포인트</td>
+      <td class="label">주의할 점</td>
       <td>
         <ol class="points"><li th:each="r : ${form.riskPoints}" th:text="${r}">-</li></ol>
       </td>
     </tr>
     <tr>
-      <td class="label">지킬 것</td>
+      <td class="label">안전수칙</td>
       <td>
         <ol class="points"><li th:each="k : ${form.keepPoints}" th:text="${k}">-</li></ol>
       </td>
@@ -123,13 +123,9 @@
       <td class="label">작업 중지</td>
       <td th:text="${form.stopLine}">-</td>
     </tr>
-    <tr>
-      <td class="label">TBM 실시</td>
-      <td th:text="${form.briefingAckAt}"></td>
-    </tr>
   </table>
 
-  <div class="section-title">TBM 참석자</div>
+  <div class="section-title">작업자 확인 (안내를 받고 서명)</div>
   <table>
     <thead>
     <tr>

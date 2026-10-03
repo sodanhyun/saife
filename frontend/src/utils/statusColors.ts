@@ -2,7 +2,7 @@
 // 유틸리티 클래스만 반환한다. 컴포넌트에서 상태→클래스를 직접 분기하지 않는다.
 //
 // 색 정책: 색은 편차에만 쓴다. 정상·일반 정보는 무채색(neutral).
-import type { ReportStatus, RiskLevel, WorkPlanStatus } from "@/types/domain";
+import type { ActionStatus, ReportStatus, RiskLevel, WorkPlanStatus } from "@/types/domain";
 import type { Emphasis } from "@/types/timeline";
 
 export type Tone = "high" | "medium" | "low" | "pending" | "progress" | "neutral";
@@ -114,4 +114,11 @@ export function reportDutyTone(status: ReportStatus): Tone {
   if (status === "OVERDUE") return "high";
   if (status === "REQUIRED") return "pending";
   return "neutral";
+}
+
+/** 개선대책 이행 상태. 기한 경과 빨강(high), 미이행(pending), 완료 초록(low). */
+export function actionStatusTone(status: ActionStatus): Tone {
+  if (status === "OVERDUE") return "high";
+  if (status === "DONE") return "low";
+  return "pending";
 }

@@ -182,9 +182,6 @@ function PlanLine({ p }: { p: PriorWorkPlan }) {
           {p.approvalNote}
         </span>
       )}
-      <span className="tabular-nums text-slate-700">
-        {p.briefingAckAt ? `TBM ${formatShortDateTime(p.briefingAckAt).slice(-5)}` : "TBM 기록 없음"}
-      </span>
       <Link to={`/work-plan?planId=${p.workPlanId}`} className="text-xs font-semibold text-brand underline-offset-4 hover:underline">
         열기
       </Link>

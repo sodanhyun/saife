@@ -1,4 +1,4 @@
-import { Camera, ClipboardList, LayoutGrid, Siren, type LucideIcon } from "lucide-react";
+import { Camera, ClipboardList, LayoutGrid, ListChecks, Siren, type LucideIcon } from "lucide-react";
 
 export interface MenuItem {
   key: string;
@@ -27,6 +27,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       { key: "work-plan", path: "/work-plan", label: "작업 전 점검", icon: ClipboardList },
       { key: "vision", path: "/vision", label: "순회점검", icon: Camera },
       { key: "incident", path: "/incident", label: "사고 보고", icon: Siren },
+      { key: "action", path: "/action", label: "개선대책", icon: ListChecks },
     ],
   },
 ];

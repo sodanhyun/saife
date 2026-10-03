@@ -59,7 +59,7 @@ describe("ChatThread", () => {
       { role: "assistant", text: "점검표를 작성했습니다.", evidence: [], workPlan: ladderDetail },
     ];
     render(<ChatThread turns={turns} streaming={false} onOpenDetail={() => {}} />);
-    expect(screen.getByText("작업 전 안전점검표 (TBM)")).toBeInTheDocument();
+    expect(screen.getByText("작업 전 안전점검표")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "검토 및 승인" })).toBeInTheDocument();
   });
 });

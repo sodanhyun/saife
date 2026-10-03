@@ -14,10 +14,10 @@ export default function MobileHeader({ onOpenSidebar }: MobileHeaderProps) {
   const navigate = useNavigate();
 
   return (
-    <header className="lg:hidden flex items-center justify-between h-14 px-4 bg-brand-ink border-b border-white/10 sticky top-0 z-50">
+    <header className="lg:hidden flex items-center justify-between h-14 px-4 bg-white border-b border-slate-200 sticky top-0 z-50">
       <button
         onClick={onOpenSidebar}
-        className="p-2 text-white hover:bg-white/10 rounded-md transition-colors"
+        className="p-2 text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
       >
         <Menu size={24} />
       </button>
@@ -26,7 +26,7 @@ export default function MobileHeader({ onOpenSidebar }: MobileHeaderProps) {
         onClick={() => navigate(LANDING_PATH)}
         className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
       >
-        <img src="/brand/saife-logo-inverse.svg" alt="SAIFE" className="h-7" />
+        <img src="/brand/saife-logo.svg" alt="SAIFE" className="h-7" />
       </button>
 
       <div className="w-10" /> {/* 가운데 정렬용 스페이서 */}

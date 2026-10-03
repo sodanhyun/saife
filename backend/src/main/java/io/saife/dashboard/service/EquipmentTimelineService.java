@@ -330,10 +330,11 @@ public class EquipmentTimelineService {
     private List<TimelineEvent> workPlanEvents(List<WorkPlan> workPlans, List<Action> actions) {
         List<TimelineEvent> out = new ArrayList<>();
         for (WorkPlan plan : workPlans) {
-            boolean acknowledged = plan.getBriefingAckAt() != null;
+            // 승인된 점검은 그때 남아 있던 미이행 조치와 잇는다(승인자가 알고도 승인한 위험)
+            boolean approved = plan.getApprovedAt() != null;
 
             List<String> linked = new ArrayList<>();
-            if (acknowledged) {
+            if (approved) {
                 for (Action action : actions) {
                     if (action.getStatus() != ActionStatus.DONE
                             && action.getDueDate() != null
@@ -343,26 +344,29 @@ public class EquipmentTimelineService {
                 }
             }
 
-            String detail = tbmDetail(plan, acknowledged);
-
             out.add(new TimelineEvent("workplan-" + plan.getId(), EventType.WORK_PLAN,
-                    plan.getWorkDate(), plan.getBriefingAckAt(),
-                    plan.getWorkName(), detail, null, null,
+                    plan.getWorkDate(), plan.getApprovedAt(),
+                    plan.getWorkName(), approvalDetail(plan), null, null,
                     plan.getStatus().name(), plan.getId(), linked, List.of(),
                     ORDER_WORK_PLAN,
-                    acknowledged && !linked.isEmpty() ? Emphasis.WARNING : Emphasis.NORMAL, null));
+                    approved && !linked.isEmpty() ? Emphasis.WARNING : Emphasis.NORMAL, null));
         }
         return out;
     }
 
-    /** TBM 표기. 작업일 전이면 예정, 보류는 재개 조건, 작업일이 지났는데 기록이 없으면 미실시 */
-    private static String tbmDetail(WorkPlan plan, boolean acknowledged) {
-        if (acknowledged) return "TBM 실시";
-        if (plan.getStatus() == WorkPlanStatus.HOLD) return "수시평가 확정 후 재개";
-        if (plan.getStatus() == WorkPlanStatus.REJECTED) return "반려";
-        if (plan.getStatus() == WorkPlanStatus.SUBMITTED || plan.getStatus() == WorkPlanStatus.DRAFT) return "승인 후 TBM";
-        if (plan.getWorkDate().isAfter(LocalDate.now(ZoneId.of("Asia/Seoul")))) return "작업 예정";
-        return "TBM 미실시";
+    /** 승인 표기: 승인자와 잠정조치, 보류면 재개 조건 */
+    static String approvalDetail(WorkPlan plan) {
+        return switch (plan.getStatus()) {
+            case HOLD -> "작업 보류, 수시평가 확정 후 재개";
+            case REJECTED -> "반려";
+            case DRAFT -> "작성 중";
+            case SUBMITTED -> "승인 대기";
+            default -> {
+                String who = plan.getApprovedBy() == null ? "" : " " + plan.getApprovedBy();
+                String note = plan.getApprovalNote();
+                yield note == null || note.isBlank() ? "승인" + who : "조건부 승인" + who + ", 잠정조치: " + note;
+            }
+        };
     }
 
     /** 사고 사건. 항상 CRITICAL이고, 예고되어 있었다면 그 근거들과 선으로 이어진다 */

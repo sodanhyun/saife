@@ -26,17 +26,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
- * 작업 전 점검(점검표) 조회, 관리감독자 승인, 작업 보류, TBM 실시 확인.
+ * 작업 전 점검(점검표) 조회, 관리감독자 승인, 작업 보류.
  *
  * <p>작성은 에이전트 도구가 한다({@code WorkPlanTools}). 여기는 그 뒤의 수명주기다.
- * 순서는 승인 대기, 승인(또는 조건부 승인), 작업 당일 TBM 실시다. 승인 전에는 TBM을 기록하지 않는다.
+ * 순서는 승인 대기, 승인(또는 조건부 승인)이다. 승인 뒤 서식을 출력해 작업자 안내와 서명을 받는다.
  *
  * <p>화면에 그대로 뜨는 오류 문구에는 내부 ID와 상태 코드를 넣지 않는다.
  */
@@ -49,8 +47,6 @@ public class WorkPlanService {
     private static final String STOP_WORK = "(?s).*(작업\\s*금지|작업\\s*중지|작업\\s*중단).*";
     /** 관리감독자(작업지휘자)로 보는 직책 */
     private static final String SUPERVISOR_POSITION = ".*(반장|관리감독자|작업지휘자|조장|팀장).*";
-    /** TBM을 기록할 수 있는 상태(승인 후) */
-    private static final Set<WorkPlanStatus> ACK_ALLOWED = EnumSet.of(WorkPlanStatus.APPROVED, WorkPlanStatus.CONDITIONAL);
 
     private final WorkPlanRepository workPlanRepository;
     private final WorkPlanSlotRepository workPlanSlotRepository;
@@ -90,34 +86,6 @@ public class WorkPlanService {
     @Transactional(readOnly = true)
     public WorkPlanDtos.Detail detail(Long workPlanId) {
         return toDetail(load(workPlanId));
-    }
-
-    /**
-     * TBM 실시 확인. 승인된 점검표만 기록한다(승인 후 작업 당일 TBM).
-     *
-     * <p>이 시각이 상시평가 트랙의 TBM 이행 증빙이고, 사고가 나면 UC2가
-     * "경고는 전달됐다"의 근거로 소환한다. <b>확인을 두 번 눌러도 최초 시각을 유지한다</b>.
-     * 덮어쓰면 "언제 알렸나"가 사라진다.
-     */
-    @Transactional
-    public WorkPlanDtos.Detail acknowledgeBriefing(Long workPlanId) {
-        WorkPlan plan = load(workPlanId);
-
-        if (plan.getBriefing() == null || plan.getBriefing().isBlank()) {
-            throw new IllegalStateException("TBM 내용이 없는 점검 기록입니다.");
-        }
-        if (plan.getBriefingAckAt() != null) {
-            log.debug("[UC3] 이미 확인된 TBM workPlanId={} at={}", workPlanId, plan.getBriefingAckAt());
-            return toDetail(plan);
-        }
-        if (!ACK_ALLOWED.contains(plan.getStatus())) {
-            throw new IllegalStateException("승인 후 TBM을 실시합니다.");
-        }
-
-        plan.acknowledgeBriefing();
-        workPlanRepository.save(plan);
-        log.info("[UC3] TBM 실시 기록 workPlanId={} at={}", workPlanId, plan.getBriefingAckAt());
-        return toDetail(plan);
     }
 
     /**

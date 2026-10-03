@@ -47,13 +47,6 @@ public class WorkPlanController {
         return ResponseEntity.ok(workPlanService.detail(workPlanId));
     }
 
-    /** TBM 실시 확인. 승인 후에만 기록한다. 이 시각이 TBM 이행 증빙이 된다 */
-    @PostMapping("/{workPlanId}/ack")
-    public ResponseEntity<WorkPlanDtos.Detail> acknowledge(@PathVariable Long workPlanId) {
-        log.info("[UC3] 브리핑 확인 workPlanId={}", workPlanId);
-        return ResponseEntity.ok(workPlanService.acknowledgeBriefing(workPlanId));
-    }
-
     /** 작업 보류. 잠정조치가 작업 금지라 승인할 수 없을 때 */
     @PostMapping("/{workPlanId}/hold")
     public ResponseEntity<WorkPlanDtos.Detail> hold(

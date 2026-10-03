@@ -9,7 +9,7 @@ import type { WorkPlanDetail } from "@/types/workPlan";
 import { getServerMessage } from "@/utils/errorMessage";
 
 /** 진행 중인 상세 모달 액션. 누른 버튼만 loading을 띄우기 위해 종류까지 기억한다. */
-export type WorkPlanAction = "open" | "ack" | "approve" | "hold";
+export type WorkPlanAction = "open" | "approve" | "hold";
 
 /** 점검 기록 한 번에 보이는 줄 수. "더 보기"마다 이만큼 늘린다 */
 export const PAGE_SIZE = 10;
@@ -22,7 +22,7 @@ function cleanMessage(raw: string | null | undefined, fallback: string): string 
 }
 
 /**
- * 점검 기록 목록(검색, 상태 필터, 더 보기), 상세, TBM 실시 확인, 승인, 작업 보류.
+ * 점검 기록 목록(검색, 상태 필터, 더 보기), 상세, 승인, 작업 보류.
  * 목록은 서버 데이터에서만 파생한다(낙관적 플래그 없음).
  */
 export function useWorkPlans() {
@@ -76,7 +76,6 @@ export function useWorkPlans() {
     busyAction,
     openDetail: (id: number) => run("open", () => workPlanApi.detail(id)),
     closeDetail: () => setDetail(null),
-    acknowledge: (id: number) => run("ack", () => workPlanApi.acknowledge(id), "TBM 실시를 기록했습니다"),
     /** 승인자는 관리감독자(작업 담당 반장). condition이 있으면 조건부 승인(잠정조치) */
     approve: (id: number, approver: string, condition?: string) =>
       run("approve", () => workPlanApi.approve(id, approver || undefined, condition), condition ? "조건부 승인했습니다" : "승인했습니다"),

@@ -137,7 +137,7 @@ describe("IncidentResult", () => {
     expect(screen.getByText("공장동 후면 차양부, 휴업예상 5일, 골절, 왼쪽 발목")).toBeInTheDocument();
   });
 
-  it("사고 당일 작업 전 점검을 승인 상태, 잠정조치, TBM 시각과 함께 보인다", () => {
+  it("사고 당일 작업 전 점검을 승인 상태, 잠정조치와 함께 보인다", () => {
     renderResult({
       ...fixture,
       recall: {
@@ -152,7 +152,7 @@ describe("IncidentResult", () => {
     expect(screen.getByText("천장 페인트 칠 작업")).toBeInTheDocument();
     expect(screen.getByText(/조건부 승인/)).toBeInTheDocument();
     expect(screen.getByText("맨 위 두 칸 사용 금지")).toBeInTheDocument();
-    expect(screen.getByText("TBM 08:20")).toBeInTheDocument();
+    expect(screen.queryByText(/TBM/)).toBeNull();
   });
 
   it("서식 버튼 3개: 산업재해조사표(새 탭), 재발방지 검토서(새 탭), 설비 이력", () => {

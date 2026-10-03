@@ -139,12 +139,11 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
       )}
 
       {view && (view.riskPoints.length > 0 || view.keepPoints.length > 0) && (
-        <Section title="TBM" className="border-t border-slate-100">
+        <Section title="작업자 안내" className="border-t border-slate-100">
           <div className="grid gap-5 md:grid-cols-2">
-            <Points title="위험 포인트" items={view.riskPoints} />
-            <Points title="지킬 것" items={view.keepPoints} />
+            <Points title="주의할 점" items={view.riskPoints} />
+            <Points title="안전수칙" items={view.keepPoints} />
           </div>
-          <p className="mt-3 text-sm font-medium text-slate-900">위험하면 작업을 멈추고 관리감독자에게 알립니다.</p>
         </Section>
       )}
 
@@ -191,7 +190,7 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
         </div>
       )}
 
-      {detail.slots.length > 0 && (
+      {approval && detail.slots.length > 0 && (
         <Section title="현장 확인" className="border-t border-slate-100">
           <div className="flex flex-wrap gap-2">
             {detail.slots.map((s) => (
@@ -215,15 +214,12 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
   );
 }
 
-/** 바닥 주 버튼은 상태가 정한다: 승인 대기는 검토, 승인 후 TBM 전이면 TBM, 보류면 수시평가 */
+/** 바닥 주 버튼은 상태가 정한다: 승인 대기는 검토, 보류면 수시평가, 그 밖에는 열기 */
 function ResultActions({ detail, onOpenDetail }: { detail: WorkPlanDetail; onOpenDetail?: (id: number) => void }) {
   if (detail.status === "HOLD") {
     return <Link to={assessmentHref(detail.holdAssessmentId)} className={buttonClassName("primary", "sm")}>수시평가</Link>;
   }
   if (!onOpenDetail) return null;
   if (detail.status === "SUBMITTED") return <Button size="sm" onClick={() => onOpenDetail(detail.id)}>검토 및 승인</Button>;
-  if ((detail.status === "APPROVED" || detail.status === "CONDITIONAL") && !detail.briefingAckAt) {
-    return <Button size="sm" onClick={() => onOpenDetail(detail.id)}>TBM 실시</Button>;
-  }
   return <Button size="sm" variant="secondary" onClick={() => onOpenDetail(detail.id)}>열기</Button>;
 }

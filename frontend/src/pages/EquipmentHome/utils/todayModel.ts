@@ -173,7 +173,6 @@ export function buildKpis(rows: TodayRowModel[], cards: EquipmentCard[]): KpiMod
   return [
     { key: "overdue", label: "기한 경과 조치", value: overdue.length, tone: "high",
       note: overdue.length ? `최장 ${worstOverdue}일` : null },
-    { key: "week", label: "7일 내 마감", value: rows.filter((r) => matches(r, "week")).length, tone: "pending", note: null },
     { key: "approval", label: "승인 대기", value: rows.filter((r) => matches(r, "approval")).length, tone: "pending", note: null },
     { key: "report", label: "조사표 미제출", value: report.length, tone: "pending",
       note: nextReport?.dueDate ? `기한 ${monthDay(nextReport.dueDate)}` : null },

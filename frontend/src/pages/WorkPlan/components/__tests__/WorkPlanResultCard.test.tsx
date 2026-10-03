@@ -15,7 +15,7 @@ const kase = (no: number, thumb: string | null): Evidence => ({
 describe("WorkPlanResultCard", () => {
   it("문서 이름은 작업 전 안전점검표이고 내부 번호를 보이지 않는다", () => {
     render(<WorkPlanResultCard detail={detail} evidence={[]} onOpenDetail={() => {}} />);
-    expect(screen.getByText("작업 전 안전점검표 (TBM)")).toBeInTheDocument();
+    expect(screen.getByText("작업 전 안전점검표")).toBeInTheDocument();
     expect(screen.queryByText(/#31/)).toBeNull();
     expect(screen.getByText("승인 대기")).toBeInTheDocument();
   });
@@ -35,11 +35,12 @@ describe("WorkPlanResultCard", () => {
     expect(screen.getByText("30일 경과")).toBeInTheDocument();
   });
 
-  it("TBM 위험 포인트와 지킬 것, 작업 중지 줄을 보인다", () => {
+  it("작업자 안내는 주의할 점과 안전수칙이다", () => {
     render(<WorkPlanResultCard detail={detail} evidence={[]} onOpenDetail={() => {}} />);
-    expect(screen.getByText("위험 포인트")).toBeInTheDocument();
-    expect(screen.getByText("지킬 것")).toBeInTheDocument();
-    expect(screen.getByText("위험하면 작업을 멈추고 관리감독자에게 알립니다.")).toBeInTheDocument();
+    expect(screen.getByText("작업자 안내")).toBeInTheDocument();
+    expect(screen.getByText("주의할 점")).toBeInTheDocument();
+    expect(screen.getByText("안전수칙")).toBeInTheDocument();
+    expect(screen.queryByText(/TBM/)).toBeNull();
   });
 
   it("주성분을 추정했으면 추정이라고 밝힌다", () => {
@@ -49,8 +50,8 @@ describe("WorkPlanResultCard", () => {
     expect(screen.getByText("H225 고인화성 액체 및 증기")).toBeInTheDocument();
   });
 
-  it("현장 확인 값은 단위를 붙여 보인다", () => {
-    render(<WorkPlanResultCard detail={detail} evidence={[]} onOpenDetail={() => {}} />);
+  it("승인 화면에서는 현장 확인 값을 단위를 붙여 보인다", () => {
+    render(<WorkPlanResultCard detail={detail} evidence={[]} variant="approval" />);
     expect(screen.getByText("발판 높이")).toBeInTheDocument();
     expect(screen.getByText("3.2 m")).toBeInTheDocument();
   });
@@ -74,9 +75,9 @@ describe("WorkPlanResultCard", () => {
     expect(screen.getByText("2인 1조, 맨 위 두 칸 사용 금지")).toBeInTheDocument();
   });
 
-  it("승인 후 TBM 전이면 바닥 주 버튼은 TBM 실시다", () => {
+  it("승인 후에는 바닥 버튼이 열기다", () => {
     render(<WorkPlanResultCard detail={{ ...detail, status: "APPROVED", approvedBy: "김철수", approvedAt: "2026-10-02T08:50:00+09:00" }} evidence={[]} onOpenDetail={() => {}} />);
-    expect(screen.getByRole("button", { name: "TBM 실시" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "열기" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "검토 및 승인" })).toBeNull();
   });
 

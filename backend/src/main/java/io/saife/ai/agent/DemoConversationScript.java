@@ -150,13 +150,13 @@ public class DemoConversationScript {
             hazardAnalysisTools.getMsds(slots.get(RiskRuleEngine.SlotKeys.PRODUCT_NAME), toolContext);
         }
 
-        // 5) 제출과 TBM
+        // 5) 제출
         Long planId = latestDraftId(conversationId);
         if (planId == null) {
             return out.append("점검표 초안을 찾지 못했습니다. 새 대화로 다시 시작해 주세요.").toString();
         }
         workPlanTools.createWorkPlan(planId, toolContext);
-        out.append("작업 전 안전점검표를 작성해 관리감독자 승인 대기에 올렸습니다. 승인 후 작업 당일 TBM으로 내용을 공유해 주세요.");
+        out.append("작업 전 안전점검표를 작성해 관리감독자 승인 대기에 올렸습니다. 승인되면 점검표를 출력해 작업자 안내와 서명을 받으세요.");
 
         // 상태를 지우지 않고 "완료"로 표시한다. 지우면 이어지는 발화가 처음부터 다시 시작한다
         slots.put("done", "true");

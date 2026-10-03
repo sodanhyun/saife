@@ -165,8 +165,8 @@ public class WorkPlanTools {
 
     @Tool(description = """
             <tool-description>
-            <purpose>정리된 작업 전 안전점검표를 저장하고 TBM 내용(위험 포인트, 지킬 것)을 만든 뒤 관리감독자 승인 대기에 올립니다. 대화의 마지막 도구입니다.</purpose>
-            <returns>TBM 내용과 승인 요청 결과를 반환합니다. 위험성 등급은 시스템 판정 기준으로 이미 정해져 있습니다.</returns>
+            <purpose>정리된 작업 전 안전점검표를 저장하고 작업자 안내(주의할 점, 안전수칙)를 만든 뒤 관리감독자 승인 대기에 올립니다. 대화의 마지막 도구입니다.</purpose>
+            <returns>작업자 안내와 승인 요청 결과를 반환합니다. 위험성 등급은 시스템 판정 기준으로 이미 정해져 있습니다.</returns>
             <prerequisites>extractWorkPlan이 "필수 항목이 모두 채워졌습니다"를 반환한 뒤에 호출하세요. analyzeHazards, searchCases, getMsds로 근거를 먼저 모으세요.</prerequisites>
             <usage-guide>
             - 필수 항목이 비어 있으면 이 도구는 status=INCOMPLETE를 반환하고 제출하지 않습니다.
@@ -217,7 +217,7 @@ public class WorkPlanTools {
                 return ToolResult.of("""
                         점검표는 이미 제출되었습니다 [id=%d, 상태=%s]. 중복 제출하지 않았습니다.
 
-                        [TBM]
+                        [작업자 안내]
                         %s
                         """.formatted(plan.getId(), plan.getStatus(),
                         plan.getBriefing() == null ? "(없음)" : plan.getBriefing()));
@@ -249,7 +249,7 @@ public class WorkPlanTools {
                     점검표 제출 완료 [id=%d]. 관리감독자 승인 대기에 올렸습니다.
                     결과 카드가 화면에 표시됩니다. 등급과 근거를 다시 나열하지 말고 한두 문장으로만 안내하세요.
 
-                    [TBM]
+                    [작업자 안내]
                     %s
                     """.formatted(plan.getId(), briefing));
         });

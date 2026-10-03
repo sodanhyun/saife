@@ -12,7 +12,6 @@ import Textarea from "@/components/ui/Textarea";
 import WorkPlanResultCard from "@/pages/WorkPlan/components/WorkPlanResultCard";
 import type { WorkPlanAction } from "@/pages/WorkPlan/hooks/useWorkPlans";
 import { assessmentHref, isStopWork } from "@/pages/WorkPlan/utils/approval";
-import { formatShortDateTime } from "@/pages/WorkPlan/utils/format";
 import type { WorkPlanDetail } from "@/types/workPlan";
 
 interface Props {
@@ -20,7 +19,6 @@ interface Props {
   /** 진행 중인 액션. 누른 버튼만 loading, 나머지는 disabled로 중복 요청을 막는다 */
   busyAction: WorkPlanAction | null;
   onClose: () => void;
-  onAcknowledge: (id: number) => void;
   /** condition이 있으면 조건부 승인(잠정조치) */
   onApprove: (id: number, approver: string, condition?: string) => void;
   /** 잠정조치가 작업 금지면 승인 대신 보류 */
@@ -33,8 +31,8 @@ function modalTitle(detail: WorkPlanDetail): string {
 }
 
 /**
- * 관리감독자 검토. 결과 카드와 같은 판정을 보고 승인한다. 순서는 승인, 그다음 작업 당일 TBM이다.
- * 보류된 점검표는 승인과 TBM 대신 수시평가로 간다.
+ * 관리감독자 검토. 결과 카드와 같은 판정을 보고 승인한다. 승인 뒤에는 서식을 출력해 작업자 안내와 서명을 받는다.
+ * 보류된 점검표는 승인 대신 수시평가로 간다.
  */
 export default function WorkPlanDetailModal(props: Props) {
   if (!props.detail) return null;
@@ -42,12 +40,11 @@ export default function WorkPlanDetailModal(props: Props) {
   return <DetailModalBody key={props.detail.id} {...props} detail={props.detail} />;
 }
 
-function DetailModalBody({ detail, busyAction, onClose, onAcknowledge, onApprove, onHold }: Props & { detail: WorkPlanDetail }) {
+function DetailModalBody({ detail, busyAction, onClose, onApprove, onHold }: Props & { detail: WorkPlanDetail }) {
   const [interim, setInterim] = useState("");
   const [approver, setApprover] = useState(detail.supervisor ?? "");
   const busy = busyAction !== null;
   const pending = detail.status === "SUBMITTED";
-  const approved = detail.status === "APPROVED" || detail.status === "CONDITIONAL";
   const held = detail.status === "HOLD";
   const interimRequired = pending && !!detail.briefingView?.interimRequired;
   const stopWork = interimRequired && isStopWork(interim);
@@ -55,9 +52,6 @@ function DetailModalBody({ detail, busyAction, onClose, onAcknowledge, onApprove
   const actions = (
     <>
       <LinkButton href={formUrl.workPlan(detail.id)} external>서식 출력</LinkButton>
-      {approved && !detail.briefingAckAt && detail.briefing && (
-        <Button loading={busyAction === "ack"} disabled={busy} onClick={() => onAcknowledge(detail.id)}>TBM 실시 확인</Button>
-      )}
       {held && (
         <Link to={assessmentHref(detail.holdAssessmentId)} onClick={onClose} className={buttonClassName("primary", "md")}>수시평가</Link>
       )}
@@ -92,9 +86,6 @@ function DetailModalBody({ detail, busyAction, onClose, onAcknowledge, onApprove
             </div>
           )}
         </div>
-      )}
-      {detail.briefingAckAt && (
-        <p className="border-t border-slate-100 px-6 py-3 text-sm text-slate-600">TBM 실시 {formatShortDateTime(detail.briefingAckAt)}</p>
       )}
     </Modal>
   );

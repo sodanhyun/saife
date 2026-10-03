@@ -5,6 +5,7 @@ export const VISION_ANALYZE = "/api/vision/analyze";
 export const EQUIPMENT = "/api/equipment";
 export const WORK_PLAN = "/api/work-plan";
 export const INCIDENT = "/api/incident";
+export const ACTION = "/api/action";
 export const equipmentTimeline = (equipmentId: number) => `/api/dashboard/equipment/${equipmentId}/timeline`;
 export const EQUIPMENT_CARDS = "/api/dashboard/equipment/cards";
 export const equipmentRecall = (equipmentId: number) => `/api/dashboard/equipment/${equipmentId}/recall`;

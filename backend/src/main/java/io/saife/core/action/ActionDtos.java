@@ -1,5 +1,6 @@
 package io.saife.core.action;
 
+import io.saife.core.domain.AccidentType;
 import io.saife.core.domain.Action;
 import io.saife.core.domain.ActionStatus;
 
@@ -43,6 +44,24 @@ public final class ActionDtos {
                     a.getCompletedAt(), a.getCreatedAt(), priority);
         }
     }
+
+    /**
+     * 개선대책 목록 한 줄. {@code GET /api/action}.
+     *
+     * @param status         판정 상태. 기한이 지난 미완료는 저장값과 무관하게 OVERDUE
+     * @param overdueDays    기한 경과 일수(KST 오늘 기준). 기한 경과가 아니면 null
+     * @param priority       감소대책 우선순위(고시 제12조). 미기재면 null
+     * @param accidentType   위험요인의 발생형태
+     * @param missingControl 위험요인의 빠진 안전조치
+     */
+    public record ActionListItem(Long id, String content, String owner, LocalDate dueDate,
+                                 ActionStatus status, Long overdueDays, OffsetDateTime completedAt,
+                                 ControlPriority priority, String guideRef, Long hazardId,
+                                 AccidentType accidentType, String missingControl,
+                                 Long equipmentId, String equipmentName, Long assessmentId) {}
+
+    /** 목록 탭 건수. open은 기한 경과를 포함한다 */
+    public record ActionCounts(long open, long overdue, long done) {}
 
     /**
      * 감소대책 초안. {@link ActionSuggestionTable}이 발생형태와 빠진 조치로 고른다(모델 호출 없음).

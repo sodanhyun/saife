@@ -19,7 +19,7 @@ public record WorkDocument(String type, String title, String shortTitle, String 
     public static final String WORK_PLAN = "WORK_PLAN";
 
     private static final WorkDocument CHECKLIST = new WorkDocument(TBM_CHECKLIST,
-            "작업 전 안전점검표 (TBM)", "점검표",
+            "작업 전 안전점검표", "점검표",
             "산업안전보건기준에 관한 규칙 제42조, 산업안전보건법 제36조제4항, 사업장 위험성평가에 관한 지침 제13조");
 
     private static final WorkDocument PLAN = new WorkDocument(WORK_PLAN,

@@ -23,7 +23,6 @@ export const workPlanApi = {
       signal,
     }).then((r) => r.data),
   detail: (id: number) => api.get<WorkPlanDetail>(`${WORK_PLAN}/${id}`).then((r) => r.data),
-  acknowledge: (id: number) => api.post<WorkPlanDetail>(`${WORK_PLAN}/${id}/ack`).then((r) => r.data),
   approve: (id: number, approver?: string, condition?: string) =>
     api.post<WorkPlanDetail>(`${WORK_PLAN}/${id}/approve`, { approver, condition }).then((r) => r.data),
   /** 작업 보류. 잠정조치가 작업 금지라 승인할 수 없을 때 */

@@ -1,4 +1,4 @@
-// WorkPlanPage.tsx — 작업 전 점검. 대화로 「작업 전 안전점검표 (TBM)」를 채운다.
+// WorkPlanPage.tsx — 작업 전 점검. 대화로 「작업 전 안전점검표」를 채운다.
 // 대화 전에는 입력창이 전체 폭이고, 대화가 시작되면 오른쪽에 진행 패널이 열린다.
 import { useEffect, useRef } from "react";
 
@@ -77,7 +77,7 @@ export default function WorkPlanPage() {
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           {conversation}
           <div className="lg:sticky lg:top-6">
-            <AgentFlowPanel rows={agent.trace} evidence={agent.evidenceCount} />
+            <AgentFlowPanel rows={agent.trace} />
           </div>
         </div>
       ) : (
@@ -87,7 +87,7 @@ export default function WorkPlanPage() {
         loadError={plans.loadError} onKeyword={plans.setKeyword} onStatus={plans.setStatus} onMore={plans.loadMore}
         onOpen={plans.openDetail} onRetry={plans.refetch} />
       <WorkPlanDetailModal detail={plans.detail} busyAction={plans.busyAction} onClose={plans.closeDetail}
-        onAcknowledge={plans.acknowledge} onApprove={plans.approve} onHold={plans.hold} />
+        onApprove={plans.approve} onHold={plans.hold} />
     </PageLayout>
   );
 }
