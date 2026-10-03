@@ -240,11 +240,6 @@ public class SafeCandidateGoogleGenAiChatModel extends GoogleGenAiChatModel {
      * GoogleGenAiUsage.from()은 Extended Usage(thinking tokens 등)를 포함하는 기본 동작.
      */
     private Usage safeGetUsage(Object usageMetadata, GoogleGenAiChatOptions options) {
-        if (log.isDebugEnabled() && usageMetadata instanceof com.google.genai.types.GenerateContentResponseUsageMetadata m) {
-            // 비용 산정용(LOGGING_LEVEL_IO_SAIFE_AI_CONFIG=DEBUG). 스트리밍은 청크마다 누적값이 온다
-            log.debug("[USAGE] prompt={} candidates={} thoughts={} total={}", m.promptTokenCount().orElse(0),
-                    m.candidatesTokenCount().orElse(0), m.thoughtsTokenCount().orElse(0), m.totalTokenCount().orElse(0));
-        }
         boolean includeExtended = true;
         if (options != null && options.getIncludeExtendedUsageMetadata() != null) {
             includeExtended = options.getIncludeExtendedUsageMetadata();

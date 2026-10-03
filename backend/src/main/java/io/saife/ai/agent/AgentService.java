@@ -229,6 +229,13 @@ public class AgentService {
                 return;
             }
 
+            // 비용 산정용 토큰 집계. 도구 호출 라운드가 누적된 값이다
+            if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
+                var u = response.getMetadata().getUsage();
+                log.info("[USAGE] conversation={} prompt={} completion={} total={}", conversationId,
+                        u.getPromptTokens(), u.getCompletionTokens(), u.getTotalTokens());
+            }
+
             AssistantMessage assistant = response.getResult().getOutput();
             String text = assistant.getText() != null ? assistant.getText() : "";
 

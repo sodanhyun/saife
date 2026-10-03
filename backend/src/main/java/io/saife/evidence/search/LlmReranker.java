@@ -36,10 +36,15 @@ public class LlmReranker {
         if (candidates.size() <= topK) return candidates;
         List<ChunkHit> docs = candidates.subList(0, Math.min(candidates.size(), SearchPolicy.RERANK_MAX_DOCS));
         try {
-            String content = builder.build().prompt().user(buildPrompt(query, docs))
+            var response = builder.build().prompt().user(buildPrompt(query, docs))
                     .options(GoogleGenAiChatOptions.builder().model(model).temperature(0.0)
                             .maxOutputTokens(500).responseMimeType("application/json").thinkingBudget(0).build())
-                    .call().content();
+                    .call().chatResponse();
+            String content = response == null || response.getResult() == null ? null : response.getResult().getOutput().getText();
+            if (response != null && response.getMetadata() != null && response.getMetadata().getUsage() != null) {
+                var u = response.getMetadata().getUsage();
+                log.info("[USAGE] rerank docs={} prompt={} completion={}", docs.size(), u.getPromptTokens(), u.getCompletionTokens());
+            }
             int[] scores = RerankScoreParser.parse(content, docs.size());
             if (scores == null) { log.warn("[RERANK] 점수 파싱 실패 — 원본 순서"); return fallback(docs, topK); }
             List<int[]> pairs = new ArrayList<>();

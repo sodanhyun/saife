@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 
 class LlmRerankerTest {
     private ChunkHit hit(long id) { return new ChunkHit(id, EvidenceKind.GUIDE, 1, "k" + id, "child", null, null, "t", "text" + id, Map.of(), 0.1 * id); }
@@ -17,8 +20,9 @@ class LlmRerankerTest {
         ChatClient.Builder builder = mock(ChatClient.Builder.class);
         ChatClient client = mock(ChatClient.class, RETURNS_DEEP_STUBS);
         when(builder.build()).thenReturn(client);
-        if (answer == null) when(client.prompt().user(any(String.class)).options(any()).call().content()).thenThrow(new RuntimeException("x"));
-        else when(client.prompt().user(any(String.class)).options(any()).call().content()).thenReturn(answer);
+        if (answer == null) when(client.prompt().user(any(String.class)).options(any()).call().chatResponse()).thenThrow(new RuntimeException("x"));
+        else when(client.prompt().user(any(String.class)).options(any()).call().chatResponse())
+                .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(answer)))));
         return new LlmReranker(builder, "<p>{query}{documents}</p>");
     }
 
