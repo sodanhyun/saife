@@ -116,7 +116,7 @@ public class PhotoRiskTable {
     );
 
     /** 모든 사진 등급에 붙는 단서. 정지 사진은 작업높이와 빈도를 담지 못한다 */
-    static final String PROVISIONAL = "사진 기준 잠정 등급, 작업높이와 빈도는 현장 확인 후 조정";
+    static final String PROVISIONAL = "(사진 기준)";
 
     /** 구체 항목에 안 걸렸을 때 쓰는 축 기본값 */
     private static final Map<AccidentType, Row> DEFAULTS = defaults();
@@ -132,10 +132,10 @@ public class PhotoRiskTable {
 
         if (matched == null) {
             return new RiskRuleEngine.Decision(RiskLevel.MEDIUM, (short) 2, (short) 2,
-                    "기준 항목 없음. " + PROVISIONAL);
+                    "기준 항목 없음 " + PROVISIONAL);
         }
 
-        String trace = matched.basis() + ". " + PROVISIONAL;
+        String trace = matched.basis() + " " + PROVISIONAL;
 
         log.debug("[PHOTO-RULE] {} '{}' → {}", accidentType, missingControl, matched.riskLevel());
         return new RiskRuleEngine.Decision(matched.riskLevel(),

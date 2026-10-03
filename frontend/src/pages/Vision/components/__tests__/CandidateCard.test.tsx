@@ -32,7 +32,7 @@ const candidate: VisionCandidate = {
   evidence: "작업자가 A형 사다리 최상부 발판 위에 서 있음",
   confidence: 0.8,
   riskLevel: "HIGH",
-  ruleTrace: "이동식 사다리 최상부 발판 및 그 하단 디딤대 사용 금지 (안전보건규칙 제42조제4항). 사진 기준 잠정 등급, 작업높이와 빈도는 현장 확인 후 조정",
+  ruleTrace: "이동식 사다리 최상부 발판 및 그 하단 디딤대 사용 금지 (안전보건규칙 제42조제4항) (사진 기준)",
   adopted: null,
   alreadyKnown: false,
   gateStatus: "PHOTO",
@@ -70,13 +70,13 @@ function renderCard(c: VisionCandidate, h: Handlers = {}) {
 }
 
 describe("CandidateCard", () => {
-  it("검토 필요 상태, 등급과 등급 근거, 판독 내용을 같이 띄우고 AI 표기는 없다", () => {
+  it("검토 필요 상태, 등급과 등급 근거, 사진 내용을 같이 띄우고 AI 표기는 없다", () => {
     renderCard(candidate);
     expect(screen.getByText("검토 필요")).toBeInTheDocument();
     expect(screen.getByLabelText("위험성 상")).toBeInTheDocument();
     expect(screen.getByText("등급 근거")).toBeInTheDocument();
     expect(screen.getByText(candidate.ruleTrace)).toBeInTheDocument();
-    expect(screen.getByText("판독 내용")).toBeInTheDocument();
+    expect(screen.getByText("사진 내용")).toBeInTheDocument();
     expect(screen.queryByText(/AI/)).toBeNull();
   });
 

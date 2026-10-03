@@ -74,7 +74,7 @@ export default function CandidateCard({ c, busy, onDecide, onAcceptable, onCreat
           </div>
           <h3 className="mt-1.5 text-headline text-slate-900">{c.missingControl}</h3>
           {c.evidence && (
-            <p className="mt-1 text-sm text-slate-600"><span className="mr-1.5 text-xs font-bold text-slate-500">판독 내용</span>{c.evidence}</p>
+            <p className="mt-1 text-sm text-slate-600"><span className="mr-1.5 text-xs font-bold text-slate-500">사진 내용</span>{c.evidence}</p>
           )}
 
           <div className="mt-3 rounded-md bg-panel px-3 py-2">
