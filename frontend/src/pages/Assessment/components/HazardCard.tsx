@@ -74,7 +74,7 @@ export default function HazardCard({ h, draft, onChange, errors = {}, readOnly, 
           {h.action ? (
             <ActionLine label="개선대책" action={h.action} today={today} />
           ) : readOnly ? (
-            <p className="text-sm text-slate-500">(미수립)</p>
+            h.priorAction ? null : <p className="text-sm text-slate-500">(미수립)</p>
           ) : (
             <div className="grid gap-x-3 gap-y-2 md:grid-cols-12">
               <FormField label="개선대책" required={!priorValid} error={errors.content} className="md:col-span-6">
@@ -102,7 +102,10 @@ export default function HazardCard({ h, draft, onChange, errors = {}, readOnly, 
               </FormField>
             </div>
           )}
-          {h.priorAction && <ActionLine label="기존 대책" action={h.priorAction} today={today} muted className="mt-3" />}
+          {h.priorAction && (
+            <ActionLine label="기존 대책" action={h.priorAction} today={today} muted={!readOnly || h.action !== null}
+              className={readOnly && !h.action ? undefined : "mt-3"} />
+          )}
         </div>
       )}
     </article>
