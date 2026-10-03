@@ -90,8 +90,8 @@ cd frontend && npm install && npm run dev        # :5173
 ## 검증
 
 ```bash
-cd backend && ./gradlew test        # 412건
-cd frontend && npm run test         # 308건
+cd backend && ./gradlew test        # 414건
+cd frontend && npm run test         # 312건
 ```
 
 시연 시나리오 스모크와 시드 재현 절차: [`docs/experiments/README.md`](docs/experiments/README.md).
