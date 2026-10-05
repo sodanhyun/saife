@@ -45,7 +45,7 @@ const candidate: VisionCandidate = {
     priority: "ENGINEERING",
   },
   action: null,
-  priorOpenAction: null,
+  priorOpenAction: null, box: null,
 };
 
 const action: ActionView = {

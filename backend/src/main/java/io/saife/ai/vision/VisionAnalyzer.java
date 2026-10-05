@@ -49,9 +49,14 @@ public class VisionAnalyzer {
      * @param missingControl 빠진 안전조치 — <b>이게 출력의 본체다</b>
      * @param evidence       사진의 어디를 보고 그렇게 판단했는지. 사람이 검증할 수 있어야 한다
      * @param confidence     모델의 자기보고 신뢰도. 등급에 쓰지 않는다. 정렬에만 쓴다
+     * @param box            사진에서 그 근거가 보이는 위치 [ymin, xmin, ymax, xmax] (0~1000). 없으면 null
      */
     public record Finding(AccidentType accidentType, String missingControl,
-                          String evidence, Double confidence) {}
+                          String evidence, Double confidence, List<Integer> box) {
+        public Finding(AccidentType accidentType, String missingControl, String evidence, Double confidence) {
+            this(accidentType, missingControl, evidence, confidence, null);
+        }
+    }
 
     private static final String PROMPT = """
             당신은 제조 사업장의 순회점검자입니다. 사진을 보고 **빠져 있는 안전조치**를 찾으십시오.
@@ -75,10 +80,13 @@ public class VisionAnalyzer {
               "위험해 보임" 같은 서술은 쓰지 마십시오. 가운뎃점(·)과 대시(—)는 쓰지 마십시오.
             - 빠진 조치가 없으면 findings를 빈 배열로 두십시오. **없는 것을 만들지 마십시오.**
             - 위험성 등급은 매기지 마십시오. 등급은 시스템이 정합니다.
+            - box에는 evidence가 가리키는 사람이나 물체를 감싸는 영역을 [ymin, xmin, ymax, xmax]로 쓰십시오.
+              사진 크기를 0~1000으로 본 정수입니다.
 
             JSON만 출력하십시오:
             {"findings":[{"accidentType":"FALL","missingControl":"개구부 덮개 미설치",
-              "evidence":"바닥 개구부에 고정되지 않은 임시 철망만 얹혀 있음","confidence":0.8}]}
+              "evidence":"바닥 개구부에 고정되지 않은 임시 철망만 얹혀 있음","confidence":0.8,
+              "box":[612,240,840,505]}]}
             """;
 
     /**
@@ -148,12 +156,30 @@ public class VisionAnalyzer {
                         ? node.path("confidence").asDouble() : null;
                 // 화면 문구 규칙: 가운뎃점 구분자를 쉼표로 바꾼다 ("유도 표식·구획선" → "유도 표식, 구획선")
                 out.add(new Finding(axis, missing.trim().replaceAll("\\s*·\\s*", ", "),
-                        dotless(node.path("evidence").asText(null)), confidence));
+                        dotless(node.path("evidence").asText(null)), confidence, box(node.path("box"))));
             }
         } catch (Exception e) {
             log.warn("[UC1] 판독 결과 파싱 실패: {}", e.toString());
         }
         return out;
+    }
+
+    /** [ymin, xmin, ymax, xmax] 0~1000. 모양이 맞지 않으면 null (위치 표시만 빠지고 후보는 남는다) */
+    static List<Integer> box(JsonNode node) {
+        if (node == null || !node.isArray() || node.size() != 4) {
+            return null;
+        }
+        List<Integer> v = new ArrayList<>();
+        for (JsonNode n : node) {
+            if (!n.isNumber()) {
+                return null;
+            }
+            v.add(Math.max(0, Math.min(1000, n.asInt())));
+        }
+        if (v.get(2) <= v.get(0) || v.get(3) <= v.get(1)) {
+            return null;
+        }
+        return v;
     }
 
     /** 화면 문구 규칙: 모델 서술의 가운뎃점("수직·수평")을 슬래시로 바꾼다 */
@@ -206,8 +232,8 @@ public class VisionAnalyzer {
     private List<Finding> demoFindings() {
         return List.of(
                 new Finding(AccidentType.FALL, "최상부 디딤대 사용",
-                        "(고정 응답) 작업자가 A형 사다리 최상부 발판 위에 서 있음", 0.9),
+                        "(고정 응답) 작업자가 A형 사다리 최상부 발판 위에 서 있음", 0.9, List.of(150, 430, 980, 640)),
                 new Finding(AccidentType.PPE, "안전대 미착용",
-                        "(고정 응답) 사다리 위 작업자에게 안전대가 보이지 않음", 0.7));
+                        "(고정 응답) 사다리 위 작업자에게 안전대가 보이지 않음", 0.7, List.of(130, 470, 560, 600)));
     }
 }

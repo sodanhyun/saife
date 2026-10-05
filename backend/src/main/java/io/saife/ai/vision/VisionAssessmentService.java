@@ -104,7 +104,8 @@ public class VisionAssessmentService {
                             List<Evidence> evidenceItems,
                             ActionDtos.SuggestedAction suggestedAction,
                             ActionDtos.ActionView action,
-                            ActionDtos.ActionView priorOpenAction) {}
+                            ActionDtos.ActionView priorOpenAction,
+                            List<Integer> box) {}
 
     /**
      * @param inspector    담당자(점검자)
@@ -279,6 +280,7 @@ public class VisionAssessmentService {
                     .severity(decision.severity())
                     .riskLevel(decision.riskLevel())
                     .ruleTrace(decision.ruleTrace())
+                    .photoBox(boxText(finding.box()))
                     .build());
 
             graded.add(new Graded(finding, hazard, alreadyKnown, decision));
@@ -302,7 +304,8 @@ public class VisionAssessmentService {
                     InspectionRules.defaultAcceptable(g.decision().riskLevel()), evidenceItems,
                     suggest(h.getAccidentType(), h.getMissingControl(), evidenceItems),
                     actionView(h, assessmentId),
-                    priorOpenActionView(h, assessmentId)));
+                    priorOpenActionView(h, assessmentId),
+                    finding.box()));
         }
 
         updateStatus(assessmentId, STATUS_ANALYZED);
@@ -354,7 +357,26 @@ public class VisionAssessmentService {
                 InspectionRules.acceptable(stored, level), evidenceItems,
                 suggest(hazard.getAccidentType(), hazard.getMissingControl(), evidenceItems),
                 actionView(hazard, latestAssessmentId),
-                priorOpenActionView(hazard, latestAssessmentId));
+                priorOpenActionView(hazard, latestAssessmentId),
+                latest == null ? null : parseBox(latest.getPhotoBox()));
+    }
+
+    /** "ymin,xmin,ymax,xmax" 저장 문자열 */
+    static String boxText(List<Integer> box) {
+        return box == null || box.size() != 4 ? null
+                : box.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+    }
+
+    static List<Integer> parseBox(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            List<Integer> v = java.util.Arrays.stream(text.split(",")).map(String::trim).map(Integer::valueOf).toList();
+            return v.size() == 4 ? v : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** 허용 가능 여부를 사람이 정한다. 이 점검(평가)과 위험요인의 연결에 기록된다 */
@@ -416,7 +438,8 @@ public class VisionAssessmentService {
                     evidenceItems,
                     suggest(h.getAccidentType(), h.getMissingControl(), evidenceItems),
                     actionView(h, assessmentId),
-                    priorOpenActionView(h, assessmentId)));
+                    priorOpenActionView(h, assessmentId),
+                    parseBox(link.getPhotoBox())));
         }
         InspectionRecordStore.Inspection inspection = records.inspection(assessmentId).orElse(null);
         return new AnalysisResult(assessmentId, assessment.getStatus(), assessment.getAssessedOn(),

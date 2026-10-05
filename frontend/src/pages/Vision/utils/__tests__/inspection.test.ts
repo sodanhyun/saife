@@ -8,7 +8,7 @@ import type { VisionCandidate } from "@/types/vision";
 const base: VisionCandidate = {
   hazardId: 1, accidentType: "FALL", accidentLabel: "떨어짐", missingControl: "m", evidence: null, confidence: null,
   riskLevel: "HIGH", ruleTrace: "r", adopted: null, alreadyKnown: false, gateStatus: "PHOTO", acceptable: false,
-  suggestedAction: null, action: null, priorOpenAction: null,
+  suggestedAction: null, action: null, priorOpenAction: null, box: null,
 };
 const action = { id: 1, status: "PENDING", dueDate: "2099-01-01" } as ActionView;
 const overdue = { id: 2, status: "OVERDUE", dueDate: "2020-01-01" } as ActionView;

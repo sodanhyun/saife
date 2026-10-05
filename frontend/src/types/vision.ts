@@ -35,6 +35,8 @@ export interface VisionCandidate {
   suggestedAction: SuggestedAction | null;
   action: ActionView | null;
   priorOpenAction: ActionView | null;
+  /** 사진에서 이 위험요인이 보이는 위치 [ymin, xmin, ymax, xmax] (0~1000). 없으면 null */
+  box: number[] | null;
 }
 
 /** assess.progress 단계. 백엔드 VisionAssessmentService.PHASE_* */

@@ -16,9 +16,12 @@ import { daysUntil, dueLabel, shortDate } from "@/pages/Vision/utils/dates";
 import { isOverdue } from "@/pages/Vision/utils/inspection";
 import type { Evidence } from "@/types/evidence";
 import type { VisionCandidate } from "@/types/vision";
+import { riskColor } from "@/utils/statusColors";
 
 interface Props {
   c: VisionCandidate;
+  /** 사진 위 상자 번호. 위치가 없으면 표시하지 않는다 */
+  no?: number;
   busy: boolean;
   onDecide: (hazardId: number, reflect: boolean) => void;
   onAcceptable: (hazardId: number, acceptable: boolean) => void;
@@ -53,7 +56,7 @@ function EvidenceList({ items, scope }: { items: Evidence[]; scope: string }) {
   );
 }
 
-export default function CandidateCard({ c, busy, onDecide, onAcceptable, onCreateAction, delay = 0 }: Props) {
+export default function CandidateCard({ c, no, busy, onDecide, onAcceptable, onCreateAction, delay = 0 }: Props) {
   const prior = c.priorOpenAction;
   const priorDays = daysUntil(prior?.dueDate ?? null);
   const priorOverdue = isOverdue(prior);
@@ -66,6 +69,9 @@ export default function CandidateCard({ c, busy, onDecide, onAcceptable, onCreat
         <RiskGradeMark level={c.riskLevel} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
+            {no !== undefined && c.box && (
+              <span aria-label={`사진 위치 ${no}`} className={cn("grid h-5 min-w-5 place-items-center rounded-sm px-1 text-xs font-bold tabular-nums text-white", riskColor(c.riskLevel).solid)}>{no}</span>
+            )}
             <Badge>{c.accidentLabel}</Badge>
             {c.alreadyKnown && <Badge variant="pending">기존 위험요인</Badge>}
             {c.gateStatus === "CHECKLIST" && <Badge variant="pending">현장 확인 필요</Badge>}

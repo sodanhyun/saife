@@ -53,7 +53,8 @@ export default function VisionPage() {
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <div className="min-w-0 lg:sticky lg:top-4">
-          <PhotoPanel preview={v.preview} analyzing={analyzing} stage={stage} onPick={v.pick} />
+          <PhotoPanel preview={v.preview} analyzing={analyzing} stage={stage} onPick={v.pick}
+            marks={candidates.flatMap((c, i) => (c.box ? [{ no: i + 1, box: c.box, level: c.riskLevel, label: c.missingControl }] : []))} />
         </div>
 
         <section aria-label="위험요인" className="min-w-0 space-y-4">
@@ -86,6 +87,7 @@ export default function VisionPage() {
             <CandidateCard
               key={c.hazardId}
               c={c}
+              no={i + 1}
               delay={i * 120}
               busy={v.busyId === c.hazardId}
               onDecide={(id, reflect) => void v.decide(id, reflect)}

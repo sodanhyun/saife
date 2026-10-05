@@ -39,6 +39,10 @@ public class AssessmentHazard {
     @Column(name = "risk_level", nullable = false, length = 10)
     private RiskLevel riskLevel;
 
+    /** 사진에서 이 위험요인이 드러난 위치 "ymin,xmin,ymax,xmax" (0~1000). 사진 평가가 아니면 null */
+    @Column(name = "photo_box", length = 40)
+    private String photoBox;
+
     /** 판정 근거. 룰 엔진이 채운다 */
     @Column(name = "rule_trace", columnDefinition = "text")
     private String ruleTrace;
