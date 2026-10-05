@@ -453,7 +453,7 @@ public class EquipmentTimelineService {
                     .toList();
             out.add(new TimelineEvent(e.id(), e.type(), e.at(), e.occurredAt(),
                     e.title(), e.detail(), e.riskLevel(), e.accidentType(), e.status(),
-                    e.refId(), e.linkedEventIds(), labels, e.causalOrder(), e.emphasis(), e.ruleTrace(), null));
+                    e.refId(), e.linkedEventIds(), labels, e.causalOrder(), e.emphasis(), e.ruleTrace(), e.imageUrl()));
         }
         return out;
     }

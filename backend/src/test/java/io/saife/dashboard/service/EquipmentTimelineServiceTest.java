@@ -30,6 +30,28 @@ class EquipmentTimelineServiceTest {
     @Autowired
     private EquipmentTimelineService service;
 
+    @Autowired
+    private io.saife.core.repository.ActionRepository actions;
+
+    @Test
+    @DisplayName("이행 확인한 조치는 증빙 사진 경로와 확인자, 개선 후 등급을 이력에 싣는다")
+    void verifiedActionCarriesEvidence() {
+        io.saife.core.domain.Action a = actions.findAll().stream()
+                .filter(x -> x.getStatus() != io.saife.core.domain.ActionStatus.DONE && x.getDueDate() != null)
+                .findFirst().orElseThrow();
+        a.attachEvidence("data/uploads/2026-10-01/x.jpg", null);
+        a.verify("비계 설치", "안전관리자 홍길동", io.saife.core.domain.RiskLevel.LOW);
+        actions.saveAndFlush(a);
+        Long equipmentId = service.cards(SITE).stream()
+                .filter(c -> service.timeline(c.id()).events().stream().anyMatch(e -> e.id().equals("action-" + a.getId())))
+                .findFirst().orElseThrow().id();
+
+        TimelineDtos.TimelineEvent ev = service.timeline(equipmentId).events().stream()
+                .filter(e -> e.id().equals("action-" + a.getId())).findFirst().orElseThrow();
+        assertThat(ev.imageUrl()).isEqualTo("/api/action/" + a.getId() + "/evidence");
+        assertThat(ev.detail()).startsWith("이행 확인, 개선 후 하, 확인 안전관리자 홍길동");
+    }
+
     @Test
     @DisplayName("불변식 — cards()의 등급·미이행·사고 수는 같은 설비의 timeline().summary()와 항상 같다")
     void cardsMatchTimelineSummaryInvariant() {
