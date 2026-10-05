@@ -39,9 +39,13 @@ class WorkPlanServiceApprovalTest {
     private final WorkPlanEvidenceRepository evidenceRepository = mock(WorkPlanEvidenceRepository.class);
     private final BriefingViewBuilder viewBuilder = mock(BriefingViewBuilder.class);
     private final IncidentRepository incidentRepository = mock(IncidentRepository.class);
+    private final io.saife.core.repository.AssessmentRepository assessmentRepository =
+            mock(io.saife.core.repository.AssessmentRepository.class);
 
     private final WorkPlanService service = new WorkPlanService(workPlanRepository, slotRepository, workerRepository,
-            equipmentRepository, evidenceRepository, new ObjectMapper(), viewBuilder, incidentRepository);
+            equipmentRepository, evidenceRepository, new ObjectMapper(), viewBuilder, incidentRepository,
+            assessmentRepository,
+            mock(io.saife.evidence.cases.SimilarCaseService.class));
 
     private WorkPlan submitted() {
         WorkPlan plan = WorkPlan.builder().id(7L).siteId(1L).workName("천장 페인트 작업").workDate(LocalDate.now())
@@ -70,6 +74,23 @@ class WorkPlanServiceApprovalTest {
                 .isInstanceOf(InvalidRequestException.class);
         assertThat(plan.getStatus()).isEqualTo(WorkPlanStatus.SUBMITTED);
         verify(workPlanRepository, never()).save(any(WorkPlan.class));
+    }
+
+    @Test
+    void 같은_설비_사고의_수시평가가_확정_전이면_사고_뒤에_만든_점검표도_승인하지_않는다() {
+        WorkPlan plan = submitted();
+        org.springframework.test.util.ReflectionTestUtils.setField(plan, "equipmentId", 1L);
+        when(viewBuilder.compute(plan)).thenReturn(view(false));
+        io.saife.incident.domain.Incident incident = io.saife.incident.domain.Incident.builder()
+                .id(5L).equipmentId(1L).followUpAssessmentId(9L).build();
+        when(incidentRepository.findByEquipmentIdOrderByOccurredAtDesc(1L)).thenReturn(List.of(incident));
+        when(assessmentRepository.findById(9L)).thenReturn(Optional.of(
+                io.saife.core.domain.Assessment.builder().id(9L).status("DRAFT").build()));
+
+        assertThatThrownBy(() -> service.approve(7L, "김철수", null))
+                .isInstanceOf(io.saife.common.error.ApiExceptions.ConflictException.class)
+                .hasMessageContaining("수시평가");
+        assertThat(plan.getStatus()).isEqualTo(WorkPlanStatus.SUBMITTED);
     }
 
     @Test

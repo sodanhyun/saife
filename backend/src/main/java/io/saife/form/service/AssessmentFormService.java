@@ -76,7 +76,8 @@ public class AssessmentFormService {
      * @param acceptable    허용 가능 여부 "가능"/"불가"
      * @param improvement   개선대책. 허용 가능이면 "현 상태 유지"
      * @param priority      개선대책 우선순위 라벨(제거, 공학적, 관리적, 보호구). 없으면 null
-     * @param result        이행 결과. "완료 2026-10-02", "완료 2026-10-02 (기한 경과)", "미완료", "(미수립)".
+     * @param result        이행 결과. "완료 2026-10-02, 개선 후 하, 확인 안전관리자 홍길동", "완료 2026-10-02 (기한 경과)",
+     *                      "미완료", "(미수립)".
      *                      출력 시점에 따라 바뀌는 값(경과일 등)은 쓰지 않는다. 기한은 담당/기한 칸의 날짜로 읽는다
      */
     public record Row(int no, String work, String hazard, String hazardDetail, String currentMeasure,
@@ -174,7 +175,10 @@ public class AssessmentFormService {
         if (action.getStatus() == ActionStatus.DONE && action.getCompletedAt() != null) {
             LocalDate done = action.getCompletedAt().atZoneSameInstant(KST).toLocalDate();
             boolean late = action.getDueDate() != null && done.isAfter(action.getDueDate());
-            return "완료 " + done + (late ? " (기한 경과)" : "");
+            String verified = action.getVerifiedBy() == null ? ""
+                    : ", 개선 후 " + (action.getResidualLevel() == null ? "-" : action.getResidualLevel().getLabel())
+                    + ", 확인 " + action.getVerifiedBy();
+            return "완료 " + done + (late ? " (기한 경과)" : "") + verified;
         }
         return "미완료";
     }

@@ -51,11 +51,11 @@ const candidate: VisionCandidate = {
 const action: ActionView = {
   id: 9, hazardId: 1, assessmentId: 36, equipmentId: 1, content: "이동식 비계 사용", owner: "생산반장 김철수",
   dueDate: "2099-10-16", status: "PENDING", guideRef: "B-5-2011", completedAt: null, createdAt: "2026-10-02T10:00:00+09:00",
-  priority: "ENGINEERING",
+  priority: "ENGINEERING", resultNote: null, verifiedBy: null, residualLevel: null, evidenceUrl: null, photoCheck: null,
 };
 
 const noop = () => {};
-type Handlers = Partial<{ onDecide: () => void; onAcceptable: () => void; onCreateAction: () => void; onCompleteAction: () => void }>;
+type Handlers = Partial<{ onDecide: () => void; onAcceptable: () => void; onCreateAction: () => void }>;
 function renderCard(c: VisionCandidate, h: Handlers = {}) {
   return render(
     <CandidateCard
@@ -64,7 +64,6 @@ function renderCard(c: VisionCandidate, h: Handlers = {}) {
       onDecide={h.onDecide ?? noop}
       onAcceptable={h.onAcceptable ?? noop}
       onCreateAction={h.onCreateAction ?? noop}
-      onCompleteAction={h.onCompleteAction ?? noop}
     />,
   );
 }
@@ -123,29 +122,20 @@ describe("CandidateCard", () => {
     const { rerender } = renderCard({ ...candidate, adopted: true }, { onAcceptable });
     fireEvent.click(screen.getByRole("button", { name: "가능" }));
     expect(onAcceptable).toHaveBeenCalledWith(1, true);
-    rerender(<CandidateCard c={{ ...candidate, adopted: true, acceptable: true }} busy={false} onDecide={noop} onAcceptable={onAcceptable} onCreateAction={noop} onCompleteAction={noop} />);
+    rerender(<CandidateCard c={{ ...candidate, adopted: true, acceptable: true }} busy={false} onDecide={noop} onAcceptable={onAcceptable} onCreateAction={noop} />);
     expect(screen.queryByLabelText("개선대책 내용")).toBeNull();
     expect(screen.getByText("현 상태 유지")).toBeInTheDocument();
   });
 
-  it("등록 직후에는 이행 완료가 주 버튼이 아니고, 이행 완료 기록 후 확인 줄에서 한 번 더 눌러야 기록된다", () => {
-    const onCompleteAction = vi.fn();
-    renderCard({ ...candidate, adopted: true, action }, { onCompleteAction });
+  it("등록한 대책은 이행 대기로 보이고 여기서 이행 확인을 받지 않는다", () => {
+    renderCard({ ...candidate, adopted: true, action });
     expect(screen.getByText("이행 대기")).toBeInTheDocument();
-    expect(screen.getByText("공학적")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "이행 완료" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "이행 완료 기록" }));
-    expect(screen.getByRole("group", { name: "이행 완료 확인" })).toHaveTextContent(/완료일 \d{4}-\d{2}-\d{2}/);
-    fireEvent.click(screen.getByRole("button", { name: "취소" }));
-    expect(onCompleteAction).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "이행 완료 기록" }));
-    fireEvent.click(screen.getByRole("button", { name: "이행 완료" }));
-    expect(onCompleteAction).toHaveBeenCalledWith(1, 9);
+    expect(screen.queryByRole("button", { name: /이행/ })).toBeNull();
   });
 
-  it("이행 완료면 완료일과 설비 이력 링크를 보인다", () => {
+  it("이행 확인되면 확인일과 설비 이력 링크를 보인다", () => {
     renderCard({ ...candidate, adopted: true, action: { ...action, status: "DONE", completedAt: "2026-10-02T10:20:00+09:00" } });
-    expect(screen.getByText("이행 완료 10-02")).toBeInTheDocument();
+    expect(screen.getByText("이행 확인 10-02")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "설비 이력" })).toHaveAttribute("href", "/equipment/1");
     expect(screen.queryByRole("button", { name: "이행 완료" })).toBeNull();
   });

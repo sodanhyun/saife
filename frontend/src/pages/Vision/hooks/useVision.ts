@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { useSearchParams } from "react-router-dom";
 
-import { actionApi } from "@/api/actionApi";
 import { equipmentApi } from "@/api/equipmentApi";
 import { visionApi } from "@/api/visionApi";
 import { CURRENT_USER } from "@/components/layout/menu";
@@ -126,12 +125,6 @@ export function useVision() {
       stream.patchCandidate(c.hazardId, { action });
     }, "개선대책을 등록하지 못했습니다");
 
-  /** 이행 완료. 서버가 멱등이라 연타해도 완료 시각이 밀리지 않는다 */
-  const completeAction = (hazardId: number, actionId: number) =>
-    run(hazardId, async () => {
-      const action = await actionApi.complete(actionId);
-      stream.patchCandidate(hazardId, { action });
-    }, "이행 결과를 기록하지 못했습니다");
 
   return {
     equipment: equipment.data ?? [],
@@ -152,7 +145,6 @@ export function useVision() {
     decide,
     setAcceptable,
     createAction,
-    completeAction,
     busyId,
     stream,
   };

@@ -2,6 +2,7 @@ package io.saife.workplan.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.saife.core.domain.Equipment;
+import io.saife.core.repository.AssessmentRepository;
 import io.saife.core.repository.EquipmentRepository;
 import io.saife.core.service.RiskRuleEngine;
 import io.saife.evidence.Evidence;
@@ -56,6 +57,8 @@ public class WorkPlanService {
     private final ObjectMapper objectMapper;
     private final BriefingViewBuilder briefingViewBuilder;
     private final IncidentRepository incidentRepository;
+    private final AssessmentRepository assessmentRepository;
+    private final io.saife.evidence.cases.SimilarCaseService similarCaseService;
 
     @Transactional(readOnly = true)
     public Page<WorkPlanDtos.ListItem> list(Long siteId, Pageable pageable) {
@@ -105,6 +108,10 @@ public class WorkPlanService {
 
         if (plan.getStatus() != WorkPlanStatus.SUBMITTED) {
             throw new IllegalStateException("승인 대기 중인 점검 기록이 아닙니다.");
+        }
+        if (pendingFollowUp(plan.getEquipmentId())) {
+            throw new io.saife.common.error.ApiExceptions.ConflictException(
+                    "같은 설비 사고의 수시평가가 확정되지 않았습니다. 수시평가 확정 후 승인할 수 있습니다.");
         }
         if (condition != null && condition.matches(STOP_WORK)) {
             throw new InvalidRequestException("잠정조치가 작업 금지입니다. 승인하지 말고 작업 보류로 두십시오.");
@@ -176,6 +183,22 @@ public class WorkPlanService {
                 .orElse(null);
     }
 
+    /**
+     * 같은 설비 사고가 만든 수시평가 중 확정 전인 것이 있는가. 있으면 그 설비의 작업은 승인하지 않는다
+     * (시행규칙 제37조: 산재 발생 시 관련 작업 재개 전 수시평가). 사고 뒤에 새로 만든 점검표에도 적용된다.
+     */
+    private boolean pendingFollowUp(Long equipmentId) {
+        if (equipmentId == null) {
+            return false;
+        }
+        return incidentRepository.findByEquipmentIdOrderByOccurredAtDesc(equipmentId).stream()
+                .map(Incident::getFollowUpAssessmentId)
+                .filter(Objects::nonNull)
+                .map(assessmentRepository::findById)
+                .flatMap(java.util.Optional::stream)
+                .anyMatch(a -> !"CONFIRMED".equals(a.getStatus()));
+    }
+
     /** 보류를 푸는 수시평가: 같은 설비의 가장 최근 사고가 만든 평가 */
     private Long holdAssessmentId(WorkPlan plan) {
         if (plan.getStatus() != WorkPlanStatus.HOLD || plan.getEquipmentId() == null) {
@@ -234,6 +257,20 @@ public class WorkPlanService {
                 plan.getStatus(), plan.getApprovalNote(), plan.getApprovedBy(), plan.getApprovedAt(),
                 slots, workers, evidence, plan.getWarningNote(), briefingViewBuilder.build(plan),
                 document.type(), document.title(), supervisorOf(plan.getId()), holdAssessmentId(plan));
+    }
+
+    /** 유사 재해사례: 원인과 대책이 적힌 국내재해사례 2건. 판정된 발생형태 안에서 고른다 */
+    @Transactional(readOnly = true)
+    public List<io.saife.evidence.cases.SimilarCaseService.SimilarCase> similarCases(Long workPlanId) {
+        WorkPlan plan = load(workPlanId);
+        var view = briefingViewBuilder.compute(plan);
+        List<io.saife.core.domain.AccidentType> axes = view == null ? List.of()
+                : view.decisions().stream()
+                        .filter(d -> d.riskLevel() == io.saife.core.domain.RiskLevel.HIGH)
+                        .map(WorkPlanDtos.HazardDecision::accidentType)
+                        .filter(Objects::nonNull)
+                        .toList();
+        return similarCaseService.find(plan.getWorkName(), equipmentName(plan.getEquipmentId()), axes);
     }
 
     private String equipmentName(Long equipmentId) {

@@ -9,7 +9,7 @@ import type { TimelineEvent } from "@/types/timeline";
 const ev = (id: string, linked: string[] = [], over: Partial<TimelineEvent> = {}): TimelineEvent => ({
   id, type: "ASSESSMENT", at: "2026-09-21", occurredAt: null, title: `사건 ${id}`, detail: "", riskLevel: null,
   accidentType: null, status: null, refId: 1, linkedEventIds: linked, linkedLabels: [], causalOrder: 0, emphasis: "NORMAL",
-  ruleTrace: null, ...over,
+  ruleTrace: null, imageUrl: null, ...over,
 });
 
 /** 고소작업대(id=6) 시드 이야기의 축약판 */

@@ -65,6 +65,7 @@ public final class TimelineDtos {
      *                       화면마다 다르게 판단하면 시연에서 색이 흔들린다
      * @param ruleTrace      평가 사건에서 이 설비가 받은 최고 등급의 룰 근거. 화면은 등급 옆에 이 문장을
      *                       그대로 띄운다. 평가가 아닌 사건은 null
+     * @param imageUrl       이행 확인 증빙 사진 경로. 없으면 null
      */
     public record TimelineEvent(String id,
                                 EventType type,
@@ -80,7 +81,8 @@ public final class TimelineDtos {
                                 List<String> linkedLabels,
                                 int causalOrder,
                                 Emphasis emphasis,
-                                String ruleTrace) {}
+                                String ruleTrace,
+                                String imageUrl) {}
 
     /**
      * 설비 홈 카드 — 설비 하나의 현재 상태를 한 장으로.

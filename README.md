@@ -34,7 +34,7 @@ cd backend && ./gradlew bootRun                  # :8080
 cd frontend && npm install && npm run dev        # :5173
 ```
 
-스키마는 Flyway(V1~V16, `backend/src/main/resources/db/migration`). `ddl-auto: validate`.
+스키마는 Flyway(V1~V17, `backend/src/main/resources/db/migration`). `ddl-auto: validate`.
 
 ---
 
@@ -44,10 +44,10 @@ cd frontend && npm install && npm run dev        # :5173
 |---|---|---|
 | `/` | 설비 현황 | 요약 지표, 오늘 할 일(기한 경과 조치, 승인 대기, 작업 보류, 조사표 기한, 순회점검 주기), 설비 카드 |
 | `/equipment/:id` | 설비 이력 | 현재 등급과 판정 근거, 평가, 개선대책, 작업 전 점검, 사고 이력 |
-| `/work-plan` | 작업 전 점검 | 작업 내용 입력, 판정에 필요한 항목만 질문, 위험성 판정, 관리감독자 승인(잠정조치), 서식 출력(작업자 안내, 서명란), 점검 기록 검색 |
-| `/vision` | 순회점검 | 현장 사진 분석, 위험요인 반영/제외, 개선대책 등록(담당, 기한), 이행 결과 기록 |
-| `/incident` | 사고 보고 | 사고 시점 기준 사전 기록 조회, 수시평가 생성, 조사표 기한, 같은 설비 작업 보류 |
-| `/action` | 개선대책 | 미이행, 기한 경과, 완료 목록과 검색, 이행 완료 기록 |
+| `/work-plan` | 작업 전 점검 | 작업 내용 입력, 판정에 필요한 항목만 질문, 위험성 판정, 유사 재해사례(원문의 개요, 원인, 대책), 관리감독자 승인(잠정조치), 서식 출력(작업자 안내, 서명란), 점검 기록 검색 |
+| `/vision` | 순회점검 | 현장 사진 분석, 위험요인 반영/제외, 개선대책 등록(담당, 기한) |
+| `/incident` | 사고 보고 | 사고 시점 기준 사전 기록 조회, 수시평가 생성, 조사표 기한, 같은 설비 작업 보류(수시평가 확정 전 새 점검표 승인 불가) |
+| `/action` | 개선대책 | 미이행, 기한 경과, 완료 목록과 검색. 이행 확인: 증빙 사진과 사진 대조(대책이 사진에 보이는지 항목별), 이행 내용, 확인자, 개선 후 위험성(상이면 불가) |
 | `/assessment/:id` | 수시평가 | 참여 근로자, 허용 가능 여부, 개선대책, 확정 시 작업 보류 해제 |
 | `/form/*` | 서식 | 위험성평가표, 작업 전 안전점검표, 작업계획서(제38조), 산업재해조사표, 재발방지 검토서 |
 
@@ -59,7 +59,8 @@ cd frontend && npm install && npm run dev        # :5173
 |---|---|
 | 위험요인 후보, 문안 | AI(Gemini) |
 | 위험성 등급 | 룰 엔진(`RiskRuleEngine`), 판정 근거 문자열과 조문 표기 |
-| 반영/제외, 승인, 확정, 제출 | 관리감독자, 안전관리자 |
+| 증빙 사진 대조 | AI(Gemini), 항목별 확인/안 보임/판단 불가 |
+| 반영/제외, 승인, 이행 확인(개선 후 위험성), 확정, 제출 | 관리감독자, 안전관리자 |
 
 ### 근거 자료
 
@@ -67,7 +68,7 @@ cd frontend && npm install && npm run dev        # :5173
 |---|---|
 | 조문 | 법제처 국가법령정보 (산업안전보건법, 시행규칙, 산업안전보건기준에 관한 규칙) |
 | KOSHA GUIDE | 한국산업안전보건공단 |
-| 재해사례 | 공단 사고사망 속보, 국내재해사례 |
+| 재해사례 | 공단 사고사망 속보, 국내재해사례. 점검표에는 원인과 대책 절이 있는 국내재해사례 원문을 잘라 표시(`CaseDigest`, 모델 미사용) |
 | MSDS | 공단 MSDS (물질별 조회, 캐시) |
 
 검색: 벡터와 키워드 RRF 결합, parent 청크 확장, Flash 리랭크(4점 미만 제외), 오프라인 모드는 키워드 검색.
@@ -91,8 +92,8 @@ cd frontend && npm install && npm run dev        # :5173
 ## 검증
 
 ```bash
-cd backend && ./gradlew test        # 423건
-cd frontend && npm run test         # 326건
+cd backend && ./gradlew test        # 438건
+cd frontend && npm run test         # 328건
 ```
 
 시연 시나리오 스모크와 시드 재현 절차: [`docs/experiments/README.md`](docs/experiments/README.md).

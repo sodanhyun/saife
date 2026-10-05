@@ -1,11 +1,11 @@
-// ActionTable.tsx: 개선대책 목록 표: 기한, 개선대책, 설비, 담당, 상태, 이행 완료
+// ActionTable.tsx: 개선대책 목록 표: 기한, 개선대책, 설비, 담당, 상태, 이행 확인
 import { Link } from "react-router-dom";
 
 import { StatusBadge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import DataTable, { type Column } from "@/components/ui/DataTable";
 import cn from "@/lib/cn";
-import { ACTION_STATUS_LABEL, dueInfo, hazardLine, type DueTone } from "@/pages/Action/utils/actionRow";
+import { ACTION_STATUS_LABEL, dueInfo, hazardLine, verifiedLine, type DueTone } from "@/pages/Action/utils/actionRow";
 import type { ActionListItem } from "@/types/action";
 import { actionStatusTone, toneColor } from "@/utils/statusColors";
 
@@ -49,10 +49,17 @@ export default function ActionTable({ actions, doneOnly = false, today, emptyMes
       wrap: true,
       render: (a) => {
         const sub = hazardLine(a);
+        const verified = verifiedLine(a);
         return (
-          <div className="min-w-64 break-keep leading-snug">
-            <div className={cn("font-semibold", a.status === "DONE" ? "text-slate-500" : "text-slate-900")}>{a.content}</div>
-            {sub && <div className="mt-0.5 text-xs text-slate-500">{sub}</div>}
+          <div className="flex min-w-64 items-start gap-3 break-keep leading-snug">
+            {a.evidenceUrl && (
+              <img src={a.evidenceUrl} alt="증빙 사진" className="h-10 w-14 shrink-0 rounded-sm border border-slate-200 object-cover" />
+            )}
+            <div>
+              <div className={cn("font-semibold", a.status === "DONE" ? "text-slate-500" : "text-slate-900")}>{a.content}</div>
+              {sub && <div className="mt-0.5 text-xs text-slate-500">{sub}</div>}
+              {verified && <div className={cn("mt-0.5 text-xs font-medium", toneColor("low").text)}>{verified}</div>}
+            </div>
           </div>
         );
       },
@@ -88,8 +95,8 @@ export default function ActionTable({ actions, doneOnly = false, today, emptyMes
       align: "right",
       render: (a) =>
         a.status === "DONE" ? null : (
-          <Button variant="secondary" size="sm" onClick={() => onComplete(a)} aria-label={`${a.content} 이행 완료`}>
-            이행 완료
+          <Button variant="secondary" size="sm" onClick={() => onComplete(a)} aria-label={`${a.content} 이행 확인`}>
+            이행 확인
           </Button>
         ),
     },

@@ -5,11 +5,11 @@ import PageLayout from "@/components/ui/PageLayout";
 import ActionSkeleton from "@/pages/Action/ActionSkeleton";
 import ActionTable from "@/pages/Action/components/ActionTable";
 import ActionToolbar from "@/pages/Action/components/ActionToolbar";
-import CompleteActionModal from "@/pages/Action/components/CompleteActionModal";
+import VerifyActionModal from "@/pages/Action/components/VerifyActionModal";
 import { useActions } from "@/pages/Action/hooks/useActions";
 import { emptyMessage, todayKst } from "@/pages/Action/utils/actionRow";
 
-/** 개선대책. 순회점검, 설비 이력, 사고에서 생긴 대책을 한 표로 추적하고 이행 완료를 기록한다 */
+/** 개선대책. 순회점검, 설비 이력, 사고에서 생긴 대책을 한 표로 추적하고 증빙 사진과 확인자로 이행을 확인한다 */
 export default function ActionPage() {
   const s = useActions();
   if (s.loading) return <ActionSkeleton />;
@@ -37,7 +37,17 @@ export default function ActionPage() {
           )}
         </>
       )}
-      <CompleteActionModal target={s.target} busy={s.completing} onCancel={s.cancelComplete} onConfirm={s.confirmComplete} />
+      <VerifyActionModal
+        target={s.target}
+        draft={s.draft}
+        today={todayKst()}
+        uploading={s.uploading}
+        busy={s.completing}
+        onPhoto={s.attachPhoto}
+        onChange={s.updateDraft}
+        onCancel={s.cancelComplete}
+        onConfirm={s.confirmComplete}
+      />
     </PageLayout>
   );
 }

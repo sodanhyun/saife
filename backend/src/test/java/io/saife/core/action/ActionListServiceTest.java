@@ -152,11 +152,20 @@ class ActionListServiceTest {
     }
 
     @Test
-    void 이행_완료하면_미이행에서_빠지고_완료로_간다() {
-        controller.complete(late.getId());
+    void 이행_확인하면_미이행에서_빠지고_완료로_간다() {
+        // 같은 위험요인의 다른 대책까지 함께 닫히므로 위험요인을 따로 둔다
+        Hazard own = hazards.saveAndFlush(Hazard.builder().siteId(equipment.getSiteId()).equipmentId(equipment.getId())
+                .accidentType(AccidentType.FALL).missingControl("안전난간 미설치").description("d")
+                .source(HazardSource.MANUAL).aiSuggested(false).build());
+        Action alone = actions.saveAndFlush(Action.builder().hazardId(own.getId()).content(MARK + " 따로")
+                .dueDate(today.minusDays(2)).status(ActionStatus.PENDING).build());
+        alone.attachEvidence("data/uploads/2026-10-08/evidence.jpg", null);
+        actions.saveAndFlush(alone);
+        controller.verify(alone.getId(), new ActionDtos.VerifyActionRequest(null, "안전관리자 홍길동",
+                io.saife.core.domain.RiskLevel.LOW));
         actions.flush();
-        assertThat(ids(service.list("OPEN", MARK, 0, 20))).doesNotContain(late.getId());
-        assertThat(ids(service.list("DONE", MARK, 0, 20))).first().isEqualTo(late.getId());
+        assertThat(ids(service.list("OPEN", MARK, 0, 20))).doesNotContain(alone.getId()).contains(late.getId());
+        assertThat(ids(service.list("DONE", MARK, 0, 20))).first().isEqualTo(alone.getId());
     }
 
     @Test

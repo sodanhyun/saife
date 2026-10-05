@@ -47,6 +47,13 @@ public class WorkPlanController {
         return ResponseEntity.ok(workPlanService.detail(workPlanId));
     }
 
+    /** 유사 재해사례 (원인과 대책이 적힌 국내재해사례) */
+    @GetMapping("/{workPlanId}/cases")
+    public ResponseEntity<java.util.List<io.saife.evidence.cases.SimilarCaseService.SimilarCase>> cases(
+            @PathVariable Long workPlanId) {
+        return ResponseEntity.ok(workPlanService.similarCases(workPlanId));
+    }
+
     /** 작업 보류. 잠정조치가 작업 금지라 승인할 수 없을 때 */
     @PostMapping("/{workPlanId}/hold")
     public ResponseEntity<WorkPlanDtos.Detail> hold(

@@ -1,10 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import WorkPlanResultCard from "@/pages/WorkPlan/components/WorkPlanResultCard";
 import { ladderDetail as detail } from "@/pages/WorkPlan/components/__tests__/fixtures";
 import type { Evidence } from "@/types/evidence";
+import type { SimilarCase } from "@/types/workPlan";
+
+let similar: SimilarCase[] = [];
+vi.mock("@/pages/WorkPlan/hooks/useSimilarCases", () => ({ useSimilarCases: () => similar }));
+
+beforeEach(() => {
+  similar = [];
+});
 
 const kase = (no: number, thumb: string | null): Evidence => ({
   no, kind: "CASE_DISASTER", refId: no, refKey: `C:${no}`, title: `사례 ${no}`, snippet: "",
@@ -56,9 +64,28 @@ describe("WorkPlanResultCard", () => {
     expect(screen.getByText("3.2 m")).toBeInTheDocument();
   });
 
-  it("사진 있는 사례만 썸네일, 사진 없는 사례는 글 목록으로 보이고 빈 회색 상자를 그리지 않는다", () => {
+  it("유사 재해사례는 원문에서 자른 개요, 원인, 대책으로 보이고 사진 포스터를 띄우지 않는다", () => {
+    similar = [{
+      id: 3751, title: "A형 이동식 사다리 위에서 도장작업 중 사망", business: "건설업", year: "2001년",
+      summary: "천장 모서리부분 도장작업 중 몸의 균형을 잃고 추락 사망한 재해임.",
+      causes: [{ head: "작업방법 불량", detail: "작업 발판이 아닌 이동식 사다리 위에서 작업" }],
+      measures: [{ head: "안전한 작업발판 설치", detail: null }],
+      sourceUrl: null,
+    }];
+    render(<WorkPlanResultCard detail={detail} evidence={[kase(1, "/media/1.jpg")]} onOpenDetail={() => {}} />);
+    const card = screen.getByRole("article", { name: "재해사례 A형 이동식 사다리 위에서 도장작업 중 사망" });
+    expect(card).toHaveTextContent("국내재해사례, 2001년, 건설업");
+    expect(card).toHaveTextContent("작업방법 불량");
+    expect(card).toHaveTextContent("작업 발판이 아닌 이동식 사다리 위에서 작업");
+    expect(card).toHaveTextContent("안전한 작업발판 설치");
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+    expect(screen.queryByText("사례 1")).toBeNull();
+  });
+
+  it("원인과 대책이 적힌 사례가 없으면 근거의 사례 제목만 글로 보인다", () => {
     render(<WorkPlanResultCard detail={detail} evidence={[kase(1, "/media/1.jpg"), kase(2, null)]} onOpenDetail={() => {}} />);
-    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+    expect(screen.getByText("사례 1")).toBeInTheDocument();
     expect(screen.getByText("사례 2")).toBeInTheDocument();
     expect(screen.queryByText("#2")).toBeNull();
   });

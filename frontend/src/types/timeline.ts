@@ -63,6 +63,8 @@ export interface TimelineEvent {
   causalOrder: number;
   emphasis: Emphasis;
   ruleTrace: string | null;
+  /** 이행 확인 증빙 사진 경로. 없으면 null */
+  imageUrl: string | null;
 }
 
 export interface EquipmentTimeline {

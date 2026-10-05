@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/api/actionApi", () => ({
-  actionApi: { search: vi.fn(), counts: vi.fn(), complete: vi.fn() },
+  actionApi: { search: vi.fn(), counts: vi.fn(), attachEvidence: vi.fn(), verify: vi.fn() },
 }));
 vi.mock("@/stores/useToastStore", () => {
   const state = { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() };
@@ -24,7 +24,8 @@ import type { PaginationResponse } from "@/types/common";
 
 const mockSearch = vi.mocked(actionApi.search);
 const mockCounts = vi.mocked(actionApi.counts);
-const mockComplete = vi.mocked(actionApi.complete);
+const mockAttach = vi.mocked(actionApi.attachEvidence);
+const mockVerify = vi.mocked(actionApi.verify);
 
 function page(content: ActionListItem[], total = content.length): PaginationResponse<ActionListItem> {
   return { content, number: 0, size: 20, totalPages: 1, totalElements: total };
@@ -56,7 +57,8 @@ function renderAt(path = "/action") {
 beforeEach(() => {
   mockSearch.mockReset();
   mockCounts.mockReset();
-  mockComplete.mockReset();
+  mockAttach.mockReset();
+  mockVerify.mockReset();
   mockCounts.mockResolvedValue({ open: 9, overdue: 3, done: 45 });
 });
 
@@ -103,25 +105,49 @@ describe("ActionPage (개선대책)", () => {
     expect(await screen.findByText("검색 결과 없음")).toBeInTheDocument();
   });
 
-  it("이행 완료: 확인 창에 대책 내용, 확정하면 완료 기록 후 목록과 건수를 다시 받는다", async () => {
+  it("이행 확인: 사진을 올리면 대조 결과가 보이고, 확인자와 개선 후 위험성을 골라야 기록된다", async () => {
     const row = actionRow({ id: 7 });
     mockSearch.mockResolvedValue(page([row]));
-    mockComplete.mockResolvedValue({
+    const base = {
       id: 7, hazardId: 1, assessmentId: 1, equipmentId: 3, content: row.content, owner: row.owner, dueDate: row.dueDate,
-      status: "DONE", guideRef: null, completedAt: "2026-10-03T03:00:00Z", createdAt: "2026-09-01T00:00:00Z", priority: null,
+      guideRef: null, createdAt: "2026-09-01T00:00:00Z", priority: null, resultNote: null,
+    };
+    mockAttach.mockResolvedValue({
+      ...base, status: "PENDING", completedAt: null, verifiedBy: null, residualLevel: null,
+      evidenceUrl: "/api/action/7/evidence",
+      photoCheck: { verdict: "CONFIRMED", items: [{ item: "안전난간", status: "SEEN", evidence: "난간대 설치됨" }] },
+    });
+    mockVerify.mockResolvedValue({
+      ...base, status: "DONE", completedAt: "2026-10-03T03:00:00Z", verifiedBy: "안전관리자 홍길동", residualLevel: "LOW",
+      evidenceUrl: "/api/action/7/evidence", photoCheck: null,
     });
     renderAt();
 
-    fireEvent.click(await screen.findByRole("button", { name: `${row.content} 이행 완료` }));
-    const dialog = await screen.findByRole("dialog", { name: "이행 완료" });
+    fireEvent.click(await screen.findByRole("button", { name: `${row.content} 이행 확인` }));
+    const dialog = await screen.findByRole("dialog", { name: "이행 확인" });
     expect(within(dialog).getByText(row.content)).toBeInTheDocument();
+    const confirm = within(dialog).getByRole("button", { name: "이행 확인" });
+    expect(confirm).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByLabelText("증빙 사진 파일"), {
+      target: { files: [new File(["a"], "a.jpg", { type: "image/jpeg" })] },
+    });
+    await waitFor(() => expect(mockAttach).toHaveBeenCalledWith(7, expect.any(File)));
+    expect(await within(dialog).findByText("난간대 설치됨")).toBeInTheDocument();
+    expect(confirm).toBeDisabled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "상" }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("추가 개선대책");
+    expect(confirm).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "하" }));
+    expect(confirm).toBeEnabled();
+
     const searchCalls = mockSearch.mock.calls.length;
     const countCalls = mockCounts.mock.calls.length;
-
-    fireEvent.click(within(dialog).getByRole("button", { name: "이행 완료" }));
-    await waitFor(() => expect(mockComplete).toHaveBeenCalledWith(7));
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mockVerify).toHaveBeenCalledWith(7, { resultNote: null, verifiedBy: "안전관리자 홍길동", residualLevel: "LOW" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(useToastStore.getState().success).toHaveBeenCalledWith("이행 완료로 기록함");
+    expect(useToastStore.getState().success).toHaveBeenCalledWith("이행 확인을 기록함");
     await waitFor(() => expect(mockSearch.mock.calls.length).toBeGreaterThan(searchCalls));
     expect(mockCounts.mock.calls.length).toBeGreaterThan(countCalls);
   });
@@ -129,11 +155,11 @@ describe("ActionPage (개선대책)", () => {
   it("취소하면 기록하지 않는다", async () => {
     mockSearch.mockResolvedValue(page([actionRow()]));
     renderAt();
-    fireEvent.click(await screen.findByRole("button", { name: /이행 완료$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /이행 확인$/ }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "취소" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(mockComplete).not.toHaveBeenCalled();
+    expect(mockVerify).not.toHaveBeenCalled();
   });
 
   it("더 보기는 남은 건수가 있을 때만, 누르면 크기를 늘려 다시 받는다", async () => {

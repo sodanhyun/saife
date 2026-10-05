@@ -20,7 +20,7 @@ function formHref(ev: TimelineEvent): string | null {
 }
 
 const ACTION_STATUS: Record<string, { label: string; tone: Tone }> = {
-  DONE: { label: "이행 완료", tone: "low" },
+  DONE: { label: "이행 확인", tone: "low" },
   PENDING: { label: "이행 예정", tone: "neutral" },
   OVERDUE: { label: "기한 경과", tone: "high" },
 };
@@ -78,10 +78,15 @@ function Marker({ ev }: { ev: TimelineEvent }) {
   );
 }
 
-/** "이행 완료 (근거 이동식 사다리 안전작업 지침)"에서 근거만 남긴다. 상태 문구만 있으면 비운다(배지가 이미 말한다) */
+/**
+ * 조치 줄의 본문. "이행 확인, 개선 후 하, 확인 안전관리자 홍길동"은 상태 배지 뒤의 확인 내용만,
+ * "기한 경과, 미이행 (근거 …)"는 근거만 남긴다. 상태 문구만 있으면 비운다(배지가 이미 말한다)
+ */
 function actionBody(detail: string): string | null {
   const ref = detail.match(/\(근거\s+(.+)\)\s*$/);
-  return ref ? `근거 ${ref[1]}` : null;
+  const verified = detail.match(/^이행 확인, ([^(]+?)\s*(\(|$)/);
+  const parts = [verified ? verified[1] : null, ref ? `근거 ${ref[1]}` : null].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 function StoryCard({ story, focused, linked, dimmed, onToggle }: {
@@ -127,7 +132,14 @@ function StoryCard({ story, focused, linked, dimmed, onToggle }: {
             <p className="min-w-0 flex-1 rounded-md bg-panel px-2.5 py-1 text-sm text-slate-700">{trace}</p>
           </div>
         )}
-        {body && <p className={cn("mt-1 text-sm", incident ? "text-slate-700" : "text-slate-500")}>{body}</p>}
+        {ev.imageUrl ? (
+          <div className="mt-1.5 flex items-center gap-3">
+            <img src={ev.imageUrl} alt="증빙 사진" className="h-16 w-24 shrink-0 rounded-md border border-slate-200 object-cover" />
+            {body && <p className="text-sm text-slate-600">{body}</p>}
+          </div>
+        ) : (
+          body && <p className={cn("mt-1 text-sm", incident ? "text-slate-700" : "text-slate-500")}>{body}</p>
+        )}
         {relations.length > 0 && (
           <ul className="mt-1.5 space-y-0.5">
             {relations.map((r) => (

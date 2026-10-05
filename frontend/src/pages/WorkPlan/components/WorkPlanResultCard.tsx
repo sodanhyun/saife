@@ -1,28 +1,26 @@
 // WorkPlanResultCard.tsx — 작업 전 안전점검표(또는 제38조 작업계획서). 대화의 끝에서 무엇이 만들어졌는지 한 장으로 보인다.
 // 등급은 판정 기준(briefingView.decisions)에서 오고, 근거와 개선대책을 평문으로 옆에 둔다.
-import { useState } from "react";
-
 import { Link } from "react-router-dom";
 
 import { formUrl } from "@/api/formUrl";
-import PhotoLightbox from "@/components/evidence/PhotoLightbox";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { buttonClassName } from "@/components/ui/buttonStyles";
 import LinkButton from "@/components/ui/LinkButton";
 import RiskGradeMark from "@/components/ui/RiskGradeMark";
 import cn from "@/lib/cn";
+import { useSimilarCases } from "@/pages/WorkPlan/hooks/useSimilarCases";
 import { assessmentHref } from "@/pages/WorkPlan/utils/approval";
 import { caseTitle, formatShortDate, formatShortDateTime } from "@/pages/WorkPlan/utils/format";
 import { WORK_PLAN_STATUS_LABEL } from "@/types/domain";
 import type { Evidence } from "@/types/evidence";
-import type { WorkPlanDetail } from "@/types/workPlan";
+import type { CaseItem, SimilarCase, WorkPlanDetail } from "@/types/workPlan";
 import { formatDate } from "@/utils/datetime";
 import { workPlanStatusTone } from "@/utils/statusColors";
 
 interface Props {
   detail: WorkPlanDetail;
-  /** 이 대화에서 모인 근거. 유사 재해사례를 결과 카드에 다시 보인다 */
+  /** 이 대화에서 모인 근거. 원인과 대책이 적힌 사례가 없을 때 사례 제목을 대신 보인다 */
   evidence: Evidence[];
   onOpenDetail?: (id: number) => void;
   /** approval: 승인 모달 안에서 쓴다. 테두리와 그림자, 바닥 버튼이 없다 */
@@ -55,6 +53,38 @@ function Points({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+function CaseItems({ title, items }: { title: string; items: CaseItem[] }) {
+  return (
+    <div>
+      <p className="mb-1 text-xs font-bold text-slate-500">{title}</p>
+      <ul className="space-y-1.5">
+        {items.map((i) => (
+          <li key={i.head} className="text-sm leading-snug">
+            <span className="font-semibold text-slate-900">{i.head}</span>
+            {i.detail && <span className="mt-0.5 block line-clamp-2 text-xs text-slate-500">{i.detail}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** 사례 한 건: 제목, 연도와 업종, 개요, 원인과 대책. 공단 원문을 자른 것이다 */
+function CaseCard({ c }: { c: SimilarCase }) {
+  const meta = [c.year, c.business].filter(Boolean).join(", ");
+  return (
+    <article aria-label={`재해사례 ${c.title}`} className="rounded-lg border border-slate-200 p-4">
+      <p className="text-stage font-semibold leading-snug text-slate-900">{c.title}</p>
+      {meta && <p className="mt-0.5 text-xs text-slate-400">국내재해사례, {meta}</p>}
+      {c.summary && <p className="mt-2 line-clamp-3 text-sm text-slate-600">{c.summary}</p>}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <CaseItems title="원인" items={c.causes} />
+        <CaseItems title="대책" items={c.measures} />
+      </div>
+    </article>
+  );
+}
+
 /** 머리 오른쪽 승인 줄. 보류된 점검표의 승인 시각은 "보류 전 승인"으로 따로 말한다 */
 function approvalLine(detail: WorkPlanDetail): string | null {
   if (!detail.approvedAt || !detail.approvedBy) return null;
@@ -65,12 +95,10 @@ function approvalLine(detail: WorkPlanDetail): string | null {
 
 export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, variant = "result" }: Props) {
   const approval = variant === "approval";
-  const [photo, setPhoto] = useState<Evidence | null>(null);
+  const similar = useSimilarCases(detail.id);
   const view = detail.briefingView;
   const isWorkPlan = detail.documentType === "WORK_PLAN";
-  const cases = evidence.filter((e) => e.kind.startsWith("CASE_")).slice(0, 3);
-  const photoCases = cases.filter((e) => e.thumbnailUrl);
-  const textCases = cases.filter((e) => !e.thumbnailUrl);
+  const caseTitles = similar.length > 0 ? [] : evidence.filter((e) => e.kind.startsWith("CASE_")).slice(0, 3);
   const workers = detail.workers.map((w) => (w.position ? `${w.name} ${w.position}` : w.name)).join(", ");
   const meta = [formatDate(detail.workDate), detail.workPlace, detail.equipmentName, workers].filter(Boolean) as string[];
   const approvedLine = approvalLine(detail);
@@ -147,7 +175,7 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
         </Section>
       )}
 
-      {(view?.msds || cases.length > 0) && (
+      {(view?.msds || caseTitles.length > 0) && (
         <div className="grid divide-slate-100 border-t border-slate-100 md:grid-cols-2 md:divide-x">
           {view?.msds && (
             <Section title="MSDS">
@@ -168,26 +196,24 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
               </dl>
             </Section>
           )}
-          {cases.length > 0 && (
+          {caseTitles.length > 0 && (
             <Section title="유사 재해사례">
-              {photoCases.length > 0 && (
-                <div className="mb-2.5 flex gap-2">
-                  {photoCases.map((e) => (
-                    <button key={e.no} type="button" aria-label="사진 크게 보기" onClick={() => setPhoto(e)}
-                      className="shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-line">
-                      <img src={e.thumbnailUrl ?? undefined} alt={caseTitle(e.title)} className="h-16 w-24 rounded object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
               <ul className="space-y-1.5">
-                {[...photoCases, ...textCases].map((e) => (
+                {caseTitles.map((e) => (
                   <li key={e.no} className="line-clamp-2 text-sm text-slate-700">{caseTitle(e.title)}</li>
                 ))}
               </ul>
             </Section>
           )}
         </div>
+      )}
+
+      {similar.length > 0 && (
+        <Section title="유사 재해사례" className="border-t border-slate-100">
+          <div className="grid gap-3 lg:grid-cols-2">
+            {similar.map((c) => <CaseCard key={c.id} c={c} />)}
+          </div>
+        </Section>
       )}
 
       {approval && detail.slots.length > 0 && (
@@ -209,7 +235,6 @@ export default function WorkPlanResultCard({ detail, evidence, onOpenDetail, var
           <LinkButton href={formUrl.workPlan(detail.id)} external>서식 출력</LinkButton>
         </footer>
       )}
-      {photo && <PhotoLightbox e={photo} onClose={() => setPhoto(null)} />}
     </article>
   );
 }

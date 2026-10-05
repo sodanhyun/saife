@@ -23,7 +23,6 @@ interface Props {
   onDecide: (hazardId: number, reflect: boolean) => void;
   onAcceptable: (hazardId: number, acceptable: boolean) => void;
   onCreateAction: (c: VisionCandidate, input: ActionInput) => void;
-  onCompleteAction: (hazardId: number, actionId: number) => void;
   /** 등장 순서 지연(ms) */
   delay?: number;
 }
@@ -54,7 +53,7 @@ function EvidenceList({ items, scope }: { items: Evidence[]; scope: string }) {
   );
 }
 
-export default function CandidateCard({ c, busy, onDecide, onAcceptable, onCreateAction, onCompleteAction, delay = 0 }: Props) {
+export default function CandidateCard({ c, busy, onDecide, onAcceptable, onCreateAction, delay = 0 }: Props) {
   const prior = c.priorOpenAction;
   const priorDays = daysUntil(prior?.dueDate ?? null);
   const priorOverdue = isOverdue(prior);
@@ -134,7 +133,7 @@ export default function CandidateCard({ c, busy, onDecide, onAcceptable, onCreat
 
             {!c.acceptable && c.action !== null && (
               <div className={cn("border-t border-slate-100", c.action.status === "DONE" ? "bg-risk-low-bg" : "bg-white")}>
-                <ActionStatusRow action={c.action} busy={busy} onComplete={() => c.action && onCompleteAction(c.hazardId, c.action.id)} />
+                <ActionStatusRow action={c.action} />
               </div>
             )}
 

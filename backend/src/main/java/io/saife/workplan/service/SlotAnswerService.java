@@ -118,10 +118,10 @@ public class SlotAnswerService {
     }
 
     /**
-     * 불일치 되먹임 — 작업자가 "설치했다"고 답하면 해당 조치를 이행 완료로 올린다.
+     * 불일치 기록. 작업자가 "설치했다"고 답해도 조치를 닫지 않는다.
      *
-     * <p>증빙 없이 상태만 바꾸므로 {@code evidencePath}에 출처를 남긴다.
-     * 사진 증빙은 UC1 경로에서 따로 받는다.
+     * <p>자기보고는 이행 확인이 아니다. 조치는 개선대책 화면에서 증빙 사진, 확인자,
+     * 개선 후 위험성을 받아야 닫힌다. 여기서는 답변이 대장과 다르다는 사실만 로그로 남긴다.
      */
     private void reconcileAction(WorkPlan plan, String slotKey, String value) {
         if (!RiskRuleEngine.SlotKeys.ANCHOR_INSTALLED.equals(slotKey)) {
@@ -135,9 +135,8 @@ public class SlotAnswerService {
         List<Long> ids = hazards.stream().map(Hazard::getId).toList();
         for (Action a : actionRepository.findPendingByHazardIds(ids, ActionStatus.DONE)) {
             if (a.getContent() != null && a.getContent().contains("안전대")) {
-                a.complete("작업자 자기보고 (작업계획서 id=%d)".formatted(plan.getId()));
-                actionRepository.save(a);
-                log.info("[SLOT] 조치 이행 갱신 actionId={} — 자기보고 근거", a.getId());
+                log.info("[SLOT] 작업자 답변 설치됨, 조치 {}는 이행 확인 전이라 그대로 둠 (작업계획서 id={})",
+                        a.getId(), plan.getId());
             }
         }
     }

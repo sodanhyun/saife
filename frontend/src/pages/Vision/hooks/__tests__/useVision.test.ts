@@ -10,10 +10,8 @@ vi.mock("@/api/equipmentApi", () => ({
 vi.mock("@/api/visionApi", () => ({
   visionApi: { recent: vi.fn(), adopt: vi.fn(), reject: vi.fn(), createAction: vi.fn(), updateInspection: vi.fn(), setAcceptable: vi.fn() },
 }));
-vi.mock("@/api/actionApi", () => ({ actionApi: { complete: vi.fn() } }));
 vi.mock("@/api/client", () => ({ fetchWithAuth: vi.fn(), ApiError: class extends Error {} }));
 
-import { actionApi } from "@/api/actionApi";
 import { equipmentApi } from "@/api/equipmentApi";
 import { fetchWithAuth } from "@/api/client";
 import { visionApi } from "@/api/visionApi";
@@ -115,12 +113,11 @@ describe("useVision", () => {
     await waitFor(() => expect(result.current.stream.result?.participants).toEqual(["김철수"]));
   });
 
-  it("허용 가능 여부와 개선대책은 이 점검에 묶고, 이행 완료는 actionApi로 보낸다", async () => {
+  it("허용 가능 여부와 개선대책은 이 점검에 묶는다", async () => {
     mockFetch.mockResolvedValue(sseResponse([env("assess.done", 1, done)]));
-    const view = { id: 9, hazardId: 1, assessmentId: 40, equipmentId: 1, content: "c", owner: "김철수", dueDate: "2026-10-16", status: "PENDING" as const, guideRef: "B-5-2011", completedAt: null, createdAt: "t", priority: "ENGINEERING" as const };
+    const view = { id: 9, hazardId: 1, assessmentId: 40, equipmentId: 1, content: "c", owner: "김철수", dueDate: "2026-10-16", status: "PENDING" as const, guideRef: "B-5-2011", completedAt: null, createdAt: "t", priority: "ENGINEERING" as const, resultNote: null, verifiedBy: null, residualLevel: null, evidenceUrl: null, photoCheck: null };
     vi.mocked(visionApi.setAcceptable).mockResolvedValue({ hazardId: 1, acceptable: true });
     vi.mocked(visionApi.createAction).mockResolvedValue(view);
-    vi.mocked(actionApi.complete).mockResolvedValue({ ...view, status: "DONE", completedAt: "t2" });
     const { result } = renderHook(() => useVision(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => { result.current.pick(new File(["a"], "a.jpg", { type: "image/jpeg" })); });
@@ -132,9 +129,6 @@ describe("useVision", () => {
 
     await act(async () => { await result.current.createAction(cand, { content: "  c  ", owner: "김철수", dueDate: "2026-10-16", priority: "ENGINEERING", guideRef: "B-5-2011" }); });
     expect(visionApi.createAction).toHaveBeenCalledWith(1, { assessmentId: 40, content: "c", owner: "김철수", dueDate: "2026-10-16", guideRef: "B-5-2011", priority: "ENGINEERING" });
-
-    await act(async () => { await result.current.completeAction(1, 9); });
-    expect(actionApi.complete).toHaveBeenCalledWith(9);
-    expect(result.current.stream.result?.candidates[0].action?.status).toBe("DONE");
+    expect(result.current.stream.result?.candidates[0].action?.id).toBe(9);
   });
 });

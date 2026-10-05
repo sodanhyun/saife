@@ -2,11 +2,18 @@ package io.saife.core.action;
 
 import io.saife.common.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 /**
- * 감소대책 이행. 등록은 위험요인 문맥에서 일어나므로
+ * 감소대책 이행 확인. 등록은 위험요인 문맥에서 일어나므로
  * {@code POST /api/vision/hazard/{hazardId}/action}에 있다.
  */
 @RestController
@@ -38,9 +45,30 @@ public class ActionController {
         return ResponseEntity.ok(actionListService.counts());
     }
 
-    /** 이행 완료. 멱등 — 이미 완료면 그대로 돌려준다 */
-    @PostMapping("/{actionId}/complete")
-    public ResponseEntity<ActionDtos.ActionView> complete(@PathVariable Long actionId) {
-        return ResponseEntity.ok(actionService.complete(actionId));
+    /** 증빙 사진 첨부와 대조 */
+    @PostMapping(value = "/{actionId}/evidence", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ActionDtos.ActionView> attachEvidence(@PathVariable Long actionId,
+                                                                @RequestParam("image") MultipartFile image) throws IOException {
+        return ResponseEntity.ok(actionService.attachEvidence(actionId, image.getBytes(),
+                image.getContentType(), image.getOriginalFilename()));
+    }
+
+    /** 증빙 사진 */
+    @GetMapping("/{actionId}/evidence")
+    public ResponseEntity<FileSystemResource> evidence(@PathVariable Long actionId) {
+        return actionService.evidenceFile(actionId)
+                .map(p -> ResponseEntity.ok()
+                        .cacheControl(CacheControl.noCache())
+                        .contentType(MediaTypeFactory.getMediaType(p.getFileName().toString())
+                                .orElse(MediaType.IMAGE_JPEG))
+                        .body(new FileSystemResource(p)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** 이행 확인. 증빙 사진, 확인자, 개선 후 위험성 필수. 멱등 */
+    @PostMapping("/{actionId}/verify")
+    public ResponseEntity<ActionDtos.ActionView> verify(@PathVariable Long actionId,
+                                                        @RequestBody ActionDtos.VerifyActionRequest request) {
+        return ResponseEntity.ok(actionService.verify(actionId, request));
     }
 }

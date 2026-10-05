@@ -25,14 +25,16 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** UC1 루프의 끝: 채택한 위험요인에만 대책을 걸고, 이행 완료는 멱등이다 */
+/** UC1 루프의 끝: 채택한 위험요인에만 대책을 걸고, 이행 확인은 증빙과 확인자, 개선 후 위험성을 받는다 */
 class ActionServiceTest {
 
     private final ActionRepository actions = mock(ActionRepository.class);
     private final HazardRepository hazards = mock(HazardRepository.class);
     private final AssessmentHazardRepository links = mock(AssessmentHazardRepository.class);
     private final InspectionRecordStore records = mock(InspectionRecordStore.class);
-    private final ActionService service = new ActionService(actions, hazards, links, records);
+    private final io.saife.common.service.UploadStore uploads = mock(io.saife.common.service.UploadStore.class);
+    private final io.saife.ai.vision.ActionEvidenceChecker checker = mock(io.saife.ai.vision.ActionEvidenceChecker.class);
+    private final ActionService service = new ActionService(actions, hazards, links, records, uploads, checker);
 
     private Hazard hazard(Boolean adopted) {
         return Hazard.builder().id(11L).siteId(1L).equipmentId(1L)
@@ -120,30 +122,90 @@ class ActionServiceTest {
                 .isInstanceOf(ConflictException.class);
     }
 
-    @Test
-    void 이행_완료는_DONE과_완료_시각을_남긴다() {
-        Action pending = Action.builder().id(3L).hazardId(11L).assessmentId(40L).content("x")
+    private Action pendingWithPhoto() {
+        Action a = Action.builder().id(3L).hazardId(11L).assessmentId(40L).content("이동식 비계 사용")
                 .status(ActionStatus.PENDING).build();
-        when(actions.findById(3L)).thenReturn(Optional.of(pending));
+        a.attachEvidence("data/uploads/2026-10-08/a.jpg", null);
+        return a;
+    }
+
+    private ActionDtos.VerifyActionRequest verifyReq(RiskLevel level) {
+        return new ActionDtos.VerifyActionRequest("  이동식 비계 반입, 설치  ", "안전관리자 홍길동", level);
+    }
+
+    @Test
+    void 이행_확인은_DONE과_확인자_개선_후_위험성을_남긴다() {
+        when(actions.findById(3L)).thenReturn(Optional.of(pendingWithPhoto()));
         when(actions.save(any(Action.class))).thenAnswer(inv -> inv.getArgument(0));
         when(hazards.findById(11L)).thenReturn(Optional.of(hazard(true)));
 
-        ActionDtos.ActionView v = service.complete(3L);
+        ActionDtos.ActionView v = service.verify(3L, verifyReq(RiskLevel.LOW));
 
         assertThat(v.status()).isEqualTo(ActionStatus.DONE);
         assertThat(v.completedAt()).isNotNull();
+        assertThat(v.verifiedBy()).isEqualTo("안전관리자 홍길동");
+        assertThat(v.residualLevel()).isEqualTo(RiskLevel.LOW);
+        assertThat(v.resultNote()).isEqualTo("이동식 비계 반입, 설치");
+        assertThat(v.evidenceUrl()).isEqualTo("/api/action/3/evidence");
         assertThat(v.equipmentId()).isEqualTo(1L);
     }
 
     @Test
-    void 이행_완료는_멱등이다_완료_시각을_바꾸지_않는다() {
+    void 같은_위험요인의_다른_미이행_대책도_함께_닫는다() {
+        Action target = pendingWithPhoto();
+        Action replanned = Action.builder().id(5L).hazardId(11L).content("이동식 비계 또는 말비계로 작업발판 확보")
+                .status(ActionStatus.PENDING).build();
+        Action doneBefore = Action.builder().id(6L).hazardId(11L).content("x").status(ActionStatus.DONE)
+                .completedAt(OffsetDateTime.parse("2026-01-02T10:00:00+09:00")).build();
+        when(actions.findById(3L)).thenReturn(Optional.of(target));
+        when(actions.save(any(Action.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(actions.findByHazardId(11L)).thenReturn(List.of(target, replanned, doneBefore));
+        when(hazards.findById(11L)).thenReturn(Optional.of(hazard(true)));
+
+        service.verify(3L, verifyReq(RiskLevel.LOW));
+
+        assertThat(replanned.getStatus()).isEqualTo(ActionStatus.DONE);
+        assertThat(replanned.getVerifiedBy()).isEqualTo("안전관리자 홍길동");
+        assertThat(replanned.getEvidencePath()).isEqualTo(target.getEvidencePath());
+        assertThat(replanned.getResultNote()).startsWith("같은 위험요인 이행 확인");
+        assertThat(doneBefore.getCompletedAt()).isEqualTo(OffsetDateTime.parse("2026-01-02T10:00:00+09:00"));
+    }
+
+    @Test
+    void 증빙_사진이_없으면_이행_확인을_받지_않는다() {
+        when(actions.findById(3L)).thenReturn(Optional.of(Action.builder().id(3L).hazardId(11L).content("x")
+                .status(ActionStatus.PENDING).build()));
+        assertThatThrownBy(() -> service.verify(3L, verifyReq(RiskLevel.LOW)))
+                .isInstanceOf(InvalidRequestException.class).hasMessageContaining("증빙 사진");
+        verify(actions, never()).save(any());
+    }
+
+    @Test
+    void 확인자나_개선_후_위험성이_없으면_400() {
+        when(actions.findById(3L)).thenReturn(Optional.of(pendingWithPhoto()));
+        assertThatThrownBy(() -> service.verify(3L, new ActionDtos.VerifyActionRequest(null, " ", RiskLevel.LOW)))
+                .isInstanceOf(InvalidRequestException.class).hasMessageContaining("확인자");
+        assertThatThrownBy(() -> service.verify(3L, new ActionDtos.VerifyActionRequest(null, "홍길동", null)))
+                .isInstanceOf(InvalidRequestException.class).hasMessageContaining("개선 후 위험성");
+    }
+
+    @Test
+    void 개선_후_위험성이_상이면_이행_확인을_받지_않는다() {
+        when(actions.findById(3L)).thenReturn(Optional.of(pendingWithPhoto()));
+        assertThatThrownBy(() -> service.verify(3L, verifyReq(RiskLevel.HIGH)))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("추가 개선대책");
+        verify(actions, never()).save(any());
+    }
+
+    @Test
+    void 이행_확인은_멱등이다_확인_시각을_바꾸지_않는다() {
         OffsetDateTime first = OffsetDateTime.parse("2026-10-02T10:00:00+09:00");
         Action done = Action.builder().id(3L).hazardId(11L).content("x")
                 .status(ActionStatus.DONE).completedAt(first).build();
         when(actions.findById(3L)).thenReturn(Optional.of(done));
         when(hazards.findById(11L)).thenReturn(Optional.of(hazard(true)));
 
-        ActionDtos.ActionView v = service.complete(3L);
+        ActionDtos.ActionView v = service.verify(3L, verifyReq(RiskLevel.LOW));
 
         assertThat(v.completedAt()).isEqualTo(first);
         verify(actions, never()).save(any());
@@ -152,7 +214,40 @@ class ActionServiceTest {
     @Test
     void 없는_조치는_404() {
         when(actions.findById(99L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.complete(99L)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.verify(99L, verifyReq(RiskLevel.LOW))).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void 증빙_사진을_저장하고_대조_결과를_남긴다() throws Exception {
+        Action pending = Action.builder().id(3L).hazardId(11L).content("이동식 비계 사용")
+                .status(ActionStatus.PENDING).build();
+        when(actions.findById(3L)).thenReturn(Optional.of(pending));
+        when(actions.save(any(Action.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(hazards.findById(11L)).thenReturn(Optional.of(hazard(true)));
+        when(uploads.store(any(), any())).thenReturn("data/uploads/2026-10-08/b.jpg");
+        var item = new io.saife.ai.vision.ActionEvidenceChecker.Item("안전난간",
+                io.saife.ai.vision.ActionEvidenceChecker.ItemStatus.SEEN, "난간대 보임");
+        when(checker.check(any(), any(), any(), any())).thenReturn(new io.saife.ai.vision.ActionEvidenceChecker.Result(
+                io.saife.ai.vision.ActionEvidenceChecker.Verdict.CONFIRMED, List.of(item)));
+
+        ActionDtos.ActionView v = service.attachEvidence(3L, new byte[]{1, 2}, "image/jpeg", "a.jpg");
+
+        assertThat(v.status()).isEqualTo(ActionStatus.PENDING);
+        assertThat(v.evidenceUrl()).isEqualTo("/api/action/3/evidence");
+        assertThat(v.photoCheck().verdict()).isEqualTo(io.saife.ai.vision.ActionEvidenceChecker.Verdict.CONFIRMED);
+        assertThat(v.photoCheck().items()).extracting(io.saife.ai.vision.ActionEvidenceChecker.Item::item)
+                .containsExactly("안전난간");
+    }
+
+    @Test
+    void 사진이_아닌_파일과_확인된_조치에는_증빙을_붙이지_않는다() {
+        when(actions.findById(3L)).thenReturn(Optional.of(pendingWithPhoto()));
+        assertThatThrownBy(() -> service.attachEvidence(3L, new byte[]{1}, "application/pdf", "a.pdf"))
+                .isInstanceOf(InvalidRequestException.class);
+        Action done = Action.builder().id(4L).hazardId(11L).content("x").status(ActionStatus.DONE).build();
+        when(actions.findById(4L)).thenReturn(Optional.of(done));
+        assertThatThrownBy(() -> service.attachEvidence(4L, new byte[]{1}, "image/jpeg", "a.jpg"))
+                .isInstanceOf(ConflictException.class);
     }
 
     @Test

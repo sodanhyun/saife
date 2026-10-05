@@ -7,7 +7,7 @@ import type { EquipmentTimeline, TimelineEvent } from "@/types/timeline";
 const ev = (id: string, over: Partial<TimelineEvent> = {}): TimelineEvent => ({
   id, type: "ASSESSMENT", at: "2026-08-21", occurredAt: null, title: "상시평가", detail: "위험요인 1건 평가", riskLevel: "HIGH",
   accidentType: "FALL", status: "CONFIRMED", refId: 1, linkedEventIds: [], linkedLabels: [], causalOrder: 0, emphasis: "WARNING",
-  ruleTrace: "작업높이 3.2m (2m 초과) + 안전대 부착설비 없음 → '상'", ...over,
+  ruleTrace: "작업높이 3.2m (2m 초과) + 안전대 부착설비 없음 → '상'", imageUrl: null, ...over,
 });
 
 const timeline: EquipmentTimeline = {

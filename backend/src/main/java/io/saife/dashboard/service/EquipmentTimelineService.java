@@ -1,5 +1,7 @@
 package io.saife.dashboard.service;
 
+import io.saife.core.action.ActionDtos;
+import io.saife.incident.service.EquipmentHistoryRecaller;
 import io.saife.core.domain.*;
 import io.saife.core.repository.*;
 import io.saife.dashboard.dto.TimelineDtos;
@@ -281,7 +283,7 @@ public class EquipmentTimelineService {
                     worst == null ? null : axisOf(hazardById, worst.getHazardId()),
                     assessment.getStatus(), assessment.getId(), linked, List.of(),
                     triggerIncidentId != null ? ORDER_FOLLOW_UP : ORDER_ASSESSMENT,
-                    level == RiskLevel.HIGH ? Emphasis.WARNING : Emphasis.NORMAL, ruleTrace));
+                    level == RiskLevel.HIGH ? Emphasis.WARNING : Emphasis.NORMAL, ruleTrace, null));
         }
         return out;
     }
@@ -304,7 +306,7 @@ public class EquipmentTimelineService {
             }
 
             boolean overdue = isOverdue(action);
-            String detail = action.getStatus() == ActionStatus.DONE ? "이행 완료"
+            String detail = action.getStatus() == ActionStatus.DONE ? doneDetail(action)
                     : overdue ? "기한 경과, 미이행" : "이행 예정";
             if (action.getGuideRef() != null && !action.getGuideRef().isBlank()) {
                 detail += " (근거 " + guideName(action.getGuideRef()) + ")";
@@ -316,9 +318,19 @@ public class EquipmentTimelineService {
                     overdue ? ActionStatus.OVERDUE.name() : action.getStatus().name(),
                     action.getId(), linked, List.of(),
                     ORDER_ACTION,
-                    overdue ? Emphasis.CRITICAL : Emphasis.NORMAL, null));
+                    overdue ? Emphasis.CRITICAL : Emphasis.NORMAL, null,
+                    ActionDtos.evidenceUrl(action.getId(), action.getEvidencePath())));
         }
         return out;
+    }
+
+    /** 이행 확인 줄: "이행 확인, 개선 후 하, 확인 안전관리자 홍길동". 확인 기록이 없는 옛 완료는 "이행 완료" */
+    static String doneDetail(Action action) {
+        if (action.getVerifiedBy() == null) {
+            return "이행 완료";
+        }
+        String residual = action.getResidualLevel() == null ? "" : ", 개선 후 " + action.getResidualLevel().getLabel();
+        return "이행 확인" + residual + ", 확인 " + action.getVerifiedBy();
     }
 
     /**
@@ -336,7 +348,7 @@ public class EquipmentTimelineService {
             List<String> linked = new ArrayList<>();
             if (approved) {
                 for (Action action : actions) {
-                    if (action.getStatus() != ActionStatus.DONE
+                    if (EquipmentHistoryRecaller.openAt(action, plan.getApprovedAt())
                             && action.getDueDate() != null
                             && action.getDueDate().isBefore(plan.getWorkDate())) {
                         linked.add("action-" + action.getId());
@@ -349,7 +361,7 @@ public class EquipmentTimelineService {
                     plan.getWorkName(), approvalDetail(plan), null, null,
                     plan.getStatus().name(), plan.getId(), linked, List.of(),
                     ORDER_WORK_PLAN,
-                    approved && !linked.isEmpty() ? Emphasis.WARNING : Emphasis.NORMAL, null));
+                    approved && !linked.isEmpty() ? Emphasis.WARNING : Emphasis.NORMAL, null, null));
         }
         return out;
     }
@@ -380,7 +392,7 @@ public class EquipmentTimelineService {
 
             // 사고 시점에 기한이 지나 있던 조치 — "예고되어 있었다"의 증거
             for (Action action : actions) {
-                if (action.getStatus() != ActionStatus.DONE
+                if (EquipmentHistoryRecaller.openAt(action, incident.getOccurredAt())
                         && action.getDueDate() != null
                         && action.getDueDate().isBefore(incident.getOccurredAt().toLocalDate())) {
                     linked.add("action-" + action.getId());
@@ -412,7 +424,7 @@ public class EquipmentTimelineService {
                     incidentTitle(incident, hazardById), detail.toString(),
                     null, incident.getAccidentType(),
                     incident.getReportStatus().name(), incident.getId(), linked, List.of(),
-                    ORDER_INCIDENT, Emphasis.CRITICAL, null));
+                    ORDER_INCIDENT, Emphasis.CRITICAL, null, null));
         }
         return out;
     }
@@ -441,7 +453,7 @@ public class EquipmentTimelineService {
                     .toList();
             out.add(new TimelineEvent(e.id(), e.type(), e.at(), e.occurredAt(),
                     e.title(), e.detail(), e.riskLevel(), e.accidentType(), e.status(),
-                    e.refId(), e.linkedEventIds(), labels, e.causalOrder(), e.emphasis(), e.ruleTrace()));
+                    e.refId(), e.linkedEventIds(), labels, e.causalOrder(), e.emphasis(), e.ruleTrace(), null));
         }
         return out;
     }

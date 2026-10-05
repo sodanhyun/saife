@@ -32,7 +32,7 @@ describe("ActionTable", () => {
     expect(screen.getByText("기한 경과", { selector: "span" })).toBeInTheDocument();
   });
 
-  it("미이행 행만 이행 완료 버튼이 있고 누르면 그 행을 넘긴다", () => {
+  it("미이행 행만 이행 확인 버튼이 있고 누르면 그 행을 넘긴다", () => {
     const onComplete = vi.fn();
     const open = actionRow({ id: 1, dueDate: "2026-10-06" });
     const done = actionRow({ id: 2, content: "방호덮개 설치", status: "DONE", completedAt: "2026-09-20T01:00:00Z" });
@@ -42,10 +42,17 @@ describe("ActionTable", () => {
     expect(screen.getByText("미이행")).toBeInTheDocument();
     expect(screen.getByText("완료")).toBeInTheDocument();
     expect(screen.getByText("완료일")).toBeInTheDocument();
-    const buttons = screen.getAllByRole("button", { name: /이행 완료/ });
+    const buttons = screen.getAllByRole("button", { name: /이행 확인/ });
     expect(buttons).toHaveLength(1);
     fireEvent.click(buttons[0]);
     expect(onComplete).toHaveBeenCalledWith(open);
+  });
+
+  it("확인된 대책은 증빙 사진과 개선 후 위험성, 확인자를 보인다", () => {
+    renderTable([actionRow({ status: "DONE", completedAt: "2026-09-20T01:00:00Z", verifiedBy: "안전관리자 홍길동",
+      residualLevel: "LOW", evidenceUrl: "/api/action/1/evidence" })]);
+    expect(screen.getByText("개선 후 하, 확인 안전관리자 홍길동")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "증빙 사진" })).toHaveAttribute("src", "/api/action/1/evidence");
   });
 
   it("완료 탭은 머리글이 완료일이고 둘째 줄 표기가 없다", () => {

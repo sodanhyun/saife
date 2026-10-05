@@ -56,7 +56,9 @@ public class ActionListQuery {
 
         String sql = """
                 SELECT a.id, a.content, a.owner, a.due_date, a.status, a.completed_at, a.priority,
-                       a.guide_ref, a.hazard_id, a.assessment_id,
+                       a.guide_ref, a.hazard_id, a.assessment_id, a.verified_by, a.residual_level, a.evidence_path,
+                       (SELECT count(*) FROM action b WHERE b.hazard_id = a.hazard_id AND b.id <> a.id
+                           AND b.status <> 'DONE') AS related_open,
                        h.accident_type, h.missing_control, h.equipment_id, e.name AS equipment_name,
                        %s AS overdue
                 """.formatted(OVERDUE_COND)
@@ -128,8 +130,21 @@ public class ActionListQuery {
                     rs.getString("missing_control"),
                     getLong(rs, "equipment_id"),
                     rs.getString("equipment_name"),
-                    getLong(rs, "assessment_id"));
+                    getLong(rs, "assessment_id"),
+                    rs.getString("verified_by"),
+                    parseLevel(rs.getString("residual_level")),
+                    ActionDtos.evidenceUrl(rs.getLong("id"), rs.getString("evidence_path")),
+                    rs.getInt("related_open"));
         };
+    }
+
+    private static io.saife.core.domain.RiskLevel parseLevel(String raw) {
+        if (raw == null) return null;
+        try {
+            return io.saife.core.domain.RiskLevel.valueOf(raw);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private static String escapeLike(String s) {

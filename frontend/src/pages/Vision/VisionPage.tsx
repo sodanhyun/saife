@@ -91,7 +91,6 @@ export default function VisionPage() {
               onDecide={(id, reflect) => void v.decide(id, reflect)}
               onAcceptable={(id, ok) => void v.setAcceptable(id, ok)}
               onCreateAction={(cand, input) => void v.createAction(cand, input)}
-              onCompleteAction={(hazardId, actionId) => void v.completeAction(hazardId, actionId)}
             />
           ))}
         </section>

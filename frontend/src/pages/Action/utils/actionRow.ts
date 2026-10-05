@@ -4,7 +4,7 @@ import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 
 import type { ActionCounts, ActionListFilter, ActionListItem, ActionStatus } from "@/types/action";
-import { ACCIDENT_LABEL } from "@/types/domain";
+import { ACCIDENT_LABEL, RISK_LABEL } from "@/types/domain";
 import { formatDate, SITE_TZ } from "@/utils/datetime";
 
 dayjs.extend(utc);
@@ -97,4 +97,18 @@ export function hazardLine(row: ActionListItem): string | null {
   const parts = [row.accidentType ? ACCIDENT_LABEL[row.accidentType] : null, row.missingControl?.trim() || null];
   const text = parts.filter(Boolean).join(", ");
   return text || null;
+}
+
+/** 이행 확인 화면 머리의 기한 표기: "기한 2026-09-07, 30일 경과" */
+export function dueLabel(row: ActionListItem, today: string): string | null {
+  if (!row.dueDate) return null;
+  const d = dueInfo(row, today);
+  return d.hint && d.tone !== "done" ? `기한 ${row.dueDate}, ${d.hint}` : `기한 ${row.dueDate}`;
+}
+
+/** 확인된 대책의 둘째 줄: "개선 후 하, 확인 안전관리자 홍길동". 확인 기록이 없는 옛 완료는 null */
+export function verifiedLine(row: ActionListItem): string | null {
+  if (row.status !== "DONE" || !row.verifiedBy) return null;
+  const residual = row.residualLevel ? `개선 후 ${RISK_LABEL[row.residualLevel]}, ` : "";
+  return `${residual}확인 ${row.verifiedBy}`;
 }

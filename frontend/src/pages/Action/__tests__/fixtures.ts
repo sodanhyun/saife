@@ -17,6 +17,10 @@ export function actionRow(over: Partial<ActionListItem> = {}): ActionListItem {
     equipmentId: 3,
     equipmentName: "이동식 사다리 A",
     assessmentId: 1,
+    verifiedBy: null,
+    residualLevel: null,
+    evidenceUrl: null,
+    relatedOpen: 0,
     ...over,
   };
 }

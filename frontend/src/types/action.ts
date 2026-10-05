@@ -1,5 +1,5 @@
 /** 백엔드 io.saife.core.action.ActionDtos와 1:1 */
-import type { AccidentType } from "@/types/domain";
+import type { AccidentType, RiskLevel } from "@/types/domain";
 
 export type ActionStatus = "PENDING" | "DONE" | "OVERDUE";
 
@@ -25,10 +25,39 @@ export interface CreateActionRequest {
   priority: ControlPriority | null;
 }
 
+/** 증빙 사진 대조. 백엔드 ActionEvidenceChecker.Result */
+export type PhotoCheckStatus = "SEEN" | "NOT_SEEN" | "UNCLEAR";
+export type PhotoCheckVerdict = "CONFIRMED" | "PARTIAL" | "NOT_CONFIRMED";
+
 /**
- * @property equipmentId 이 조치가 걸린 설비. "설비 이력" 링크에 쓴다
- * @property completedAt 이행 완료 시각. DONE일 때만 값이 있다
- * @property priority    감소대책 우선순위. 미기재면 null
+ * @property item     사진으로 확인할 항목 (예: "안전난간")
+ * @property evidence 사진의 어느 부분을 보고 판단했는지
+ */
+export interface PhotoCheckItem {
+  item: string;
+  status: PhotoCheckStatus;
+  evidence: string | null;
+}
+
+export interface PhotoCheck {
+  verdict: PhotoCheckVerdict;
+  items: PhotoCheckItem[];
+}
+
+/** 이행 확인 요청. 백엔드 ActionDtos.VerifyActionRequest */
+export interface VerifyActionRequest {
+  resultNote: string | null;
+  verifiedBy: string;
+  residualLevel: RiskLevel;
+}
+
+/**
+ * @property equipmentId   이 조치가 걸린 설비. "설비 이력" 링크에 쓴다
+ * @property completedAt   이행 확인 시각. DONE일 때만 값이 있다
+ * @property priority      감소대책 우선순위. 미기재면 null
+ * @property residualLevel 개선 후 위험성. 확인 전이면 null
+ * @property evidenceUrl   증빙 사진 경로. 없으면 null
+ * @property photoCheck    증빙 사진 대조 결과. 없으면 null
  */
 export interface ActionView {
   id: number;
@@ -43,6 +72,11 @@ export interface ActionView {
   completedAt: string | null;
   createdAt: string;
   priority: ControlPriority | null;
+  resultNote: string | null;
+  verifiedBy: string | null;
+  residualLevel: RiskLevel | null;
+  evidenceUrl: string | null;
+  photoCheck: PhotoCheck | null;
 }
 
 /**
@@ -69,6 +103,10 @@ export type ActionListFilter = "OPEN" | "OVERDUE" | "DONE" | "ALL";
  * @property overdueDays    기한 경과 일수(KST 오늘 기준). 경과가 아니면 null
  * @property accidentType   위험요인의 발생형태
  * @property missingControl 위험요인의 빠진 안전조치
+ * @property verifiedBy     이행 확인자. 확인 전이면 null
+ * @property residualLevel  개선 후 위험성. 확인 전이면 null
+ * @property evidenceUrl    증빙 사진 경로. 없으면 null
+ * @property relatedOpen    같은 위험요인의 다른 미이행 대책 수. 이행 확인하면 함께 닫힌다
  */
 export interface ActionListItem {
   id: number;
@@ -86,6 +124,10 @@ export interface ActionListItem {
   equipmentId: number | null;
   equipmentName: string | null;
   assessmentId: number | null;
+  verifiedBy: string | null;
+  residualLevel: RiskLevel | null;
+  evidenceUrl: string | null;
+  relatedOpen: number;
 }
 
 /** 목록 탭 건수. 백엔드 ActionDtos.ActionCounts. open은 기한 경과를 포함한다 */

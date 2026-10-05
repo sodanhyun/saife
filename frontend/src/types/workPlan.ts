@@ -114,3 +114,26 @@ export interface MsdsSummary {
   inferred: boolean;
   lines: { item: string; text: string }[];
 }
+
+/** 유사 재해사례 항목. 머리말과 원문 설명 한 줄. 백엔드 CaseDigest.Item */
+export interface CaseItem {
+  head: string;
+  detail: string | null;
+}
+
+/**
+ * 유사 재해사례. 백엔드 SimilarCaseService.SimilarCase. 원문 문장을 자른 것이고 새로 쓴 문장이 없다
+ * @property title    사례 제목(공단 키워드)
+ * @property year     발생 연도 표기 (예: "2001년")
+ * @property summary  재해 개요 한 문장
+ */
+export interface SimilarCase {
+  id: number;
+  title: string;
+  business: string | null;
+  year: string | null;
+  summary: string | null;
+  causes: CaseItem[];
+  measures: CaseItem[];
+  sourceUrl: string | null;
+}

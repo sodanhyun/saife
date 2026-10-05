@@ -53,6 +53,23 @@ public class Action {
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
 
+    /** 이행 내용. 확인자가 적는다 */
+    @Column(name = "result_note", columnDefinition = "text")
+    private String resultNote;
+
+    /** 이행을 확인한 사람 (직책 이름) */
+    @Column(name = "verified_by", length = 100)
+    private String verifiedBy;
+
+    /** 개선 후 위험성. 상이면 이행 확인을 받지 않는다 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "residual_level", length = 10)
+    private RiskLevel residualLevel;
+
+    /** 증빙 사진 대조 결과 (JSON 문자열). 사진이 대책을 보여 주는지 항목별 판정 */
+    @Column(name = "photo_check", columnDefinition = "text")
+    private String photoCheck;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -64,9 +81,18 @@ public class Action {
         }
     }
 
-    public void complete(String evidencePath) {
+    /** 증빙 사진을 붙인다. 다시 올리면 앞의 사진과 대조 결과를 바꾼다 */
+    public void attachEvidence(String evidencePath, String photoCheck) {
+        this.evidencePath = evidencePath;
+        this.photoCheck = photoCheck;
+    }
+
+    /** 이행 확인. 증빙은 {@link #attachEvidence}로 먼저 붙어 있어야 한다 */
+    public void verify(String resultNote, String verifiedBy, RiskLevel residualLevel) {
         this.status = ActionStatus.DONE;
         this.completedAt = OffsetDateTime.now();
-        this.evidencePath = evidencePath;
+        this.resultNote = resultNote;
+        this.verifiedBy = verifiedBy;
+        this.residualLevel = residualLevel;
     }
 }

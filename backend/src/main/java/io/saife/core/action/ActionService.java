@@ -3,10 +3,13 @@ package io.saife.core.action;
 import io.saife.common.error.ApiExceptions.ConflictException;
 import io.saife.common.error.ApiExceptions.InvalidRequestException;
 import io.saife.common.error.ApiExceptions.NotFoundException;
+import io.saife.ai.vision.ActionEvidenceChecker;
+import io.saife.common.service.UploadStore;
 import io.saife.core.domain.Action;
 import io.saife.core.domain.ActionStatus;
 import io.saife.core.domain.AssessmentHazard;
 import io.saife.core.domain.Hazard;
+import io.saife.core.domain.RiskLevel;
 import io.saife.core.repository.ActionRepository;
 import io.saife.core.repository.AssessmentHazardRepository;
 import io.saife.core.repository.HazardRepository;
@@ -15,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -41,6 +46,8 @@ public class ActionService {
     private final HazardRepository hazardRepository;
     private final AssessmentHazardRepository assessmentHazardRepository;
     private final InspectionRecordStore records;
+    private final UploadStore uploadStore;
+    private final ActionEvidenceChecker evidenceChecker;
 
     /**
      * 채택된 위험요인에 감소대책을 등록한다.
@@ -101,22 +108,96 @@ public class ActionService {
     }
 
     /**
-     * 이행 완료. <b>멱등이다</b> — 이미 완료된 조치는 완료 시각을 바꾸지 않고 그대로 돌려준다.
-     * 완료 시각은 증빙이라 두 번 눌렀다고 뒤로 밀리면 안 된다.
+     * 증빙 사진을 붙이고 대책이 사진에 보이는지 대조한다. 이미 확인된 조치는 바꾸지 않는다.
      */
     @Transactional
-    public ActionDtos.ActionView complete(Long actionId) {
+    public ActionDtos.ActionView attachEvidence(Long actionId, byte[] bytes, String contentType, String fileName) {
+        Action action = actionRepository.findById(actionId).orElseThrow(
+                () -> NotFoundException.of("조치", actionId));
+        if (action.getStatus() == ActionStatus.DONE) {
+            throw new ConflictException("이미 이행 확인한 개선대책입니다.");
+        }
+        if (bytes == null || bytes.length == 0) {
+            throw new InvalidRequestException("사진이 비어 있습니다. 사진을 다시 선택하십시오.");
+        }
+        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+            throw new InvalidRequestException("사진 파일만 올릴 수 있습니다 (받은 형식: %s)".formatted(contentType));
+        }
+        Hazard hazard = hazardRepository.findById(action.getHazardId()).orElse(null);
+        String hazardText = hazard == null || hazard.getAccidentType() == null ? null
+                : hazard.getAccidentType().getLabel() + ": " + hazard.getMissingControl();
+        String path;
+        try {
+            path = uploadStore.store(bytes, fileName);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        ActionEvidenceChecker.Result check = evidenceChecker.check(bytes, contentType, action.getContent(), hazardText);
+        action.attachEvidence(path, ActionDtos.writeCheck(check));
+        action = actionRepository.save(action);
+        log.info("[ACTION] 조치 {} 증빙 사진 대조 {} ({}항목)", actionId, check.verdict(), check.items().size());
+        return view(action, hazard == null ? null : hazard.getEquipmentId());
+    }
+
+    /**
+     * 이행 확인. 증빙 사진, 확인자, 개선 후 위험성이 있어야 닫힌다.
+     *
+     * <p>개선 후 위험성이 상이면 받지 않는다. 감소대책은 허용 가능한 수준까지 낮추는 것이고(고시 제12조),
+     * 상이 남으면 추가 대책을 세워야 한다.
+     *
+     * <p><b>멱등이다</b>: 이미 확인된 조치는 확인 시각을 바꾸지 않고 그대로 돌려준다.
+     */
+    @Transactional
+    public ActionDtos.ActionView verify(Long actionId, ActionDtos.VerifyActionRequest req) {
         Action action = actionRepository.findById(actionId).orElseThrow(
                 () -> NotFoundException.of("조치", actionId));
 
         if (action.getStatus() != ActionStatus.DONE) {
-            action.complete(action.getEvidencePath());
+            if (ActionDtos.evidenceUrl(action.getId(), action.getEvidencePath()) == null) {
+                throw new InvalidRequestException("증빙 사진을 첨부하십시오.");
+            }
+            String verifiedBy = req == null ? null : trimToNull(req.verifiedBy());
+            if (verifiedBy == null) {
+                throw new InvalidRequestException("확인자를 입력하십시오.");
+            }
+            if (verifiedBy.length() > OWNER_MAX) {
+                throw new InvalidRequestException("확인자는 %d자 이하로 입력하십시오.".formatted(OWNER_MAX));
+            }
+            RiskLevel residual = req.residualLevel();
+            if (residual == null) {
+                throw new InvalidRequestException("개선 후 위험성을 선택하십시오.");
+            }
+            if (residual == RiskLevel.HIGH) {
+                throw new ConflictException("개선 후 위험성이 상이면 이행 확인을 할 수 없습니다. 추가 개선대책을 등록하십시오.");
+            }
+            String note = trimToNull(req.resultNote());
+            if (note != null && note.length() > CONTENT_MAX) {
+                throw new InvalidRequestException("이행 내용은 %d자 이하로 입력하십시오.".formatted(CONTENT_MAX));
+            }
+            action.verify(note == null ? action.getContent() : note, verifiedBy, residual);
             action = actionRepository.save(action);
-            log.info("[UC1] 조치 {} 이행 완료", actionId);
+            log.info("[ACTION] 조치 {} 이행 확인 확인자={} 개선 후={}", actionId, verifiedBy, residual);
+
+            // 같은 위험요인에 남은 미이행 대책(기한을 다시 잡은 재수립 등)도 이 이행으로 닫힌다.
+            // 개선 후 위험성은 위험요인 단위로 확인한 것이라, 같은 위험요인의 다른 계획이 열려 있으면
+            // 이미 통제된 위험이 "미이행"으로 남아 오늘 할 일과 작업 전 점검 경고에 계속 뜬다
+            for (Action other : actionRepository.findByHazardId(action.getHazardId())) {
+                if (other.getId().equals(action.getId()) || other.getStatus() == ActionStatus.DONE) continue;
+                other.attachEvidence(action.getEvidencePath(), action.getPhotoCheck());
+                other.verify("같은 위험요인 이행 확인: " + action.getResultNote(), verifiedBy, residual);
+                actionRepository.save(other);
+                log.info("[ACTION] 조치 {}도 같은 위험요인 이행으로 닫음", other.getId());
+            }
         }
         Long equipmentId = hazardRepository.findById(action.getHazardId())
                 .map(Hazard::getEquipmentId).orElse(null);
         return view(action, equipmentId);
+    }
+
+    /** 증빙 사진 파일 */
+    @Transactional(readOnly = true)
+    public Optional<java.nio.file.Path> evidenceFile(Long actionId) {
+        return actionRepository.findById(actionId).flatMap(a -> uploadStore.resolve(a.getEvidencePath()));
     }
 
     /** 조치 한 건의 화면 값. 우선순위(V13 컬럼)를 같이 싣는다 */
