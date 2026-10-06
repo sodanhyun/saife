@@ -92,7 +92,7 @@ cd frontend && npm install && npm run dev        # :5173
 ## 검증
 
 ```bash
-cd backend && ./gradlew test        # 441건
+cd backend && ./gradlew test        # 443건
 cd frontend && npm run test         # 330건
 ```
 
