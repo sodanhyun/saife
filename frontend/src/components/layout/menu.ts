@@ -15,17 +15,23 @@ export interface MenuGroup {
 }
 
 /**
- * IA 뒤집기 — 명사(설비) 하나 위에 동사 네 개. 첫 항목이 설비 현황이고,
- * 기존 4개 화면은 그 아래 "문서별 보기" 그룹으로 유지한다(라벨은 동사로 통일).
+ * 첫 화면은 현장 사진 분석(사진 한 장으로 안전 문제와 예방 방법), 그다음 작업 전 점검.
+ * 설비 현황, 사고 보고, 개선대책은 "기록" 그룹으로 뒤에 둔다.
  */
 export const MENU_GROUPS: MenuGroup[] = [
   {
     key: "main",
     label: null,
     items: [
-      { key: "home", path: "/", label: "설비 현황", icon: LayoutGrid },
+      { key: "vision", path: "/", label: "현장 사진 분석", icon: Camera },
       { key: "work-plan", path: "/work-plan", label: "작업 전 점검", icon: ClipboardList },
-      { key: "vision", path: "/vision", label: "순회점검", icon: Camera },
+    ],
+  },
+  {
+    key: "records",
+    label: "기록",
+    items: [
+      { key: "home", path: "/equipment", label: "설비 현황", icon: LayoutGrid },
       { key: "incident", path: "/incident", label: "사고 보고", icon: Siren },
       { key: "action", path: "/action", label: "개선대책", icon: ListChecks },
     ],
@@ -35,7 +41,7 @@ export const MENU_GROUPS: MenuGroup[] = [
 /** 평평한 목록이 필요한 곳(활성 경로 판정 등)을 위한 파생 — 그룹 정의를 다시 하지 않는다. */
 export const MENU: MenuItem[] = MENU_GROUPS.flatMap((g) => g.items);
 
-/** 설비 현황이 첫 진입 화면이다 — 모든 행동은 설비에서 시작한다. */
+/** 현장 사진 분석이 첫 진입 화면이다 */
 export const LANDING_PATH = "/";
 
 /** 사용자 선호가 없을 때 접힌 채로 여는 화면 — 대화+트레이스 2열이 폭을 다 쓴다. */

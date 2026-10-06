@@ -37,6 +37,8 @@ export interface VisionCandidate {
   priorOpenAction: ActionView | null;
   /** 사진에서 이 위험요인이 보이는 위치 [ymin, xmin, ymax, xmax] (0~1000). 없으면 null */
   box: number[] | null;
+  /** 예방 방법 (모델 판독, 1~3개) */
+  prevention: string[];
 }
 
 /** assess.progress 단계. 백엔드 VisionAssessmentService.PHASE_* */
@@ -56,6 +58,13 @@ export interface VisionAnalysisResult {
   equipmentId: number | null;
   candidates: VisionCandidate[];
   demoMode: boolean;
+  /** 사진 상황 한 줄 */
+  scene: string | null;
+  /** 사진 속 주요 설비나 기구 이름 */
+  photoEquipment: string | null;
+  /** 사진 내용으로 찾은 이 사업장 설비. 설비를 고르지 않고 분석했을 때만 */
+  suggestedEquipmentId: number | null;
+  suggestedEquipmentName: string | null;
 }
 
 /** 점검 정보(점검자, 참여 근로자) 갱신 */

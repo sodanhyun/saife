@@ -72,4 +72,35 @@ public class InspectionRecordStore {
         List<String> rows = jdbc.queryForList("SELECT priority FROM action WHERE id = ?", String.class, actionId);
         return rows.isEmpty() ? null : ControlPriority.parse(rows.get(0));
     }
+
+    /** 사진 상황 한 줄과 사진 속 주요 설비 이름 (V19) */
+    public record PhotoScene(String scene, String equipment) {}
+
+    public void savePhotoScene(Long assessmentId, String scene, String equipment) {
+        jdbc.update("UPDATE assessment SET photo_scene = ?, photo_equipment = ? WHERE id = ?", scene, equipment, assessmentId);
+    }
+
+    public Optional<PhotoScene> photoScene(Long assessmentId) {
+        List<PhotoScene> rows = jdbc.query("SELECT photo_scene, photo_equipment FROM assessment WHERE id = ?",
+                (rs, i) -> new PhotoScene(rs.getString("photo_scene"), rs.getString("photo_equipment")), assessmentId);
+        return rows.stream().findFirst();
+    }
+
+    /** 위험요인별 오늘 사진의 판독 내용과 예방 방법(줄바꿈으로 이은 문자열) */
+    public record PhotoNote(String note, String prevention) {}
+
+    public void savePhotoNote(Long assessmentId, Long hazardId, String note, String prevention) {
+        jdbc.update("UPDATE assessment_hazard SET photo_note = ?, prevention = ? WHERE assessment_id = ? AND hazard_id = ?",
+                note, prevention, assessmentId, hazardId);
+    }
+
+    public Map<Long, PhotoNote> photoNotes(Long assessmentId) {
+        Map<Long, PhotoNote> out = new HashMap<>();
+        jdbc.query("SELECT hazard_id, photo_note, prevention FROM assessment_hazard WHERE assessment_id = ?",
+                rs -> {
+                    out.put(rs.getLong("hazard_id"), new PhotoNote(rs.getString("photo_note"), rs.getString("prevention")));
+                },
+                assessmentId);
+        return out;
+    }
 }

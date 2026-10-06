@@ -34,7 +34,7 @@ function sseResponse(chunks: string[] = []): Response {
 const cand: VisionCandidate = {
   hazardId: 1, accidentType: "FALL", accidentLabel: "떨어짐", missingControl: "최상부 디딤대 사용", evidence: null, confidence: null,
   riskLevel: "HIGH", ruleTrace: "r", adopted: true, alreadyKnown: false, gateStatus: "PHOTO", acceptable: false,
-  suggestedAction: { content: "c", lawRef: "l", lawTitle: null, guideRef: "B-5-2011", priority: "ENGINEERING" }, action: null, priorOpenAction: null, box: null,
+  suggestedAction: { content: "c", lawRef: "l", lawTitle: null, guideRef: "B-5-2011", priority: "ENGINEERING" }, action: null, priorOpenAction: null, box: null, prevention: [],
 };
 const done = { assessmentId: 40, status: "ANALYZED", assessedOn: "2026-10-02", inspector: "홍길동", participants: [], equipmentId: 1, candidates: [cand], demoMode: false };
 

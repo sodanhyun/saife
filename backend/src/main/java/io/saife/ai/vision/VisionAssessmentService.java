@@ -81,6 +81,7 @@ public class VisionAssessmentService {
     private final ActionService actionService;
     private final InspectionRecordStore records;
     private final EquipmentRepository equipmentRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     // 자기 호출로 @Transactional(REQUIRES_NEW)를 태우려면 프록시를 거쳐야 한다.
     // 순환 의존성은 @Lazy가 아니라 ObjectProvider로 푼다 (CLAUDE.md 규칙)
@@ -105,7 +106,8 @@ public class VisionAssessmentService {
                             ActionDtos.SuggestedAction suggestedAction,
                             ActionDtos.ActionView action,
                             ActionDtos.ActionView priorOpenAction,
-                            List<Integer> box) {}
+                            List<Integer> box,
+                            List<String> prevention) {}
 
     /**
      * @param inspector    담당자(점검자)
@@ -114,7 +116,9 @@ public class VisionAssessmentService {
      */
     public record AnalysisResult(Long assessmentId, String status, LocalDate assessedOn,
                                  String inspector, List<String> participants, Long equipmentId,
-                                 List<Candidate> candidates, boolean demoMode) {}
+                                 List<Candidate> candidates, boolean demoMode,
+                                 String scene, String photoEquipment,
+                                 Long suggestedEquipmentId, String suggestedEquipmentName) {}
 
     /** 점검 정보 갱신 요청과 응답 */
     public record InspectionRequest(String inspector, List<String> participants) {}
@@ -179,10 +183,11 @@ public class VisionAssessmentService {
                 Map.of("phase", PHASE_ANALYZING, "message", "사진 분석 중"));
 
         try {
-            List<VisionAnalyzer.Finding> findings = visionAnalyzer.analyze(imageBytes, contentType);
+            VisionAnalyzer.Analysis analysis = visionAnalyzer.analyzeScene(imageBytes, contentType);
+            records.savePhotoScene(assessmentId, analysis.scene(), analysis.equipment());
 
             AnalysisResult result = self.getObject().persist(
-                    assessmentId, siteId, equipmentId, processId, findings, photoPath,
+                    assessmentId, siteId, equipmentId, processId, analysis.findings(), photoPath,
                     (phase, message) -> emit(sessionId, "assess.progress", correlationId, assessmentId,
                             Map.of("phase", phase, "message", message)));
 
@@ -282,6 +287,7 @@ public class VisionAssessmentService {
                     .ruleTrace(decision.ruleTrace())
                     .photoBox(boxText(finding.box()))
                     .build());
+            records.savePhotoNote(assessmentId, hazard.getId(), finding.evidence(), joinLines(finding.prevention()));
 
             graded.add(new Graded(finding, hazard, alreadyKnown, decision));
         }
@@ -305,17 +311,21 @@ public class VisionAssessmentService {
                     suggest(h.getAccidentType(), h.getMissingControl(), evidenceItems),
                     actionView(h, assessmentId),
                     priorOpenActionView(h, assessmentId),
-                    finding.box()));
+                    finding.box(), finding.prevention() == null ? List.of() : finding.prevention()));
         }
 
         updateStatus(assessmentId, STATUS_ANALYZED);
         InspectionRecordStore.Inspection inspection = records.inspection(assessmentId).orElse(null);
         Assessment assessment = assessmentRepository.findById(assessmentId).orElse(null);
+        InspectionRecordStore.PhotoScene scene = records.photoScene(assessmentId).orElse(null);
+        Equipment suggested = equipmentId != null ? null : suggestEquipment(siteId, scene, candidates);
         return new AnalysisResult(assessmentId, STATUS_ANALYZED,
                 assessment == null ? LocalDate.now() : assessment.getAssessedOn(),
                 inspection == null ? null : inspection.inspector(),
                 InspectionRules.splitParticipants(inspection == null ? null : inspection.participants()),
-                equipmentId, candidates, demoModeConfig.isDemoMode());
+                equipmentId, candidates, demoModeConfig.isDemoMode(),
+                scene == null ? null : scene.scene(), scene == null ? null : scene.equipment(),
+                suggested == null ? null : suggested.getId(), suggested == null ? null : suggested.getName());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -358,7 +368,88 @@ public class VisionAssessmentService {
                 suggest(hazard.getAccidentType(), hazard.getMissingControl(), evidenceItems),
                 actionView(hazard, latestAssessmentId),
                 priorOpenActionView(hazard, latestAssessmentId),
-                latest == null ? null : parseBox(latest.getPhotoBox()));
+                latest == null ? null : parseBox(latest.getPhotoBox()),
+                latestAssessmentId == null ? List.of()
+                        : splitLines(noteOf(records.photoNotes(latestAssessmentId).get(hazardId), false)));
+    }
+
+    /** 사진 속 설비 이름의 핵심 단어로 이 사업장 설비를 찾는다. 같은 단어의 설비가 여럿이면 제안하지 않는다 */
+    private static final List<String> EQUIPMENT_WORDS = List.of(
+            "사다리", "비계", "지게차", "크레인", "고소작업대", "용접", "프레스", "컨베이어", "혼합기", "선반", "압축기", "리프트");
+
+    Equipment suggestEquipment(Long siteId, InspectionRecordStore.PhotoScene scene, List<Candidate> candidates) {
+        StringBuilder text = new StringBuilder();
+        if (scene != null) {
+            text.append(scene.equipment() == null ? "" : scene.equipment()).append(' ');
+        }
+        for (Candidate c : candidates) {
+            text.append(c.evidence() == null ? "" : c.evidence()).append(' ');
+        }
+        String t = text.toString();
+        List<Equipment> all = equipmentRepository.findAll().stream()
+                .filter(e -> siteId == null || siteId.equals(e.getSiteId())).toList();
+        for (String w : EQUIPMENT_WORDS) {
+            if (!t.contains(w)) continue;
+            List<Equipment> hits = all.stream().filter(e -> e.getName() != null && e.getName().contains(w)).toList();
+            if (hits.size() == 1) return hits.get(0);
+        }
+        return null;
+    }
+
+    /**
+     * 사진만으로 분석한 점검을 설비 기록에 붙인다. 설비 대장에 같은 위험요인이 있으면 그 위험요인으로 합쳐
+     * 등급 이력과 미이행 조치가 이어지게 하고, 없으면 새 위험요인에 설비를 지정한다.
+     * 이미 대책을 등록한 위험요인은 합치지 않고 설비만 지정한다(대책이 고아가 되지 않게).
+     */
+    @Transactional
+    public void assignEquipment(Long assessmentId, Long equipmentId) {
+        Equipment equipment = equipmentRepository.findById(equipmentId).orElseThrow(
+                () -> new NotFoundException("설비를 찾을 수 없습니다: " + equipmentId));
+        List<Long> linked = jdbc.queryForList(
+                "SELECT hazard_id FROM assessment_hazard WHERE assessment_id = ?", Long.class, assessmentId);
+        for (Long hazardId : linked) {
+            List<java.util.Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT accident_type, missing_control, equipment_id FROM hazard WHERE id = ?", hazardId);
+            if (rows.isEmpty() || rows.get(0).get("equipment_id") != null) continue;
+            String type = (String) rows.get(0).get("accident_type");
+            String control = (String) rows.get(0).get("missing_control");
+            Long existing = jdbc.query(
+                    "SELECT id FROM hazard WHERE equipment_id = ? AND accident_type = ? AND "
+                            + "replace(missing_control, ' ', '') = replace(?, ' ', '') "
+                            + "AND NOT (ai_suggested AND ai_adopted IS FALSE) ORDER BY created_at, id LIMIT 1",
+                    rs -> rs.next() ? rs.getLong(1) : null, equipmentId, type, control);
+            Integer actions = jdbc.queryForObject("SELECT count(*) FROM action WHERE hazard_id = ?", Integer.class, hazardId);
+            if (existing != null && (actions == null || actions == 0)) {
+                Integer dup = jdbc.queryForObject(
+                        "SELECT count(*) FROM assessment_hazard WHERE assessment_id = ? AND hazard_id = ?",
+                        Integer.class, assessmentId, existing);
+                if (dup != null && dup > 0) {
+                    jdbc.update("DELETE FROM assessment_hazard WHERE assessment_id = ? AND hazard_id = ?", assessmentId, hazardId);
+                } else {
+                    jdbc.update("UPDATE assessment_hazard SET hazard_id = ? WHERE assessment_id = ? AND hazard_id = ?",
+                            existing, assessmentId, hazardId);
+                }
+                jdbc.update("DELETE FROM hazard WHERE id = ? AND NOT EXISTS (SELECT 1 FROM assessment_hazard WHERE hazard_id = ?)",
+                        hazardId, hazardId);
+            } else {
+                jdbc.update("UPDATE hazard SET equipment_id = ?, process_id = ? WHERE id = ?",
+                        equipmentId, equipment.getProcessId(), hazardId);
+            }
+        }
+        log.info("[UC1] 점검 {} 설비 {} 기록", assessmentId, equipmentId);
+    }
+
+    static String joinLines(List<String> lines) {
+        return lines == null || lines.isEmpty() ? null : String.join("\n", lines);
+    }
+
+    static List<String> splitLines(String text) {
+        return text == null || text.isBlank() ? List.of()
+                : java.util.Arrays.stream(text.split("\n")).map(String::strip).filter(x -> !x.isEmpty()).toList();
+    }
+
+    private static String noteOf(InspectionRecordStore.PhotoNote n, boolean note) {
+        return n == null ? null : note ? n.note() : n.prevention();
     }
 
     /** "ymin,xmin,ymax,xmax" 저장 문자열 */
@@ -417,6 +508,7 @@ public class VisionAssessmentService {
                 () -> new NotFoundException("평가를 찾을 수 없습니다: " + assessmentId));
 
         Map<Long, Boolean> acceptable = records.acceptableByHazard(assessmentId);
+        Map<Long, InspectionRecordStore.PhotoNote> notes = records.photoNotes(assessmentId);
         List<Candidate> candidates = new ArrayList<>();
         Long equipmentId = null;
         for (AssessmentHazard link : assessmentHazardRepository.findByAssessmentId(assessmentId)) {
@@ -429,8 +521,9 @@ public class VisionAssessmentService {
             }
             List<Evidence> evidenceItems =
                     evidenceCollector.forCandidate(h.getAccidentType(), h.getMissingControl());
+            String todayNote = noteOf(notes.get(h.getId()), true);
             candidates.add(new Candidate(h.getId(), h.getAccidentType(), h.getAccidentType().getLabel(),
-                    h.getMissingControl(), h.getDescription(), null,
+                    h.getMissingControl(), todayNote != null ? todayNote : h.getDescription(), null,
                     link.getRiskLevel(), link.getRuleTrace(), h.getAiAdopted(),
                     h.getSource() != HazardSource.PHOTO,
                     GateStatus.of(h.getAccidentType()),
@@ -439,14 +532,18 @@ public class VisionAssessmentService {
                     suggest(h.getAccidentType(), h.getMissingControl(), evidenceItems),
                     actionView(h, assessmentId),
                     priorOpenActionView(h, assessmentId),
-                    parseBox(link.getPhotoBox())));
+                    parseBox(link.getPhotoBox()), splitLines(noteOf(notes.get(h.getId()), false))));
         }
         InspectionRecordStore.Inspection inspection = records.inspection(assessmentId).orElse(null);
+        InspectionRecordStore.PhotoScene scene = records.photoScene(assessmentId).orElse(null);
+        Equipment suggested = equipmentId != null ? null : suggestEquipment(assessment.getSiteId(), scene, candidates);
         return new AnalysisResult(assessmentId, assessment.getStatus(), assessment.getAssessedOn(),
                 inspection == null ? null : inspection.inspector(),
                 InspectionRules.splitParticipants(inspection == null ? assessment.getParticipants()
                         : inspection.participants()),
-                equipmentId, candidates, demoModeConfig.isDemoMode());
+                equipmentId, candidates, demoModeConfig.isDemoMode(),
+                scene == null ? null : scene.scene(), scene == null ? null : scene.equipment(),
+                suggested == null ? null : suggested.getId(), suggested == null ? null : suggested.getName());
     }
 
     /** 최근 순회점검(상시평가) 목록. 분석 중이거나 실패한 점검은 뺀다 */

@@ -126,7 +126,26 @@ export function useVision() {
     }, "개선대책을 등록하지 못했습니다");
 
 
+  /** 사진만으로 분석한 점검을 설비 기록에 붙인다. 서버 결과(기존 위험요인 병합, 미이행 조치)로 화면을 바꾼다 */
+  const [assigning, setAssigning] = useState(false);
+  const assignEquipment = async (targetId: number) => {
+    if (assessmentId === null) return;
+    setAssigning(true);
+    try {
+      const next = await visionApi.assignEquipment(assessmentId, targetId);
+      stream.replaceResult(next);
+      setEquipmentId(targetId);
+      refetchRecent();
+    } catch (e) {
+      toastError(getServerMessage(e) ?? "설비에 기록하지 못했습니다");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   return {
+    assigning,
+    assignEquipment: (id: number) => void assignEquipment(id),
     equipment: equipment.data ?? [],
     loading: equipment.loading,
     loadError: equipment.error,

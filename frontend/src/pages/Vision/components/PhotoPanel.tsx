@@ -22,6 +22,8 @@ interface Props {
   stage: AnalysisStage | null;
   onPick: (f: File | undefined) => void;
   marks?: PhotoMark[];
+  /** 첫 화면의 큰 업로드 영역 */
+  hero?: boolean;
 }
 
 const BOX_BORDER: Record<RiskLevel, string> = {
@@ -57,7 +59,7 @@ function MarkedImage({ src, marks }: { src: string; marks: PhotoMark[] }) {
   );
 }
 
-export default function PhotoPanel({ preview, analyzing, stage, onPick, marks = [] }: Props) {
+export default function PhotoPanel({ preview, analyzing, stage, onPick, marks = [], hero = false }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const choose = () => fileRef.current?.click();
@@ -90,10 +92,15 @@ export default function PhotoPanel({ preview, analyzing, stage, onPick, marks = 
             )}
           </figure>
         ) : (
-          <div className={cn("flex aspect-video flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 text-center transition-colors", dragging ? "border-brand bg-brand-soft" : "border-slate-300 bg-slate-50")}>
-            <Camera aria-hidden className="h-9 w-9 text-slate-400" strokeWidth={1.75} />
-            <p className="mt-3 text-stage font-semibold text-slate-900">현장 사진</p>
-            <Button className="mt-4" size="lg" onClick={choose}>사진 선택</Button>
+          <div className={cn("flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 text-center transition-colors",
+            hero ? "py-16" : "aspect-video",
+            dragging ? "border-brand bg-brand-soft" : hero ? "border-brand-line bg-brand-soft/40" : "border-slate-300 bg-slate-50")}>
+            <span className={cn("grid place-items-center rounded-full", hero ? "h-16 w-16 bg-brand text-white" : "")}>
+              <Camera aria-hidden className={hero ? "h-8 w-8" : "h-9 w-9 text-slate-400"} strokeWidth={1.75} />
+            </span>
+            <p className={cn("mt-4 font-semibold text-slate-900", hero ? "text-headline" : "text-stage")}>현장 사진</p>
+            {hero && <p className="mt-1.5 text-sm text-slate-500">안전 문제, 위험성, 예방 방법</p>}
+            <Button className="mt-5" size="lg" onClick={choose}>사진 선택</Button>
           </div>
         )}
       </div>

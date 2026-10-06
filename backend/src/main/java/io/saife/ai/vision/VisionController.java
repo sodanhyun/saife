@@ -125,6 +125,18 @@ public class VisionController {
     }
 
     /** 위험요인 반영. 사람이 하는 일이다 */
+    /** 사진만으로 분석한 점검을 설비 기록에 붙인다. 붙인 뒤의 결과를 돌려준다 */
+    @PutMapping("/assessment/{assessmentId}/equipment")
+    public ResponseEntity<VisionAssessmentService.AnalysisResult> assignEquipment(
+            @PathVariable Long assessmentId, @RequestBody java.util.Map<String, Long> body) {
+        Long equipmentId = body == null ? null : body.get("equipmentId");
+        if (equipmentId == null) {
+            throw new InvalidRequestException("기록할 설비를 고르십시오.");
+        }
+        visionAssessmentService.assignEquipment(assessmentId, equipmentId);
+        return ResponseEntity.ok(visionAssessmentService.result(assessmentId));
+    }
+
     @PostMapping("/hazard/{hazardId}/adopt")
     public ResponseEntity<VisionAssessmentService.Candidate> adopt(@PathVariable Long hazardId) {
         return ResponseEntity.ok(visionAssessmentService.decideCandidate(hazardId, true));

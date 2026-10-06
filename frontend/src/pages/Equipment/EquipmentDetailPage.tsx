@@ -39,7 +39,7 @@ export default function EquipmentDetailPage() {
       <PageLayout>
         <PageHeader title="설비" />
         <EmptyState message="설비를 찾을 수 없습니다" className="py-16"
-          action={<Button onClick={() => navigate("/")}>설비 현황</Button>} />
+          action={<Button onClick={() => navigate("/equipment")}>설비 현황</Button>} />
       </PageLayout>
     );
   }

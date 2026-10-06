@@ -33,7 +33,8 @@ export default function App() {
           <RouteErrorBoundary resetKey={location.pathname}>
             <Suspense fallback={<PageSkeleton />}>
               <Routes>
-                <Route path="/" element={<EquipmentHomePage />} />
+                <Route path="/" element={<VisionPage />} />
+                <Route path="/equipment" element={<EquipmentHomePage />} />
                 <Route path="/equipment/:equipmentId" element={<EquipmentDetailPage />} />
                 <Route path="/work-plan" element={<WorkPlanPage />} />
                 <Route path="/vision" element={<VisionPage />} />

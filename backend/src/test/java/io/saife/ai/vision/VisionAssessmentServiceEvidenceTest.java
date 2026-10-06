@@ -46,7 +46,8 @@ class VisionAssessmentServiceEvidenceTest {
     @SuppressWarnings("unchecked")
     private final VisionAssessmentService service = new VisionAssessmentService(assessments, links, hazards,
             mock(VisionAnalyzer.class), riskTable, mock(SseService.class), demo, collector, actionService,
-            mock(InspectionRecordStore.class), mock(EquipmentRepository.class), mock(ObjectProvider.class));
+            mock(InspectionRecordStore.class), mock(EquipmentRepository.class),
+            mock(org.springframework.jdbc.core.JdbcTemplate.class), mock(ObjectProvider.class));
 
     private final Evidence card = new Evidence(1, EvidenceKind.GUIDE, 3L, "G-1#0", "[KOSHA GUIDE G-1] 추락", "s",
             null, null, null, Origin.CACHE, 0.8, OffsetDateTime.now(), Map.of());

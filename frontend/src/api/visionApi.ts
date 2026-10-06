@@ -24,5 +24,8 @@ export const visionApi = {
     api.put<AcceptableView>(`/api/vision/assessment/${assessmentId}/hazard/${hazardId}/acceptable`, { acceptable }).then((r) => r.data),
   /** 개선대책 등록. 반영한 위험요인에만 된다(아니면 409) */
   createAction: (hazardId: number, body: CreateActionRequest) => api.post<ActionView>(`/api/vision/hazard/${hazardId}/action`, body).then((r) => r.data),
+  /** 사진만으로 분석한 점검을 설비 기록에 붙인다 */
+  assignEquipment: (assessmentId: number, equipmentId: number) =>
+    api.put<VisionAnalysisResult>(`/api/vision/assessment/${assessmentId}/equipment`, { equipmentId }).then((r) => r.data),
   adoptionRate: (signal?: AbortSignal) => api.get<AdoptionRate>("/api/vision/adoption-rate", { signal }).then((r) => r.data),
 };

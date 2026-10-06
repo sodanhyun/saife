@@ -43,7 +43,11 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
   const { status } = useSystemStatus();
 
   // 설비 상세(/equipment/:id)는 설비 현황 아래에 있다
-  const isActive = (path: string) => (path === "/" ? pathname === "/" || pathname.startsWith("/equipment") || pathname === "/timeline" : pathname.startsWith(path));
+  const isActive = (path: string) => {
+    if (path === "/") return pathname === "/" || pathname.startsWith("/vision");
+    if (path === "/equipment") return pathname.startsWith("/equipment") || pathname === "/timeline";
+    return pathname.startsWith(path);
+  };
   const go = (path: string) => {
     navigate(path);
     onClose();
@@ -64,7 +68,10 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
 
   const nav = (rail: boolean) => (
     <nav className={cn("flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden py-3", rail ? "px-2" : "px-3")}>
-      {MENU_GROUPS.flatMap((g) => g.items).map((item) => {
+      {MENU_GROUPS.map((g) => (
+        <div key={g.key} className={cn(g.label && "mt-4 border-t border-slate-100 pt-3")}>
+          {g.label && !rail && <p className="mb-1 px-3 text-xs font-semibold text-slate-400">{g.label}</p>}
+          {g.items.map((item) => {
         const Icon = item.icon;
         const active = isActive(item.path);
         return (
@@ -86,7 +93,9 @@ export default function GlobalSidebar({ isOpen, onClose }: Props) {
             {!rail && <span className={cn("whitespace-nowrap text-stage", active ? "font-semibold" : "font-medium")}>{item.label}</span>}
           </button>
         );
-      })}
+          })}
+        </div>
+      ))}
     </nav>
   );
 

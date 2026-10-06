@@ -81,6 +81,18 @@ export default function CandidateCard({ c, no, busy, onDecide, onAcceptable, onC
           {c.evidence && (
             <p className="mt-1 text-sm text-slate-600"><span className="mr-1.5 text-xs font-bold text-slate-500">사진 내용</span>{c.evidence}</p>
           )}
+          {c.prevention.length > 0 && (
+            <div className="mt-3 rounded-md border border-brand-line bg-brand-soft px-3 py-2">
+              <p className="text-xs font-bold tracking-wide text-brand">예방 방법</p>
+              <ol className="mt-1 space-y-0.5">
+                {c.prevention.map((p, i) => (
+                  <li key={p} className="flex gap-2 text-sm text-slate-800">
+                    <span className="w-4 shrink-0 tabular-nums text-slate-400">{i + 1}.</span><span>{p}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           <div className="mt-3 rounded-md bg-panel px-3 py-2">
             <p className="text-xs font-bold tracking-wide text-slate-500">등급 근거</p>

@@ -50,21 +50,36 @@ public class VisionAnalyzer {
      * @param evidence       사진의 어디를 보고 그렇게 판단했는지. 사람이 검증할 수 있어야 한다
      * @param confidence     모델의 자기보고 신뢰도. 등급에 쓰지 않는다. 정렬에만 쓴다
      * @param box            사진에서 그 근거가 보이는 위치 [ymin, xmin, ymax, xmax] (0~1000). 없으면 null
+     * @param prevention     예방 방법 1~3개 (현장에서 바로 할 수 있는 것)
      */
     public record Finding(AccidentType accidentType, String missingControl,
-                          String evidence, Double confidence, List<Integer> box) {
+                          String evidence, Double confidence, List<Integer> box, List<String> prevention) {
         public Finding(AccidentType accidentType, String missingControl, String evidence, Double confidence) {
-            this(accidentType, missingControl, evidence, confidence, null);
+            this(accidentType, missingControl, evidence, confidence, null, List.of());
+        }
+
+        public Finding(AccidentType accidentType, String missingControl, String evidence, Double confidence,
+                       List<Integer> box) {
+            this(accidentType, missingControl, evidence, confidence, box, List.of());
         }
     }
 
-    private static final String PROMPT = """
-            당신은 제조 사업장의 순회점검자입니다. 사진을 보고 **빠져 있는 안전조치**를 찾으십시오.
+    /**
+     * 사진 한 장의 판독.
+     *
+     * @param scene     사진 상황 한 줄 (어디서 무엇을 하는 장면인지)
+     * @param equipment 사진 속 주요 설비나 기구 이름 (예: "A형 이동식 사다리"). 없으면 null
+     */
+    public record Analysis(String scene, String equipment, List<Finding> findings) {}
 
-            판정 대상은 아래 6가지 발생형태뿐입니다. missingControl은 가능하면 괄호 안 표현을 그대로 쓰십시오.
-            - FALL(떨어짐): 이동식 사다리 최상부 발판 또는 그 바로 아래 디딤대에 올라섬("최상부 디딤대 사용"),
-              사다리 위 작업인데 작업발판이 없음("작업발판 미확보"), "안전대 부착설비 미설치",
-              "개구부 덮개 미설치", "작업발판 안전난간 미설치"
+    private static final String PROMPT = """
+            당신은 제조 사업장의 안전관리자입니다. 현장 사진 한 장을 보고 **안전상 문제를 빠짐없이** 찾고,
+            문제마다 예방 방법을 알려 주십시오. 특정 설비만 보지 말고 사진 전체(사람, 기구, 바닥, 주변 물건)를 보십시오.
+
+            문제는 아래 6가지 발생형태 중 하나로 분류하십시오. missingControl은 가능하면 괄호 안 표현을 쓰고,
+            맞는 표현이 없으면 10자 안팎의 명사형으로 직접 쓰십시오.
+            - FALL(떨어짐): "최상부 디딤대 사용", "작업발판 미확보", "안전대 부착설비 미설치", "개구부 덮개 미설치",
+              "작업발판 안전난간 미설치"
             - CAUGHT(끼임): "방호덮개 미설치"(회전, 구동부)
             - DROP(물체에 맞음): "적재 불량", "낙하물 방지망 미설치"
             - STRUCK(부딪힘): "통로 폐색", "구획선 미설치"
@@ -72,22 +87,24 @@ public class VisionAnalyzer {
             - PPE(보호구 미착용): "안전모 미착용", "안전대 미착용", "보안경 미착용"
 
             반드시 지킬 것:
-            - **사진에 물리적으로 보이거나 보이지 않는 것만** 판단하십시오.
-            - 추론해야 알 수 있는 것은 판단하지 마십시오. 기계의 동력 상태(가동 중인지),
-              환기의 적정성, 사람의 부재(프레임 밖에 있을 수 있음)는 사진으로 확정할 수 없습니다.
+            - **사진에 물리적으로 보이거나 보이지 않는 것만** 판단하십시오. 기계의 동력 상태, 환기의 적정성,
+              프레임 밖 사람의 부재처럼 사진으로 확정할 수 없는 것은 판단하지 마십시오.
             - 사다리를 잡아 주는 사람이나 아웃트리거가 보이면 넘어짐 방지는 있는 것으로 봅니다.
-            - evidence에는 **사진의 어느 부분을 보고 그렇게 판단했는지** 한 문장으로 구체적으로 쓰십시오.
-              "위험해 보임" 같은 서술은 쓰지 마십시오. 가운뎃점(·)과 대시(—)는 쓰지 마십시오.
-            - 빠진 조치가 없으면 findings를 빈 배열로 두십시오. **없는 것을 만들지 마십시오.**
-            - 위험성 등급은 매기지 마십시오. 등급은 시스템이 정합니다.
-            - box에는 evidence가 가리키는 사람이나 물체를 감싸는 영역을 [ymin, xmin, ymax, xmax]로 쓰십시오.
-              사진 크기를 0~1000으로 본 정수입니다.
+            - evidence에는 사진의 어느 부분을 보고 판단했는지 한 문장으로 구체적으로 쓰십시오.
+            - prevention에는 그 문제를 막는 방법을 1~3개, 현장에서 바로 할 수 있는 조치로 짧게 쓰십시오.
+              (예: "A형 사다리 대신 이동식 비계나 말비계 사용", "사다리 최상부 두 칸은 딛지 않음")
+            - box에는 evidence가 가리키는 사람이나 물체를 감싸는 영역을 [ymin, xmin, ymax, xmax]로 쓰십시오 (0~1000 정수).
+            - scene에는 사진 상황을 한 줄로, equipment에는 사진 속 주요 설비나 기구 이름을 쓰십시오(없으면 null).
+            - 문제가 없으면 findings를 빈 배열로 두십시오. **없는 것을 만들지 마십시오.** 위험성 등급은 매기지 마십시오.
+            - 가운뎃점(·)과 대시(—)는 쓰지 마십시오. 문장은 "~임", "~있음", "~함"처럼 명사형으로 끝내십시오.
 
             JSON만 출력하십시오:
-            {"findings":[{"accidentType":"FALL","missingControl":"개구부 덮개 미설치",
-              "evidence":"바닥 개구부에 고정되지 않은 임시 철망만 얹혀 있음","confidence":0.8,
-              "box":[612,240,840,505]}]}
+            {"scene":"실내 공사 현장에서 작업자가 A형 사다리에 올라 기둥 작업 중임","equipment":"A형 이동식 사다리",
+             "findings":[{"accidentType":"FALL","missingControl":"최상부 디딤대 사용",
+              "evidence":"작업자가 사다리 맨 위 발판에 두 발을 딛고 서 있음","confidence":0.9,
+              "box":[120,420,620,560],"prevention":["이동식 비계나 말비계로 작업발판 확보","사다리 최상부 두 칸은 딛지 않음"]}]}
             """;
+
 
     /**
      * 사진을 판독한다.
@@ -97,9 +114,14 @@ public class VisionAnalyzer {
      * @return 후보 목록. 빈 목록은 정상 결과다 — 빠진 조치가 없다는 뜻이다
      */
     public List<Finding> analyze(byte[] imageBytes, String contentType) {
+        return analyzeScene(imageBytes, contentType).findings();
+    }
+
+    /** 사진 상황, 주요 설비, 문제 목록을 함께 판독한다 */
+    public Analysis analyzeScene(byte[] imageBytes, String contentType) {
         if (demoModeConfig.isDemoMode()) {
-            log.info("[UC1] 데모 모드 — 사진 판독은 픽스처를 쓴다");
-            return demoFindings();
+            log.info("[UC1] 데모 모드, 사진 판독은 픽스처를 쓴다");
+            return new Analysis("(고정 응답) 작업자가 A형 사다리에 올라 작업 중임", "A형 이동식 사다리", demoFindings());
         }
         try {
             String json = chatClientBuilder.build()
@@ -113,7 +135,7 @@ public class VisionAnalyzer {
                     .call()
                     .content();
 
-            return parse(json);
+            return parseScene(json);
 
         } catch (Exception e) {
             log.error("[UC1] 사진 판독 실패", e);
@@ -128,7 +150,36 @@ public class VisionAnalyzer {
         }
     }
 
-    private List<Finding> parse(String json) {
+    static Analysis parseScene(String json) {
+        String scene = null, equipment = null;
+        try {
+            JsonNode root = MAPPER.readTree(stripFence(json == null ? "" : json));
+            scene = text(root.path("scene"));
+            equipment = text(root.path("equipment"));
+        } catch (Exception e) {
+            // findings 파싱이 따로 경고를 남긴다
+        }
+        return new Analysis(scene, equipment, parse(json));
+    }
+
+    private static String text(JsonNode n) {
+        if (n == null || n.isNull() || n.isMissingNode()) return null;
+        String t = dotless(n.asText("").strip());
+        return t.isEmpty() || "null".equals(t) ? null : t;
+    }
+
+    private static List<String> prevention(JsonNode n) {
+        List<String> out = new ArrayList<>();
+        if (n != null && n.isArray()) {
+            for (JsonNode x : n) {
+                String t = text(x);
+                if (t != null && out.size() < 3) out.add(t);
+            }
+        }
+        return out;
+    }
+
+    static List<Finding> parse(String json) {
         List<Finding> out = new ArrayList<>();
         if (json == null || json.isBlank()) {
             return out;
@@ -156,7 +207,8 @@ public class VisionAnalyzer {
                         ? node.path("confidence").asDouble() : null;
                 // 화면 문구 규칙: 가운뎃점 구분자를 쉼표로 바꾼다 ("유도 표식·구획선" → "유도 표식, 구획선")
                 out.add(new Finding(axis, missing.trim().replaceAll("\\s*·\\s*", ", "),
-                        dotless(node.path("evidence").asText(null)), confidence, box(node.path("box"))));
+                        dotless(node.path("evidence").asText(null)), confidence, box(node.path("box")),
+                        prevention(node.path("prevention"))));
             }
         } catch (Exception e) {
             log.warn("[UC1] 판독 결과 파싱 실패: {}", e.toString());
@@ -188,7 +240,7 @@ public class VisionAnalyzer {
     }
 
     /** 모델이 ```json 펜스를 붙이는 경우가 있다 */
-    private String stripFence(String json) {
+    private static String stripFence(String json) {
         String t = json.trim();
         if (t.startsWith("```")) {
             int first = t.indexOf('\n');
@@ -200,7 +252,7 @@ public class VisionAnalyzer {
         return t;
     }
 
-    private AccidentType parseAxis(String raw) {
+    private static AccidentType parseAxis(String raw) {
         if (raw == null) {
             return null;
         }
@@ -232,8 +284,10 @@ public class VisionAnalyzer {
     private List<Finding> demoFindings() {
         return List.of(
                 new Finding(AccidentType.FALL, "최상부 디딤대 사용",
-                        "(고정 응답) 작업자가 A형 사다리 최상부 발판 위에 서 있음", 0.9, List.of(150, 430, 980, 640)),
+                        "(고정 응답) 작업자가 A형 사다리 최상부 발판 위에 서 있음", 0.9, List.of(150, 430, 980, 640),
+                        List.of("이동식 비계나 말비계로 작업발판 확보", "사다리 최상부 두 칸은 딛지 않음")),
                 new Finding(AccidentType.PPE, "안전대 미착용",
-                        "(고정 응답) 사다리 위 작업자에게 안전대가 보이지 않음", 0.7, List.of(130, 470, 560, 600)));
+                        "(고정 응답) 사다리 위 작업자에게 안전대가 보이지 않음", 0.7, List.of(130, 470, 560, 600),
+                        List.of("2m 이상 작업은 안전대 착용과 체결 확인")));
     }
 }

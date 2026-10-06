@@ -69,5 +69,8 @@ export function useVisionStream() {
     setResult((prev) => prev && { ...prev, inspector, participants });
   }, []);
 
-  return { result, stage, error, analyzing, connectionState, analyze, patchCandidate, patchInspection };
+  /** 서버가 다시 계산한 결과로 바꾼다(설비 기록 연결 뒤) */
+  const replaceResult = useCallback((next: VisionAnalysisResult) => setResult(next), []);
+
+  return { result, stage, error, analyzing, connectionState, analyze, patchCandidate, patchInspection, replaceResult };
 }

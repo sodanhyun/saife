@@ -35,6 +35,7 @@ class VisionAssessmentServiceDedupTest {
     private final VisionAssessmentService service = new VisionAssessmentService(assessments, links, hazards,
             mock(VisionAnalyzer.class), new PhotoRiskTable(), mock(SseService.class), mock(DemoModeConfig.class),
             collector, actionService, mock(InspectionRecordStore.class), mock(EquipmentRepository.class),
+            mock(org.springframework.jdbc.core.JdbcTemplate.class),
             mock(ObjectProvider.class));
 
     private Hazard hazard(long id, String control, Boolean adopted, HazardSource source) {

@@ -8,6 +8,7 @@ import PageLayout from "@/components/ui/PageLayout";
 import SectionTitle from "@/components/ui/SectionTitle";
 import Skeleton from "@/components/ui/Skeleton";
 import CandidateCard from "@/pages/Vision/components/CandidateCard";
+import EquipmentLinkBar from "@/pages/Vision/components/EquipmentLinkBar";
 import InspectionBar from "@/pages/Vision/components/InspectionBar";
 import PhotoPanel from "@/pages/Vision/components/PhotoPanel";
 import RecentInspections from "@/pages/Vision/components/RecentInspections";
@@ -15,7 +16,7 @@ import { useVision } from "@/pages/Vision/hooks/useVision";
 import { isComplete } from "@/pages/Vision/utils/inspection";
 import VisionSkeleton from "@/pages/Vision/VisionSkeleton";
 
-/** 순회점검(근로자 참여). 점검 정보 → 사진 → 위험요인 반영/제외 → 허용 가능 여부 → 개선대책 → 이행 결과 */
+/** 현장 사진 분석(순회점검 기록). 사진 → 안전 문제와 예방 방법 → 설비 기록 연결 → 반영/제외 → 허용 가능 여부 → 개선대책 */
 export default function VisionPage() {
   const v = useVision();
   const { result, error, analyzing, stage } = v.stream;
@@ -29,7 +30,7 @@ export default function VisionPage() {
   return (
     <PageLayout>
       <PageHeader
-        title="순회점검"
+        title="현장 사진 분석"
         actions={result && (
           <>
             <StatusBadge tone={complete ? "low" : "pending"}>{complete ? "확정" : "작성 중"}</StatusBadge>
@@ -39,6 +40,13 @@ export default function VisionPage() {
       />
       {v.loadError && <LoadErrorCallout className="mb-4" onRetry={v.refetch} />}
 
+      {!started ? (
+        <div className="mx-auto max-w-4xl space-y-6">
+          <PhotoPanel preview={v.preview} analyzing={analyzing} stage={stage} onPick={v.pick} hero />
+          <RecentInspections items={v.recent} />
+        </div>
+      ) : (
+      <>
       <InspectionBar
         equipment={v.equipment}
         equipmentId={v.equipmentId}
@@ -60,7 +68,6 @@ export default function VisionPage() {
         <section aria-label="위험요인" className="min-w-0 space-y-4">
           {error && <Callout tone="high">{error}</Callout>}
 
-          {!started && <RecentInspections items={v.recent} />}
 
           {analyzing && (
             <div aria-hidden className="space-y-4">
@@ -75,6 +82,15 @@ export default function VisionPage() {
             </div>
           )}
 
+          {result?.scene && (
+            <p className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm text-slate-700 shadow-card animate-fade-in">
+              <span className="mr-2 text-xs font-bold text-slate-500">사진 상황</span>{result.scene}
+            </p>
+          )}
+          {result && result.equipmentId === null && candidates.length > 0 && (
+            <EquipmentLinkBar key={result.assessmentId} equipment={v.equipment} photoEquipment={result.photoEquipment}
+              suggestedId={result.suggestedEquipmentId} busy={v.assigning} onAssign={v.assignEquipment} />
+          )}
           {result && (
             <SectionTitle>위험요인 {candidates.length}건</SectionTitle>
           )}
@@ -97,6 +113,8 @@ export default function VisionPage() {
           ))}
         </section>
       </div>
+      </>
+      )}
     </PageLayout>
   );
 }
